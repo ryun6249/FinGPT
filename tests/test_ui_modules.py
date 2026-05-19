@@ -205,6 +205,12 @@ const quantamentalMain = context.window.FinGPTQuantamentalUi.mainPanel({
           classification: "stable_liquidity_participation",
           used_in_composite_score: false,
         },
+        trend_efficiency_stability: {
+          algorithm_id: "trend_efficiency_stability_v1",
+          trend_efficiency_stability_score: 74.6,
+          classification: "constructive_trend_efficiency",
+          used_in_composite_score: false,
+        },
       },
     },
     chart_data: {
@@ -235,6 +241,8 @@ assert.match(quantamentalMain, /drawdown_recovery_resilience_v1/);
 assert.match(quantamentalMain, /constructive_drawdown_recovery/);
 assert.match(quantamentalMain, /liquidity_participation_stability_v1/);
 assert.match(quantamentalMain, /stable_liquidity_participation/);
+assert.match(quantamentalMain, /trend_efficiency_stability_v1/);
+assert.match(quantamentalMain, /constructive_trend_efficiency/);
 
 const quantamentalTopSignals = context.window.FinGPTQuantamentalUi.topSignals({
   status: "ok",
@@ -316,6 +324,12 @@ const quantamentalKorean = context.window.FinGPTQuantamentalUi.mainPanel({
           algorithm_id: "liquidity_participation_stability_v1",
           liquidity_participation_stability_score: 76.3,
           classification: "stable_liquidity_participation",
+          used_in_composite_score: false,
+        },
+        trend_efficiency_stability: {
+          algorithm_id: "trend_efficiency_stability_v1",
+          trend_efficiency_stability_score: 74.6,
+          classification: "constructive_trend_efficiency",
           used_in_composite_score: false,
         },
       },

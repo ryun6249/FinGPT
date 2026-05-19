@@ -128,6 +128,15 @@ def calculate_quant(payload: dict[str, Any]) -> dict[str, Any]:
         drawdown=drawdown,
         liquidity=liquidity,
     )
+    trend_efficiency_algorithm = _trend_efficiency_stability_algorithm(
+        rows=rows,
+        returns=returns,
+        trend=trend,
+        volatility=volatility,
+        drawdown=drawdown,
+        risk_adjusted=risk_adjusted,
+        liquidity=liquidity,
+    )
     chart_data = {
         "price": _price_chart(rows),
         "cumulative_return": _cumulative_return_chart(rows),
@@ -150,6 +159,7 @@ def calculate_quant(payload: dict[str, Any]) -> dict[str, Any]:
             "volatility_adjusted_breakout": breakout_algorithm,
             "drawdown_recovery_resilience": resilience_algorithm,
             "liquidity_participation_stability": liquidity_stability_algorithm,
+            "trend_efficiency_stability": trend_efficiency_algorithm,
         },
     }
     return {
@@ -852,6 +862,104 @@ def _liquidity_participation_stability_algorithm(
     }
 
 
+def _trend_efficiency_stability_algorithm(
+    *,
+    rows: list[dict[str, Any]],
+    returns: list[float],
+    trend: dict[str, Any],
+    volatility: dict[str, Any],
+    drawdown: dict[str, Any],
+    risk_adjusted: dict[str, Any],
+    liquidity: dict[str, Any],
+) -> dict[str, Any]:
+    closes = [_price(row) for row in rows]
+    available_observations = len(rows)
+    required_observations = 90
+    warnings: list[str] = []
+    if available_observations < required_observations:
+        warnings.append("insufficient_price_history_for_trend_efficiency_stability")
+
+    net_return_63d = _window_return(closes, 63)
+    absolute_path_return_63d = _absolute_return_path(returns, 63)
+    efficiency_ratio_63d = (
+        safe_divide(abs(net_return_63d), absolute_path_return_63d)
+        if net_return_63d is not None and absolute_path_return_63d is not None
+        else None
+    )
+    signed_efficiency_63d = (
+        efficiency_ratio_63d if net_return_63d is not None and net_return_63d >= 0 else -efficiency_ratio_63d
+        if efficiency_ratio_63d is not None
+        else None
+    )
+    positive_share_63d = _positive_return_share(returns, 63)
+    current_drawdown_abs = abs(drawdown.get("current_drawdown")) if drawdown.get("current_drawdown") is not None else None
+
+    efficiency_score = _score_high(signed_efficiency_63d, -0.25, 0.75)
+    trend_score = _avg([
+        _score_high(net_return_63d, -0.12, 0.30),
+        _trend_regime_score(trend.get("trend_regime")),
+        100.0 if trend.get("price_above_sma_50") is True else 30.0 if trend.get("price_above_sma_50") is False else None,
+        100.0 if trend.get("price_above_sma_200") is True else 30.0 if trend.get("price_above_sma_200") is False else None,
+    ])
+    consistency_score = _score_high(positive_share_63d, 0.42, 0.64)
+    volatility_score = _score_low(volatility.get("realized_volatility_60d"), 0.12, 0.75)
+    drawdown_score = _score_low(current_drawdown_abs, 0.0, 0.35)
+    risk_adjusted_score = _score_high(risk_adjusted.get("sharpe_ratio"), -0.5, 2.0)
+    liquidity_score = _score_high(
+        math.log10(liquidity.get("average_dollar_volume")) if liquidity.get("average_dollar_volume") else None,
+        6.0,
+        9.0,
+    )
+    score = _weighted_score(
+        [
+            (efficiency_score, 0.26),
+            (trend_score, 0.22),
+            (consistency_score, 0.16),
+            (volatility_score, 0.12),
+            (drawdown_score, 0.10),
+            (risk_adjusted_score, 0.09),
+            (liquidity_score, 0.05),
+        ],
+        min_components=5,
+    )
+    if available_observations < required_observations:
+        score = None
+
+    return {
+        "algorithm_id": "trend_efficiency_stability_v1",
+        "trend_efficiency_stability_score": score,
+        "classification": _trend_efficiency_stability_classification(score, net_return_63d),
+        "score_direction": "higher means the recent trend advanced efficiently with steadier participation and controlled risk",
+        "required_observations": required_observations,
+        "available_observations": available_observations,
+        "net_return_63d": net_return_63d,
+        "absolute_path_return_63d": absolute_path_return_63d,
+        "efficiency_ratio_63d": efficiency_ratio_63d,
+        "signed_efficiency_63d": signed_efficiency_63d,
+        "positive_return_share_63d": positive_share_63d,
+        "current_drawdown_abs": current_drawdown_abs,
+        "component_scores": {
+            "efficiency": efficiency_score,
+            "trend": trend_score,
+            "consistency": consistency_score,
+            "volatility": volatility_score,
+            "drawdown": drawdown_score,
+            "risk_adjusted": risk_adjusted_score,
+            "liquidity": liquidity_score,
+        },
+        "inputs": {
+            "efficiency_basis": "abs_63d_net_return_divided_by_sum_abs_daily_returns",
+            "trend_window": "63d",
+            "consistency_window": "63d",
+            "risk_window": "60d",
+            "liquidity_basis": "average_dollar_volume_60d",
+        },
+        "warnings": warnings,
+        "not_investment_advice": True,
+        "used_in_composite_score": False,
+    }
+
+
 def _rolling_prior_high(closes: list[float | None], window: int) -> float | None:
     if len(closes) <= window:
         return None
@@ -909,6 +1017,20 @@ def _liquidity_participation_stability_classification(score: float | None, avg_d
     return "fragile_liquidity_participation"
 
 
+def _trend_efficiency_stability_classification(score: float | None, net_return_63d: float | None) -> str:
+    if score is None:
+        return "insufficient_data"
+    if net_return_63d is not None and net_return_63d < 0 and score < 60:
+        return "negative_trend_efficiency"
+    if score >= 75:
+        return "efficient_stable_uptrend"
+    if score >= 60:
+        return "constructive_trend_efficiency"
+    if score >= 45:
+        return "mixed_trend_efficiency"
+    return "inefficient_or_choppy_trend"
+
+
 def _first_numeric(*values: Any) -> float | None:
     for value in values:
         parsed = _finite(value)
@@ -931,6 +1053,14 @@ def _positive_return_share(returns: list[float], window: int) -> float | None:
     if len(nums) < 20:
         return None
     return sum(1 for value in nums if value > 0) / len(nums)
+
+
+def _absolute_return_path(returns: list[float], window: int) -> float | None:
+    nums = [abs(value) for value in returns[-window:] if math.isfinite(value)]
+    if len(nums) < 20:
+        return None
+    total = sum(nums)
+    return total if total > 0 else None
 
 
 def _weighted_score(values: list[tuple[float | None, float]], *, min_components: int = 1) -> float | None:
@@ -1025,6 +1155,7 @@ def _component_scores(metrics: dict[str, Any]) -> dict[str, float | None]:
     breakout_algorithm = algorithms.get("volatility_adjusted_breakout") or {}
     resilience_algorithm = algorithms.get("drawdown_recovery_resilience") or {}
     liquidity_stability_algorithm = algorithms.get("liquidity_participation_stability") or {}
+    trend_efficiency_algorithm = algorithms.get("trend_efficiency_stability") or {}
     return {
         "momentum": _avg([
             _score_high(momentum.get("momentum_3m"), -0.10, 0.20),
@@ -1056,6 +1187,7 @@ def _component_scores(metrics: dict[str, Any]) -> dict[str, float | None]:
         "volatility_adjusted_breakout": _finite(breakout_algorithm.get("volatility_adjusted_breakout_score")),
         "drawdown_recovery_resilience": _finite(resilience_algorithm.get("drawdown_recovery_resilience_score")),
         "liquidity_participation_stability": _finite(liquidity_stability_algorithm.get("liquidity_participation_stability_score")),
+        "trend_efficiency_stability": _finite(trend_efficiency_algorithm.get("trend_efficiency_stability_score")),
     }
 
 

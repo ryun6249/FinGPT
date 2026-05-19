@@ -21,6 +21,7 @@ QuantamentalScoreKey = Literal[
     "liquidity",
     "drawdown_resilience",
     "liquidity_stability",
+    "trend_efficiency",
 ]
 
 
