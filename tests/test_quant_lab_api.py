@@ -40,6 +40,8 @@ def test_quant_config_and_feature_preview_endpoint(tmp_path, monkeypatch) -> Non
 
     assert config.status_code == 200
     assert any(item["factor_id"] == "momentum_63d" for item in config.json()["factors"])
+    assert any(item["factor_id"] == "risk_adjusted_momentum_63_21" for item in config.json()["factors"])
+    assert "risk_adjusted_momentum" in config.json()["signal_templates"]
     assert preview.status_code == 200
     assert preview.json()["status"] == "success"
     assert preview.json()["diagnostics"]["freshness_policy"]["policy_id"] == "daily_price_t_plus_3_market_days"

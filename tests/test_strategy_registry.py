@@ -8,6 +8,10 @@ def test_default_strategy_registry_contains_no_lookahead_policy() -> None:
     strategies = list_strategies()
 
     assert get_strategy("momentum_ranking_v1") is not None
+    risk_adjusted = get_strategy("risk_adjusted_momentum_v1")
+    assert risk_adjusted is not None
+    assert risk_adjusted["features"]["risk_adjusted_momentum_63_21"]["id"] == "risk_adjusted_momentum_63_21"
+    assert risk_adjusted["signal"]["score_mode"] == "risk_adjusted_momentum"
     assert all(item["execution"]["trade_at"] == "next_bar_close" for item in strategies)
 
 

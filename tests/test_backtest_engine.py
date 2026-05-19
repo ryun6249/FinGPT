@@ -60,6 +60,26 @@ def test_momentum_ranking_uses_prior_history_and_records_turnover() -> None:
     assert result["rebalance_snapshots"][0]["rejected"] == ["BBB"]
 
 
+def test_risk_adjusted_momentum_ranking_records_score_mode() -> None:
+    result = run_momentum_ranking_backtest(
+        {
+            "SMOOTH": _rows([100 + idx for idx in range(30)]),
+            "CHOPPY": _rows([100 + idx * 2 + (18 if idx % 2 else -18) for idx in range(30)]),
+        },
+        lookback=5,
+        top_n=1,
+        rebalance_every=1,
+        score_mode="risk_adjusted_momentum",
+        config=BacktestConfig(transaction_cost_bps=0, slippage_bps=0),
+    )
+
+    assert result["status"] == "success"
+    assert result["strategy"] == "risk_adjusted_momentum"
+    assert result["assumptions"]["score_mode"] == "risk_adjusted_momentum"
+    assert result["rebalance_snapshots"][0]["selected"] == ["SMOOTH"]
+    assert result["rebalance_snapshots"][0]["scores"]["SMOOTH"] > result["rebalance_snapshots"][0]["scores"]["CHOPPY"]
+
+
 def test_multi_asset_buy_and_hold_builds_single_portfolio_curve() -> None:
     result = run_multi_asset_backtest(
         {

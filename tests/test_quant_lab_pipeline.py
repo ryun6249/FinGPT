@@ -91,6 +91,7 @@ def test_feature_and_signal_preview_use_data_mart(tmp_path, monkeypatch) -> None
 
     assert features.status == "success"
     assert features.rows[0].features["momentum_63d"] is not None
+    assert features.rows[0].features["risk_adjusted_momentum_63_21"] is not None
     assert features.diagnostics.freshness_policy["policy_id"] == "daily_price_t_plus_3_market_days"
     assert features.diagnostics.asset_freshness["SPY"]["latest_price_date"] == "2026-03-31"
     assert signals.rows[0].lookahead_policy == "close_signal_next_bar_execution"
@@ -546,6 +547,30 @@ def test_quant_backtest_maps_moving_average_template_to_existing_engine(tmp_path
     assert result.status == "success"
     assert result.template == "moving_average_trend"
     assert result.diagnostics.lookahead_safe is True
+
+
+def test_quant_backtest_supports_risk_adjusted_momentum_template(tmp_path, monkeypatch) -> None:
+    db_path = tmp_path / "research_mart.db"
+    _seed_prices(db_path)
+    monkeypatch.setenv("DATA_MART_DB_PATH", str(db_path))
+    monkeypatch.setattr(quant_lab_pipeline, "ARTIFACT_ROOT", tmp_path / "artifacts")
+
+    result = run_quant_backtest(
+        QuantBacktestRequest(
+            tickers=["SPY", "QQQ", "TLT"],
+            benchmark="SPY",
+            template="risk_adjusted_momentum",
+            lookback=21,
+            top_n=2,
+        )
+    )
+    config = load_backtest_artifact(result.run_id, "config")
+
+    assert result.status == "success"
+    assert result.template == "risk_adjusted_momentum"
+    assert config["expanded_features"][1]["id"] == "risk_adjusted_momentum_63_21"
+    assert result.signals[0]["factor_values"]["risk_adjusted_momentum_63_21"] is not None
+    assert result.weights[0]["scores"]
 
 
 def test_signal_preview_reports_research_score_provenance(tmp_path, monkeypatch) -> None:

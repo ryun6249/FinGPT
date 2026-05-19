@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from pipelines.factors.core import momentum_return
+from pipelines.factors.core import momentum_return, realized_volatility
 from pipelines.backtest.metrics import performance_metrics
 
 
@@ -128,6 +128,7 @@ def run_momentum_ranking_backtest(
     lookback: int = 21,
     top_n: int = 1,
     rebalance_every: int = 21,
+    score_mode: str = "momentum",
     config: BacktestConfig | None = None,
 ) -> dict[str, Any]:
     config = config or BacktestConfig(strategy="momentum_ranking")
@@ -164,6 +165,8 @@ def run_momentum_ranking_backtest(
     }
     top_n = max(1, min(int(top_n), len(prices)))
     rebalance_every = max(1, int(rebalance_every))
+    score_mode = "risk_adjusted_momentum" if str(score_mode or "").lower() == "risk_adjusted_momentum" else "momentum"
+    strategy_name = "risk_adjusted_momentum" if score_mode == "risk_adjusted_momentum" else "momentum_ranking"
     cost = (float(config.transaction_cost_bps) + float(config.slippage_bps)) / 10000.0
     equity = [float(config.initial_capital)]
     weights = {asset: 0.0 for asset in prices}
@@ -180,7 +183,7 @@ def run_momentum_ranking_backtest(
             scores: list[tuple[str, float]] = []
             for asset in prices:
                 history = [prices[asset][d] for d in common_dates[:idx] if prices[asset].get(d) is not None]
-                score = momentum_return(history, lookback=lookback)
+                score = _ranking_score(history, lookback=lookback, score_mode=score_mode)
                 if score is not None:
                     scores.append((asset, score))
             ranked = sorted(scores, key=lambda item: item[1], reverse=True)
@@ -205,7 +208,7 @@ def run_momentum_ranking_backtest(
                             cost_rate=cost,
                             transaction_cost_bps=config.transaction_cost_bps,
                             slippage_bps=config.slippage_bps,
-                            reason="momentum_ranking_rebalance",
+                            reason=f"{strategy_name}_rebalance",
                             selected=asset in selected,
                             score=score_map.get(asset),
                         )
@@ -245,11 +248,12 @@ def run_momentum_ranking_backtest(
     )
     return {
         "status": "success",
-        "strategy": "momentum_ranking",
+        "strategy": strategy_name,
         "assumptions": {
             "lookback": lookback,
             "top_n": top_n,
             "rebalance_every": rebalance_every,
+            "score_mode": score_mode,
             "transaction_cost_bps": config.transaction_cost_bps,
             "slippage_bps": config.slippage_bps,
             "lookahead_policy": "ranking uses history through the previous close before applying weights",
@@ -261,6 +265,25 @@ def run_momentum_ranking_backtest(
         "rebalance_snapshots": rebalance_snapshots,
         "metrics": metrics,
     }
+
+
+def _ranking_score(
+    prices: list[float],
+    *,
+    lookback: int,
+    score_mode: str,
+) -> float | None:
+    momentum = momentum_return(prices, lookback=lookback)
+    if momentum is None:
+        return None
+    if score_mode != "risk_adjusted_momentum":
+        return momentum
+    volatility_lookback = min(21, max(2, int(lookback)))
+    volatility = realized_volatility(prices, lookback=volatility_lookback)
+    if volatility is None:
+        return None
+    denominator = max(abs(float(volatility)), 0.01)
+    return momentum / denominator
 
 
 def run_multi_asset_backtest(

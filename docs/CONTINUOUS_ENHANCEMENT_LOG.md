@@ -939,3 +939,117 @@
 - [x] README update not needed
 - [x] PR summary includes changed files
 - [x] PR summary includes validation result
+
+## 2026-05-19 Continuous Enhancement Run 13:05
+
+## Current Project Summary
+- Project purpose: FastAPI-served local financial research workstation for market, macro, Quant Lab, Quantamental, ML Forecast, AI Portfolio, and grounded AI briefing workflows.
+- Main frontend structure: Static `/ui/` shell under `app/web/index.html`, `app/web/app.js`, `app/web/styles.css`, with small domain modules under `app/web/modules/`.
+- Main backend structure: FastAPI app in `app/api/server.py`, routers under `app/api/routers/`, shared contracts in `core/schemas/`, and services under `pipelines/`.
+- Data flow: UI controls call `/api/v1/*`; Python routers/services normalize provider/cache data before rendering dashboard cards, charts, tables, strategy data, and briefing panels.
+- AI/LLM flow: `/api/v1/config` exposes runtime-checked Qwen/Gemma options; this run did not add background LLM calls or change AI model routing.
+- Visualization flow: Static cards/charts render from server payloads; global range, quality summary, and panel filters remain the primary dashboard context controls.
+- Testing flow: Python contract scripts/tests, API route tests, JS syntax checks, browser DOM checks, and Playwright screenshots are the current lightweight validation path.
+
+## Current Problems
+- Compatibility: The clean stacked branch still lacks the broader Quantamental router/service files present only in another dirty worktree; `tests/test_quantamental_api.py` remains blocked at import collection.
+- Data consistency: Quant Lab strategy data exposed momentum and volatility separately, but did not include a first-class risk-adjusted momentum factor/template for rank-based strategy evaluation.
+- UI consistency: Quant Lab strategy dropdown did not expose the new risk-adjusted template because it did not exist yet.
+- Visualization: No chart renderer logic changed; Quant Lab strategy labels and artifact data remain the visible interpretation layer for this slice.
+- AI briefing: No AI prompt/model behavior changed; existing Quantamental AI guardrails were not touched.
+- Data freshness: Existing Quant Lab freshness profiles and top-right quality summary remain unchanged.
+- Translation quality: Added Korean UI label `위험조정 모멘텀`; no ticker/date/number translation path changed.
+- Performance: The new algorithm reuses the existing factor preview/backtest pipeline and does not add polling, provider calls, or synchronous LLM work.
+- Code structure: The implementation stays inside existing factor, signal, backtest, strategy registry, API config, UI, and test boundaries.
+- User experience: Users can now select a volatility-aware momentum strategy from Quant Lab and from Strategy Governance defaults.
+
+## Enhancement Plan
+- Priority 1: Add deterministic `risk_adjusted_momentum_63_21` factor data to the Quant Lab factor catalog and default feature set.
+- Priority 2: Add `risk_adjusted_momentum` signal/backtest template while preserving the next-bar execution and no-lookahead policy.
+- Priority 3: Expose the strategy through default strategy data and Quant Lab UI without changing existing strategy semantics.
+
+## Validation Plan
+- Build: No repo-level frontend package manifest; validate with syntax checks and Python contracts.
+- Lint: Use `git diff --check`; no JS lint command is configured.
+- Unit test: Run factor, signal, backtest, strategy registry, Quant Lab API/pipeline tests.
+- Integration test: Run `/api/v1/quant/config`, `/api/v1/quant/strategy/list`, static UI contract, and live server checks.
+- UI test: Verify Quant Lab tab in browser and capture mobile Playwright screenshot.
+- Data quality test: Verify the strategy uses `data_mart:prices_daily`, freshness policy diagnostics, and persisted artifact data snapshot.
+- AI hallucination guard test: Not changed in this slice; verify no new LLM or AI briefing behavior was added.
+
+### 13:05 Changes
+
+- Compatibility: Existing strategy templates, API request/response shapes, execution policy, secrets, and trading/order code were not changed.
+- Data Consistency: Added `risk_adjusted_momentum_63_21`, computed as 63-day momentum divided by 21-day realized volatility with a deterministic volatility floor.
+- UI/UX: Added `위험조정 모멘텀` to the Quant Lab strategy selector and Strategy Governance mapping.
+- Visualization: No chart math changed; the new strategy label and score mode are visible in Quant Lab strategy/report surfaces.
+- AI Briefing: No AI prompt/model changes; the new quant algorithm is deterministic and does not ask the model to invent metrics.
+- Translation: The new Korean UI label is static, concise, and does not alter ticker/date/unit formatting.
+- Performance: The algorithm reuses existing in-memory price arrays and factor preview data; no new provider fetch path or background loop was added.
+
+### 13:05 Validation Results
+
+| Check | Command / Tool | Result | Notes |
+|---|---|---|---|
+| Python syntax | `python -m py_compile pipelines/factors/core.py pipelines/factors/catalog.py pipelines/signals/rule_based.py pipelines/backtest/engine.py pipelines/orchestration/quant_lab_pipeline.py pipelines/strategies/registry.py scripts/check_ui_contract.py scripts/ai_portfolio_ui_smoke.py` | Passed | New factor, strategy, and contract files compile. |
+| JS syntax | `node --check app/web/app.js` | Passed | Static UI controller parses. |
+| Strategy data JSON | PowerShell heredoc piped to `python -` JSON load | Passed | `config/quant_strategies/defaults.yaml` remains valid JSON content. |
+| UI contract | `python scripts/check_ui_contract.py --output reports/ui_contract_continuous_20260519_1305_pretest.json` | Passed | New risk-adjusted option and JS label markers included. |
+| Targeted quant tests | `python -m pytest tests/test_factor_catalog.py tests/test_signal_generation.py tests/test_backtest_engine.py tests/test_strategy_registry.py -q` | Passed | `18 passed`. |
+| Quant Lab/API/UI routing tests | `python -m pytest tests/test_quant_lab_pipeline.py tests/test_quant_lab_api.py tests/test_ui_routing_contract.py tests/test_api_routing_contract.py -q` | Passed | `81 passed, 4 subtests passed`. |
+| Focused rerun | `python -m pytest tests/test_backtest_engine.py tests/test_quant_lab_pipeline.py tests/test_quant_lab_api.py -q` | Passed | `33 passed`. |
+| Full pytest | `python -m pytest -q` | Blocked | Existing clean-branch blocker: `ImportError: cannot import name 'service' from 'pipelines.quantamental'`; `pipelines/quantamental/service.py` is absent in this worktree. |
+| Diff hygiene | `git diff --check` | Passed | Only expected Windows CRLF conversion warnings. |
+| Live API | `GET /api/v1/quant/config`; `GET /api/v1/quant/strategy/list` on `http://127.0.0.1:8413` | Passed | `risk_adjusted_momentum` template and `risk_adjusted_momentum_v1` strategy returned. |
+| Browser UI | Browser MCP at `http://host.docker.internal:8413/ui/?range=1Y#quant` | Passed with known unrelated console error | Quant Lab active, `panelView=all`, risk-adjusted option visible/selectable, no desktop horizontal overflow. Console error is the known clean-branch missing Quantamental watchlist route. |
+| Mobile screenshot | `npx playwright screenshot --viewport-size "390,900" http://127.0.0.1:8413/ui/?range=1Y#quant reports/ui_continuous_20260519_1305_quant_mobile.png` | Passed | Mobile screenshot written; direct Node Playwright DOM check was unavailable because local `playwright` module is not installed. |
+
+### 13:05 Completion Checklist
+
+#### Compatibility
+- [x] Existing UI/API flows touched by this run still work
+- [x] Existing API contracts were not broken
+- [x] Existing UI flow is preserved
+- [x] No unauthorized strategy entry/exit condition changed
+- [x] No secret or env file exposure
+
+#### Data
+- [x] New risk-adjusted factor is deterministic and uses price data from `data_mart:prices_daily`
+- [x] Factor preview, signal, and backtest use the same selected Quant Lab date/range inputs
+- [x] Data source and freshness diagnostics remain present
+- [x] Missing data behavior was not relaxed or fabricated
+- [x] Data quality summary remains visible at top-right
+- [x] Cache/fresh distinction remains unchanged
+
+#### UI
+- [x] Default view remains All
+- [x] Core/Diagnostics/Operations filters still exist
+- [x] New strategy option is visible and selectable in Quant Lab
+- [x] Desktop browser DOM showed no horizontal overflow
+- [x] Mobile screenshot captured
+- [x] Loading/empty/error markers remain in static contract
+
+#### Visualization
+- [x] Chart contracts were not changed
+- [x] Period controls still render
+- [x] Strategy label and score mode are visible in Quant Lab report paths
+
+#### AI Briefing
+- [x] Gemma/Qwen availability remains runtime-checked through existing config
+- [x] Model selection remains truthful
+- [x] No unsupported AI facts or generated metrics were added
+- [x] New quant calculations are computed in code, not by AI
+
+#### Validation
+- [x] Lint/diff hygiene executed
+- [x] Build exclusion documented
+- [x] Tests executed with existing blocker documented
+- [x] UI validation executed
+- [x] Data validation executed through API/config/tests
+- [x] AI briefing validation documented as unchanged
+
+#### Documentation
+- [x] `docs/CONTINUOUS_ENHANCEMENT_LOG.md` updated
+- [x] README update not needed
+- [x] PR summary includes changed files
+- [x] PR summary includes validation result
