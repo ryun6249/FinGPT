@@ -131,9 +131,9 @@ class UiRoutingContractTests(unittest.TestCase):
         self.assertIn('src="modules/forecast-ui.js?v=20260514-domain-modules"', html)
         self.assertIn('src="modules/quant-ui.js?v=20260514-domain-modules"', html)
         self.assertIn('src="modules/ai-portfolio-ui.js?v=20260514-domain-modules"', html)
-        self.assertIn('src="modules/quantamental-ui.js?v=20260519-quantamental-v13"', html)
+        self.assertIn('src="modules/quantamental-ui.js?v=20260519-quantamental-v14"', html)
         self.assertIn('href="styles.css?v=20260519-continuous-enhancement-v3"', html)
-        self.assertIn('src="app.js?v=20260519-continuous-enhancement-v3"', html)
+        self.assertIn('src="app.js?v=20260519-continuous-enhancement-v4"', html)
         self.assertIn('id="dashboardContextStrip"', html)
         self.assertIn("dashboardDecisionCards", self.source)
         self.assertIn("function loadDashboardDecisionCards", self.source)
@@ -153,8 +153,8 @@ class UiRoutingContractTests(unittest.TestCase):
     def test_cross_dashboard_smoke_tracks_current_bundle_and_quantamental(self):
         smoke_source = AI_PORTFOLIO_UI_SMOKE.read_text(encoding="utf-8")
         self.assertIn('DOMAIN_BUNDLE_VERSION = "20260514-domain-modules"', smoke_source)
-        self.assertIn('QUANTAMENTAL_BUNDLE_VERSION = "20260519-quantamental-v13"', smoke_source)
-        self.assertIn('APP_BUNDLE_VERSION = "20260519-continuous-enhancement-v3"', smoke_source)
+        self.assertIn('QUANTAMENTAL_BUNDLE_VERSION = "20260519-quantamental-v14"', smoke_source)
+        self.assertIn('APP_BUNDLE_VERSION = "20260519-continuous-enhancement-v4"', smoke_source)
         self.assertIn("def _normalize_base_url", smoke_source)
         self.assertIn("modules/quantamental-ui.js", smoke_source)
         self.assertIn("FinGPTQuantamentalUi?.topSignals", smoke_source)
@@ -653,6 +653,8 @@ class UiRoutingContractTests(unittest.TestCase):
         self.assertIn("quality_adjusted_momentum_v1", module_source)
         self.assertIn("quantamental-volatility-breakout-algorithm", module_source)
         self.assertIn("volatility_adjusted_breakout_v1", module_source)
+        self.assertIn("quantamental-drawdown-resilience-algorithm", module_source)
+        self.assertIn("drawdown_recovery_resilience_v1", module_source)
         self.assertIn("model: aiOptions.model", self.source)
         self.assertIn("risk_adjusted_momentum_63d", self.source)
         self.assertIn("risk_adjusted_momentum", self.source)
@@ -842,7 +844,7 @@ class UiRoutingContractTests(unittest.TestCase):
             'data-testid="quantamental-score-screen-run"',
             'id="quantamentalScoreScreenStatus"',
             'id="quantamentalScoreScreenSurface"',
-            'src="modules/quantamental-ui.js?v=20260519-quantamental-v13"',
+            'src="modules/quantamental-ui.js?v=20260519-quantamental-v14"',
         ]:
             self.assertIn(marker, html)
         for marker in [
@@ -853,6 +855,7 @@ class UiRoutingContractTests(unittest.TestCase):
             "API.quantamentalTopSignals",
             "API.quantamentalScoreScreen",
             "score_key",
+            "drawdown_resilience",
             "function loadQuantamental",
             "function runQuantamentalAnalysis",
             "function runQuantamentalCompare",

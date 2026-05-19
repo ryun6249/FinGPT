@@ -193,6 +193,12 @@ const quantamentalMain = context.window.FinGPTQuantamentalUi.mainPanel({
           classification: "constructive_breakout_setup",
           used_in_composite_score: false,
         },
+        drawdown_recovery_resilience: {
+          algorithm_id: "drawdown_recovery_resilience_v1",
+          drawdown_recovery_resilience_score: 73.1,
+          classification: "constructive_drawdown_recovery",
+          used_in_composite_score: false,
+        },
       },
     },
     chart_data: {
@@ -219,6 +225,8 @@ assert.match(quantamentalMain, /QAM Score/);
 assert.match(quantamentalMain, /constructive_quality_adjusted_momentum/);
 assert.match(quantamentalMain, /volatility_adjusted_breakout_v1/);
 assert.match(quantamentalMain, /constructive_breakout_setup/);
+assert.match(quantamentalMain, /drawdown_recovery_resilience_v1/);
+assert.match(quantamentalMain, /constructive_drawdown_recovery/);
 
 const quantamentalTopSignals = context.window.FinGPTQuantamentalUi.topSignals({
   status: "ok",
@@ -288,6 +296,12 @@ const quantamentalKorean = context.window.FinGPTQuantamentalUi.mainPanel({
           algorithm_id: "volatility_adjusted_breakout_v1",
           volatility_adjusted_breakout_score: 68.2,
           classification: "constructive_breakout_setup",
+          used_in_composite_score: false,
+        },
+        drawdown_recovery_resilience: {
+          algorithm_id: "drawdown_recovery_resilience_v1",
+          drawdown_recovery_resilience_score: 73.1,
+          classification: "constructive_drawdown_recovery",
           used_in_composite_score: false,
         },
       },

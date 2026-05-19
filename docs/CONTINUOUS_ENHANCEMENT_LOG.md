@@ -228,6 +228,129 @@
 - [x] PR summary includes changed files
 - [x] PR summary includes validation result
 
+## 2026-05-19 Continuous Enhancement Run 15:01
+
+### Current Project Summary
+- Project purpose: FastAPI-served local financial research workstation with deterministic market, macro, Quant Lab, Quantamental, ML Forecast, and AI Portfolio workflows. AI is an interpreter over grounded data, not a replacement for deterministic scoring.
+- Main frontend structure: static `app/web/index.html`, `app/web/app.js`, shared CSS, and domain modules under `app/web/modules`; dashboard panels keep `Core / Diagnostics / Operations / All` with `All` as the default.
+- Main backend structure: FastAPI routes under `app/api/routers`, schema contracts under `core/schemas`, and domain services under `pipelines`.
+- Data flow: UI controls call `/api/v1/*`; routers validate requests; services fetch/cache provider data; deterministic engines produce typed payloads; UI quality/range summaries render from returned payloads.
+- AI/LLM flow: Quantamental AI report/Q&A use deterministic engine snapshots and runtime-checked model selection; default remains deterministic guardrail unless an explicit model request is made.
+- Visualization flow: Quantamental overview renders price, return, volatility, drawdown, volume, fundamentals, and annotated algorithm diagnostics with clear axis notes and missing-value handling.
+- Testing flow: Python/pytest-first with `scripts/check_ui_contract.py`, JS syntax checks, targeted pytest, full pytest, live API smoke, Browser checks, and Playwright smoke scripts. There is still no `package.json`/pnpm build surface.
+
+### Current Problems
+- Compatibility: Existing API contracts are stable; new score-screen keys must stay additive.
+- Data consistency: Current data quality, range, and observation summaries work; new diagnostic algorithms must expose required/available observations and avoid composite-score side effects.
+- UI consistency: Existing QAM/VAB algorithm summaries were visible; additional algorithms need the same concise treatment without cluttering normal tabs.
+- Visualization: Overview already explains axes; new diagnostic values should appear as compact KPI/summary rows.
+- AI briefing: AI context already includes QAM/VAB; new deterministic diagnostics must be added to AI used-data/key-change context without letting AI invent signals.
+- Data freshness: Top-right quality badge remains the user-facing status surface; no freshness rules changed in this run.
+- Translation quality: English/Korean labels must preserve ticker, numeric, date, and unit values.
+- Performance: No background polling or new provider calls should be added for the diagnostic.
+- Code structure: Keep the algorithm inside `pipelines/quantamental/quant_engine.py` and expose it through existing adapters.
+- User experience: Score Threshold Screener should allow screening on the new risk-recovery diagnostic while preserving the single-ticker flow.
+
+### Enhancement Plan
+- Priority 1: Add an additive `drawdown_recovery_resilience_v1` Quantamental diagnostic using existing price/volume/risk-adjusted inputs only.
+- Priority 2: Expose the diagnostic through `quant.metrics.algorithms`, component scores, health metadata, AI context, and score-threshold screening.
+- Priority 3: Add UI labels, summary rows, score-screen option, tests, and live Browser verification without changing strategy/order/composite logic.
+
+### Validation Plan
+- Build: no npm/pnpm build exists; run JS syntax and Python compile/static gates.
+- Lint: run ruff on changed Python surfaces.
+- Unit test: run targeted Quantamental engine/API/UI tests and full pytest.
+- Integration test: smoke `/api/v1/quantamental/health`, `/analysis/AAPL`, and score-screen paths.
+- UI test: Browser desktop/mobile plus `scripts/quantamental_ui_smoke.py`.
+- Data quality test: verify top-right quality summary still shows status, basis date, update time, period, observations, missing, and AI basis after analysis.
+- AI hallucination guard test: verify deterministic AI report includes the new algorithm in `key_changes` and remains advisory-only.
+
+### Changes Made
+- Compatibility: Added `drawdown_resilience` as an additive `QuantamentalScoreKey`; existing score keys and default composite screening remain unchanged.
+- Data consistency: Added `drawdown_recovery_resilience_v1` with required/available observations, input provenance, component scores, warnings, and `used_in_composite_score=false`.
+- UI/UX: Added DRS score/class rows to Quantamental overview and score summary, plus a Score Threshold Screener option labeled `Drawdown Resilience` / `낙폭 회복`.
+- Visualization: DRS now appears next to QAM/VAB in the compact overview metric strip and algorithm summary blocks.
+- AI Briefing: Added DRS to `quant_snapshot` and deterministic AI `key_changes` as `drawdown_recovery_algorithm`; AI still interprets deterministic outputs only.
+- Translation: Added concise English/Korean labels; ticker/date/number/unit handling was not changed.
+- Performance: Reused already-loaded price, return, volatility, drawdown, risk-adjusted, and liquidity vectors; no provider call or background polling was added.
+- Safety: No trading/order execution code, strategy entry/exit logic, secrets, `.env`, provider selection, or composite scoring weights were changed.
+
+### 15:01 Validation Results
+
+| Check | Command / Tool | Result | Notes |
+|---|---|---|---|
+| Python syntax | `python -m py_compile pipelines\quantamental\quant_engine.py pipelines\quantamental\service.py pipelines\quantamental\ai_service.py core\schemas\quantamental.py scripts\check_ui_contract.py scripts\quantamental_ui_smoke.py scripts\ai_portfolio_ui_smoke.py` | Passed | Changed Python surfaces compile. |
+| JS syntax | `node --check app\web\modules\quantamental-ui.js` and `node --check app\web\app.js` | Passed | Static UI JavaScript syntax. |
+| Lint | `python -m ruff check pipelines\quantamental\quant_engine.py pipelines\quantamental\service.py pipelines\quantamental\ai_service.py core\schemas\quantamental.py tests\test_quantamental_api.py tests\test_quantamental_engines.py` | Passed | Changed Python implementation/tests pass lint. |
+| UI contract | `python scripts\check_ui_contract.py` | Passed | v14 Quantamental bundle, DRS markers, and UI contracts present. |
+| Targeted tests | `python -m pytest tests\test_quantamental_engines.py tests\test_quantamental_api.py tests\test_ui_modules.py tests\test_ui_routing_contract.py -q` | Passed | `81 passed, 4 subtests passed`. |
+| Full regression | `python -m pytest -q` | Passed | `693 passed, 9 subtests passed`. |
+| Live health/API | `GET /api/v1/quantamental/health`; `GET /api/v1/quantamental/analysis/AAPL?include_ai=true&use_llm=false&lookback=252&output_language=en` on `127.0.0.1:8000` | Passed | Health lists `drawdown_recovery_resilience_v1`; AAPL returned DRS score and AI `drawdown_recovery_algorithm`. |
+| Browser desktop UI | Browser at `http://127.0.0.1:8000/ui/?range=1Y#quantamental` | Passed | `panelView=all`, range `1Y`, quality badge populated, DRS visible, Drawdown Resilience screen returned 10 rows, no console errors or horizontal overflow. |
+| Browser mobile UI | Browser viewport `390x900` | Passed | All view, top quality summary, DRS score option, and no horizontal overflow confirmed. |
+| Quantamental browser smoke | `python scripts\quantamental_ui_smoke.py --base-url http://127.0.0.1:8000 --output reports\quantamental_ui_smoke_continuous_20260519_1501.json` | Passed | Required ticker set, invalid ticker, GLOBAL resolver, Top 5, Drawdown Resilience score screen, overview axes, AI/Q&A, and audit smoke passed. |
+| Cross-tab browser smoke | `python scripts\ai_portfolio_ui_smoke.py --base-url http://127.0.0.1:8000 --timeout-s 180 --output reports\ai_portfolio_ui_smoke_continuous_20260519_1501.json` | Retried | First run timed out on Macro series search after 180s; console errors were empty. |
+| Cross-tab browser smoke retry | `python scripts\ai_portfolio_ui_smoke.py --base-url http://127.0.0.1:8000 --timeout-s 240 --output reports\ai_portfolio_ui_smoke_continuous_20260519_1501_retry.json` | Passed | Versioned scripts, dashboard tab matrix, Quantamental language/top5/score screen, and action smoke passed. |
+| npm/pnpm build/lint/test | Not run | Excluded | Repo has no `package.json`, `pnpm-lock.yaml`, or frontend build manifest. |
+
+### 15:01 Completion Checklist
+
+#### Compatibility
+- [x] Existing features still work
+- [x] Existing API contracts are not broken
+- [x] Existing UI flow is preserved
+- [x] No unauthorized strategy logic change
+- [x] No secret or env file exposure
+
+#### Data
+- [x] Date range selection works
+- [x] KPI/chart/table use the same selected period in the checked Quantamental flow
+- [x] Data source and basis date are displayed
+- [x] Missing data is handled
+- [x] Data quality summary is visible at top-right
+- [x] Cache/fresh data distinction is clear
+
+#### UI
+- [x] Default view is All
+- [x] Core/Diagnostics/Operations filters still exist
+- [x] Font sizes are readable in the checked Quantamental surface
+- [x] Layout spacing is consistent in checked desktop/mobile surfaces
+- [x] Cards/tables/charts are aligned
+- [x] Mobile layout is acceptable
+- [x] Loading state exists
+- [x] Empty state exists
+- [x] Error state exists
+
+#### Visualization
+- [x] Chart titles are meaningful
+- [x] Axis labels are readable
+- [x] Tooltips/legends remain useful
+- [x] Period selection updates checked Quantamental results
+- [x] No chart overflow or label collision observed in Browser checks
+
+#### AI Briefing
+- [x] Gemma/Qwen availability remains runtime-checked
+- [x] Model selection is not fake
+- [x] AI output includes used data period
+- [x] AI output includes basis/source/observation count
+- [x] AI does not invent unsupported numbers
+- [x] Unverified facts are marked unavailable by existing guardrails
+- [x] Translation preserves numbers/dates/units in tested API/UI paths
+
+#### Validation
+- [x] Lint executed or reason documented
+- [x] Build executed or reason documented
+- [x] Tests executed or reason documented
+- [x] UI validation executed or reason documented
+- [x] Data validation executed or reason documented
+- [x] AI briefing validation executed or reason documented
+
+#### Documentation
+- [x] docs/CONTINUOUS_ENHANCEMENT_LOG.md updated
+- [x] README updated if needed
+- [x] PR summary includes changed files
+- [x] PR summary includes validation result
+
 ## 2026-05-19 Continuous Enhancement Run 09:20 Final
 
 - Branch: `automation/continuous-enhancement-20260519-0920`.

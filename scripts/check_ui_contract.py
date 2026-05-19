@@ -289,7 +289,7 @@ REQUIRED_UI_MARKERS: dict[str, str] = {
     "forecast ui module": 'modules/forecast-ui.js?v=20260514-domain-modules',
     "quant ui module": 'modules/quant-ui.js?v=20260514-domain-modules',
     "ai portfolio ui module": 'modules/ai-portfolio-ui.js?v=20260514-domain-modules',
-    "quantamental ui module": 'modules/quantamental-ui.js?v=20260519-quantamental-v13',
+    "quantamental ui module": 'modules/quantamental-ui.js?v=20260519-quantamental-v14',
     "ai portfolio operation hydrate": 'id="aiPortfolioHydrateData"',
     "ai portfolio operation retry": 'id="aiPortfolioRetryMissing"',
     "ai portfolio snapshot job": 'id="aiPortfolioSnapshotJob"',
@@ -378,6 +378,8 @@ REQUIRED_QUANTAMENTAL_MODULE_MARKERS: dict[str, str] = {
     "quantamental quality adjusted momentum algorithm": "quality_adjusted_momentum_v1",
     "quantamental volatility adjusted breakout summary": "quantamental-volatility-breakout-algorithm",
     "quantamental volatility adjusted breakout algorithm": "volatility_adjusted_breakout_v1",
+    "quantamental drawdown resilience summary": "quantamental-drawdown-resilience-algorithm",
+    "quantamental drawdown resilience algorithm": "drawdown_recovery_resilience_v1",
 }
 
 

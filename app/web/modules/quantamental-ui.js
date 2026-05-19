@@ -1,6 +1,7 @@
 (function initQuantamentalUi(global) {
   const QUALITY_ADJUSTED_MOMENTUM_ID = "quality_adjusted_momentum_v1";
   const VOLATILITY_ADJUSTED_BREAKOUT_ID = "volatility_adjusted_breakout_v1";
+  const DRAWDOWN_RECOVERY_RESILIENCE_ID = "drawdown_recovery_resilience_v1";
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -73,6 +74,9 @@
       vabScore: "VAB Score",
       vabClass: "VAB Class",
       vabNotInComposite: "Volatility-adjusted breakout is a secondary quant diagnostic and is not used in the composite score.",
+      drsScore: "DRS Score",
+      drsClass: "DRS Class",
+      drsNotInComposite: "Drawdown recovery resilience is a secondary quant diagnostic and is not used in the composite score.",
       maxDrawdown: "Max Drawdown",
       latestFiling: "Latest Filing",
       revenue: "Revenue",
@@ -193,6 +197,7 @@
         momentum: "Momentum",
         lowVolatility: "Low Volatility",
         liquidity: "Liquidity",
+        drawdownResilience: "Drawdown Resilience",
       },
       chart: {
         priceTitle: "Price + SMA",
@@ -288,6 +293,9 @@
       vabScore: "VAB 점수",
       vabClass: "VAB 분류",
       vabNotInComposite: "변동성 조정 돌파는 보조 퀀트 진단 지표이며 복합 점수에는 반영하지 않습니다.",
+      drsScore: "DRS 점수",
+      drsClass: "DRS 분류",
+      drsNotInComposite: "낙폭 회복 탄력성은 보조 퀀트 진단 지표이며 복합 점수에는 반영하지 않습니다.",
       maxDrawdown: "최대 낙폭",
       latestFiling: "최근 공시",
       revenue: "매출",
@@ -408,6 +416,7 @@
         momentum: "모멘텀",
         lowVolatility: "저변동성",
         liquidity: "유동성",
+        drawdownResilience: "낙폭 회복",
       },
       chart: {
         priceTitle: "가격 + SMA",
@@ -567,8 +576,9 @@
     const key = String(value || "").toLowerCase();
     if (key.includes("no_confirmed")) return "warn";
     if (key.includes("confirmed")) return "ok";
+    if (key.includes("resilient")) return "ok";
     if (key.includes("strong") || key.includes("constructive")) return "ok";
-    if (key.includes("weak")) return "fail";
+    if (key.includes("weak") || key.includes("fragile")) return "fail";
     if (key.includes("mixed") || key.includes("insufficient")) return "warn";
     return "neutral";
   }
@@ -605,9 +615,11 @@
     const algorithm = metrics.algorithm || {};
     const algorithms = metrics.algorithms || {};
     const breakout = algorithms.volatility_adjusted_breakout || metrics.volatility_adjusted_breakout || {};
-    if (!algorithm.algorithm_id && !breakout.algorithm_id) return "";
+    const resilience = algorithms.drawdown_recovery_resilience || metrics.drawdown_recovery_resilience || {};
+    if (!algorithm.algorithm_id && !breakout.algorithm_id && !resilience.algorithm_id) return "";
     const algorithmId = algorithm.algorithm_id || QUALITY_ADJUSTED_MOMENTUM_ID;
     const breakoutId = breakout.algorithm_id || VOLATILITY_ADJUSTED_BREAKOUT_ID;
+    const resilienceId = resilience.algorithm_id || DRAWDOWN_RECOVERY_RESILIENCE_ID;
     return `
       ${algorithm.algorithm_id ? `
         <div class="decision-summary ${escapeHtml(algorithmStatusClass(algorithm.classification))}" data-testid="quantamental-quant-algorithm">
@@ -619,6 +631,12 @@
         <div class="decision-summary ${escapeHtml(algorithmStatusClass(breakout.classification))}" data-testid="quantamental-volatility-breakout-algorithm">
           ${escapeHtml(breakoutId)} / ${escapeHtml(cpy.vabScore)} ${escapeHtml(fmt(breakout.volatility_adjusted_breakout_score))} / ${escapeHtml(cpy.vabClass)} ${escapeHtml(breakout.classification || cpy.unavailable)}
           <br /><span class="muted">${escapeHtml(cpy.vabNotInComposite)}</span>
+        </div>
+      ` : ""}
+      ${resilience.algorithm_id ? `
+        <div class="decision-summary ${escapeHtml(algorithmStatusClass(resilience.classification))}" data-testid="quantamental-drawdown-resilience-algorithm">
+          ${escapeHtml(resilienceId)} / ${escapeHtml(cpy.drsScore)} ${escapeHtml(fmt(resilience.drawdown_recovery_resilience_score))} / ${escapeHtml(cpy.drsClass)} ${escapeHtml(resilience.classification || cpy.unavailable)}
+          <br /><span class="muted">${escapeHtml(cpy.drsNotInComposite)}</span>
         </div>
       ` : ""}
     `;
@@ -678,6 +696,7 @@
     ];
     const algorithm = qMetrics?.algorithm || {};
     const breakout = qMetrics?.algorithms?.volatility_adjusted_breakout || {};
+    const resilience = qMetrics?.algorithms?.drawdown_recovery_resilience || {};
     return `
       <div data-testid="quantamental-overview-tab">
         <div class="quantamental-overview-brief">
@@ -690,6 +709,8 @@
             ${metric(cpy.qamClass, algorithm.classification || "-", algorithmStatusClass(algorithm.classification))}
             ${metric(cpy.vabScore, fmt(breakout.volatility_adjusted_breakout_score), scoreClass(breakout.volatility_adjusted_breakout_score))}
             ${metric(cpy.vabClass, breakout.classification || "-", algorithmStatusClass(breakout.classification))}
+            ${metric(cpy.drsScore, fmt(resilience.drawdown_recovery_resilience_score), scoreClass(resilience.drawdown_recovery_resilience_score))}
+            ${metric(cpy.drsClass, resilience.classification || "-", algorithmStatusClass(resilience.classification))}
             ${metric(cpy.maxDrawdown, fmtPct(qMetrics?.drawdown?.max_drawdown), "warn")}
             ${metric(cpy.latestFiling, latestStatement?.date || "-", statusClass(freshness?.sections?.fundamentals?.status))}
             ${metric(cpy.revenue, compact(latestStatement?.revenue), "neutral")}
@@ -1023,6 +1044,7 @@
       momentum: labels.momentum,
       low_volatility: labels.lowVolatility,
       liquidity: labels.liquidity,
+      drawdown_resilience: labels.drawdownResilience,
     }[String(scoreKey || "composite")] || copy().composite;
   }
 

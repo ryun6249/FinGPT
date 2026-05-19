@@ -11,7 +11,16 @@ QuantamentalMarket = Literal["US", "KR", "GLOBAL"]
 QuantamentalPeriod = Literal["annual", "quarterly"]
 QuantamentalStyle = Literal["balanced", "quality_growth", "value", "momentum", "defensive"]
 QuantamentalOutputLanguage = Literal["ko", "en"]
-QuantamentalScoreKey = Literal["composite", "value", "quality", "growth", "momentum", "low_volatility", "liquidity"]
+QuantamentalScoreKey = Literal[
+    "composite",
+    "value",
+    "quality",
+    "growth",
+    "momentum",
+    "low_volatility",
+    "liquidity",
+    "drawdown_resilience",
+]
 
 
 class QuantamentalFlexibleModel(BaseModel):

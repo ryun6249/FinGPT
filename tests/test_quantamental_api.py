@@ -158,6 +158,8 @@ def test_quantamental_analysis_endpoint_shape(monkeypatch):
     assert body["ai_report"]["report"]["used_data"]["data_source"] != ""
     assert body["quant"]["metrics"]["algorithms"]["volatility_adjusted_breakout"]["algorithm_id"] == "volatility_adjusted_breakout_v1"
     assert body["quant"]["metrics"]["algorithms"]["volatility_adjusted_breakout"]["used_in_composite_score"] is False
+    assert body["quant"]["metrics"]["algorithms"]["drawdown_recovery_resilience"]["algorithm_id"] == "drawdown_recovery_resilience_v1"
+    assert body["quant"]["metrics"]["algorithms"]["drawdown_recovery_resilience"]["used_in_composite_score"] is False
     assert body["execution_policy"] == "scores_and_signal_from_deterministic_engines_ai_interprets_only"
 
 
@@ -284,6 +286,63 @@ def test_quantamental_score_screen_filters_by_min_score(monkeypatch):
     assert "BBB" not in [row["ticker"] for row in body["matches"]]
     assert body["screening_policy"] == "rank_fresh_complete_core_data_then_filter_min_score_sec_overlay_skipped_for_speed"
     assert "screening_fast_path_sec_overlay_skipped" in body["warnings"]
+
+
+def test_quantamental_score_screen_supports_drawdown_resilience_score(monkeypatch):
+    quantamental_cache.clear()
+    resilience_scores = {"AAA": 82.0, "BBB": 57.0, "CCC": 74.0}
+
+    def fake_analysis(request):
+        score = resilience_scores[request.ticker]
+        return {
+            "status": "ok",
+            "ticker": request.ticker,
+            "market": request.market,
+            "company": {"ticker": request.ticker, "name": f"{request.ticker} Corp"},
+            "composite": {"final_score": score - 2, "fundamental_score": score - 4, "quant_score": score, "risk_score": score - 6},
+            "factors": {
+                "value_score": 55.0,
+                "quality_score": 60.0,
+                "growth_score": 58.0,
+                "momentum_score": 62.0,
+                "low_volatility_score": 66.0,
+                "liquidity_score": 72.0,
+            },
+            "quant": {
+                "metrics": {
+                    "algorithms": {
+                        "drawdown_recovery_resilience": {
+                            "algorithm_id": "drawdown_recovery_resilience_v1",
+                            "drawdown_recovery_resilience_score": score,
+                            "classification": "constructive_drawdown_recovery",
+                            "used_in_composite_score": False,
+                        }
+                    }
+                }
+            },
+            "signal": {"signal_label": "Accumulate Watch", "signal_confidence": "medium"},
+            "data_quality": {"data_quality_score": 0.92, "quality_level": "good", "missing_sections": []},
+            "freshness": {"status": "fresh", "freshness_score": 1.0, "stale_sections": [], "warnings": []},
+            "data_integrity": {"status": "usable", "usable_for_signal": True, "blocking_sections": []},
+            "warnings": [],
+        }
+
+    monkeypatch.setattr(service, "analysis", fake_analysis)
+    client = TestClient(api_server.app)
+
+    resp = client.get(
+        "/api/v1/quantamental/screen/by-score"
+        "?tickers=AAA%20BBB%20CCC&score_key=drawdown_resilience&min_score=70&limit=10&include_ai=false"
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "ok"
+    assert body["score_key"] == "drawdown_resilience"
+    assert body["score_label"] == "Drawdown Resilience"
+    assert [row["ticker"] for row in body["matches"]] == ["AAA", "CCC"]
+    assert all(row["screen_score_key"] == "drawdown_resilience" for row in body["matches"])
+    assert all(row["drawdown_resilience_score"] >= 70 for row in body["matches"])
 
 
 def test_quantamental_score_screen_default_universe_respects_limit(monkeypatch):

@@ -142,6 +142,7 @@ def health() -> dict[str, Any]:
             "axis_annotated_overview_charts",
             "quality_adjusted_momentum_v1",
             "volatility_adjusted_breakout_v1",
+            "drawdown_recovery_resilience_v1",
         ],
     }
 
@@ -1184,6 +1185,7 @@ def _score_screen_label(score_key: str) -> str:
         "momentum": "Momentum",
         "low_volatility": "Low Volatility",
         "liquidity": "Liquidity",
+        "drawdown_resilience": "Drawdown Resilience",
     }.get(str(score_key or "composite"), "Composite")
 
 
@@ -1196,6 +1198,7 @@ def _screening_score_value(row: dict[str, Any], score_key: str) -> Any:
         "momentum": row.get("momentum_score"),
         "low_volatility": row.get("low_volatility_score"),
         "liquidity": row.get("liquidity_score"),
+        "drawdown_resilience": row.get("drawdown_resilience_score"),
     }.get(str(score_key or "composite"), row.get("final_score"))
 
 
@@ -1207,6 +1210,9 @@ def _screening_row(payload: dict[str, Any], *, score_key: str = "composite") -> 
     quality = payload.get("data_quality") or {}
     freshness = payload.get("freshness") or {}
     integrity = payload.get("data_integrity") or quality.get("data_integrity") or {}
+    quant = payload.get("quant") or {}
+    quant_algorithms = ((quant.get("metrics") or {}).get("algorithms") or {}) if isinstance(quant, dict) else {}
+    drawdown_resilience = quant_algorithms.get("drawdown_recovery_resilience") or {}
     row = {
         "ticker": payload.get("ticker"),
         "market": payload.get("market"),
@@ -1225,6 +1231,7 @@ def _screening_row(payload: dict[str, Any], *, score_key: str = "composite") -> 
         "momentum_score": factors.get("momentum_score"),
         "low_volatility_score": factors.get("low_volatility_score"),
         "liquidity_score": factors.get("liquidity_score"),
+        "drawdown_resilience_score": drawdown_resilience.get("drawdown_recovery_resilience_score"),
         "data_quality_score": quality.get("data_quality_score"),
         "quality_level": quality.get("quality_level"),
         "freshness_status": freshness.get("status"),

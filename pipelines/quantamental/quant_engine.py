@@ -111,6 +111,15 @@ def calculate_quant(payload: dict[str, Any]) -> dict[str, Any]:
         drawdown=drawdown,
         liquidity=liquidity,
     )
+    resilience_algorithm = _drawdown_recovery_resilience_algorithm(
+        rows=rows,
+        returns=returns,
+        trend=trend,
+        volatility=volatility,
+        drawdown=drawdown,
+        risk_adjusted=risk_adjusted,
+        liquidity=liquidity,
+    )
     chart_data = {
         "price": _price_chart(rows),
         "cumulative_return": _cumulative_return_chart(rows),
@@ -131,6 +140,7 @@ def calculate_quant(payload: dict[str, Any]) -> dict[str, Any]:
         "algorithms": {
             "quality_adjusted_momentum": algorithm,
             "volatility_adjusted_breakout": breakout_algorithm,
+            "drawdown_recovery_resilience": resilience_algorithm,
         },
     }
     return {
@@ -628,11 +638,120 @@ def _volatility_adjusted_breakout_algorithm(
     }
 
 
+def _drawdown_recovery_resilience_algorithm(
+    *,
+    rows: list[dict[str, Any]],
+    returns: list[float],
+    trend: dict[str, Any],
+    volatility: dict[str, Any],
+    drawdown: dict[str, Any],
+    risk_adjusted: dict[str, Any],
+    liquidity: dict[str, Any],
+) -> dict[str, Any]:
+    closes = [_price(row) for row in rows]
+    available_observations = len(rows)
+    required_observations = 120
+    warnings: list[str] = []
+    if available_observations < required_observations:
+        warnings.append("insufficient_price_history_for_drawdown_recovery_resilience")
+
+    latest_close = closes[-1] if closes else None
+    recent_low_126d = _recent_low(closes, 126)
+    recovery_from_recent_low = (
+        safe_divide((latest_close or 0.0) - recent_low_126d, recent_low_126d)
+        if latest_close is not None and recent_low_126d is not None
+        else None
+    )
+    return_120d = _window_return(closes, 120)
+    positive_share_60d = _positive_return_share(returns, 60)
+    current_drawdown_abs = abs(drawdown.get("current_drawdown")) if drawdown.get("current_drawdown") is not None else None
+    max_drawdown_abs = abs(drawdown.get("max_drawdown")) if drawdown.get("max_drawdown") is not None else None
+    drawdown_duration = _finite(drawdown.get("drawdown_duration"))
+
+    recovery_score = _score_high(recovery_from_recent_low, 0.00, 0.35)
+    current_drawdown_score = _score_low(current_drawdown_abs, 0.00, 0.30)
+    max_drawdown_score = _score_low(max_drawdown_abs, 0.05, 0.60)
+    duration_score = _score_low(drawdown_duration, 0.0, 80.0)
+    trend_score = _avg([
+        _score_high(return_120d, -0.15, 0.35),
+        _trend_regime_score(trend.get("trend_regime")),
+        100.0 if trend.get("price_above_sma_200") is True else 30.0 if trend.get("price_above_sma_200") is False else None,
+    ])
+    stability_score = _avg([
+        _score_low(volatility.get("realized_volatility_60d"), 0.12, 0.70),
+        _score_low(volatility.get("downside_volatility"), 0.08, 0.60),
+        _score_high(positive_share_60d, 0.42, 0.62),
+        _score_high(risk_adjusted.get("sortino_ratio"), -0.5, 3.0),
+    ])
+    liquidity_score = _score_high(
+        math.log10(liquidity.get("average_dollar_volume")) if liquidity.get("average_dollar_volume") else None,
+        6.0,
+        9.0,
+    )
+    score = _weighted_score(
+        [
+            (recovery_score, 0.24),
+            (current_drawdown_score, 0.18),
+            (max_drawdown_score, 0.16),
+            (duration_score, 0.14),
+            (trend_score, 0.14),
+            (stability_score, 0.10),
+            (liquidity_score, 0.04),
+        ],
+        min_components=4,
+    )
+    if available_observations < required_observations:
+        score = None
+
+    return {
+        "algorithm_id": "drawdown_recovery_resilience_v1",
+        "drawdown_recovery_resilience_score": score,
+        "classification": _drawdown_recovery_resilience_classification(score, current_drawdown_abs),
+        "score_direction": "higher means the price path recovered from drawdowns with lower current impairment and steadier trend evidence",
+        "required_observations": required_observations,
+        "available_observations": available_observations,
+        "recent_low_window": "126d",
+        "recent_low": recent_low_126d,
+        "latest_close": latest_close,
+        "recovery_from_recent_low": recovery_from_recent_low,
+        "return_120d": return_120d,
+        "current_drawdown_abs": current_drawdown_abs,
+        "max_drawdown_abs": max_drawdown_abs,
+        "drawdown_duration": drawdown_duration,
+        "positive_return_share_60d": positive_share_60d,
+        "component_scores": {
+            "recovery": recovery_score,
+            "current_drawdown": current_drawdown_score,
+            "max_drawdown": max_drawdown_score,
+            "duration": duration_score,
+            "trend": trend_score,
+            "stability": stability_score,
+            "liquidity": liquidity_score,
+        },
+        "inputs": {
+            "recovery_basis": "latest_close_vs_recent_126d_low",
+            "trend_window": "120d",
+            "stability_window": "60d",
+            "drawdown_basis": "current_and_max_drawdown",
+        },
+        "warnings": warnings,
+        "not_investment_advice": True,
+        "used_in_composite_score": False,
+    }
+
+
 def _rolling_prior_high(closes: list[float | None], window: int) -> float | None:
     if len(closes) <= window:
         return None
     nums = [value for value in closes[-window - 1 : -1] if value is not None]
     return max(nums) if nums else None
+
+
+def _recent_low(closes: list[float | None], window: int) -> float | None:
+    if len(closes) < 2:
+        return None
+    nums = [value for value in closes[-window:] if value is not None]
+    return min(nums) if nums else None
 
 
 def _volatility_adjusted_breakout_classification(score: float | None, breakout_strength: float | None) -> str:
@@ -647,6 +766,20 @@ def _volatility_adjusted_breakout_classification(score: float | None, breakout_s
     if score >= 45:
         return "mixed_breakout_setup"
     return "weak_breakout_setup"
+
+
+def _drawdown_recovery_resilience_classification(score: float | None, current_drawdown_abs: float | None) -> str:
+    if score is None:
+        return "insufficient_data"
+    if current_drawdown_abs is not None and current_drawdown_abs >= 0.25 and score < 60:
+        return "fragile_drawdown_recovery"
+    if score >= 75:
+        return "resilient_drawdown_recovery"
+    if score >= 60:
+        return "constructive_drawdown_recovery"
+    if score >= 45:
+        return "mixed_drawdown_resilience"
+    return "weak_drawdown_resilience"
 
 
 def _first_numeric(*values: Any) -> float | None:
@@ -763,6 +896,7 @@ def _component_scores(metrics: dict[str, Any]) -> dict[str, float | None]:
     algorithm = metrics.get("algorithm") or {}
     algorithms = metrics.get("algorithms") or {}
     breakout_algorithm = algorithms.get("volatility_adjusted_breakout") or {}
+    resilience_algorithm = algorithms.get("drawdown_recovery_resilience") or {}
     return {
         "momentum": _avg([
             _score_high(momentum.get("momentum_3m"), -0.10, 0.20),
@@ -792,6 +926,7 @@ def _component_scores(metrics: dict[str, Any]) -> dict[str, float | None]:
         ]),
         "quality_adjusted_momentum": _finite(algorithm.get("quality_adjusted_momentum_score")),
         "volatility_adjusted_breakout": _finite(breakout_algorithm.get("volatility_adjusted_breakout_score")),
+        "drawdown_recovery_resilience": _finite(resilience_algorithm.get("drawdown_recovery_resilience_score")),
     }
 
 

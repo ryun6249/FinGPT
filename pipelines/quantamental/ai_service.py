@@ -129,6 +129,7 @@ def build_context(analysis: dict[str, Any]) -> dict[str, Any]:
             "component_scores": quant.get("component_scores") or {},
             "quality_adjusted_momentum": quant_algorithm,
             "volatility_adjusted_breakout": quant_algorithms.get("volatility_adjusted_breakout") or {},
+            "drawdown_recovery_resilience": quant_algorithms.get("drawdown_recovery_resilience") or {},
             "algorithms": quant_algorithms,
             "missing_metrics": (quant.get("missing_metrics") or [])[:20],
         },
@@ -329,6 +330,8 @@ def _algorithm_change_text(algorithm: dict[str, Any], *, unavailable: str, langu
         if "quality_adjusted_momentum_score" in algorithm
         else "volatility_adjusted_breakout_score"
         if "volatility_adjusted_breakout_score" in algorithm
+        else "drawdown_recovery_resilience_score"
+        if "drawdown_recovery_resilience_score" in algorithm
         else "score"
     )
     score = algorithm.get(score_key)
@@ -497,6 +500,14 @@ def _fallback_report(context: dict[str, Any], *, language: str = "ko") -> dict[s
         key_changes.setdefault(
             "secondary_quant_algorithm",
             _algorithm_change_text(breakout_algorithm, unavailable=_unavailable(language), language=language),
+        )
+        report["key_changes"] = key_changes
+    resilience_algorithm = ((context.get("quant_snapshot") or {}).get("drawdown_recovery_resilience") or {})
+    if resilience_algorithm:
+        key_changes = dict(report.get("key_changes") or {})
+        key_changes.setdefault(
+            "drawdown_recovery_algorithm",
+            _algorithm_change_text(resilience_algorithm, unavailable=_unavailable(language), language=language),
         )
         report["key_changes"] = key_changes
     return {
