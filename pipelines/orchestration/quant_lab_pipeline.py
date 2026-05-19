@@ -42,6 +42,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ARTIFACT_ROOT = PROJECT_ROOT / "data" / "quant_lab" / "backtests"
 DEFAULT_FEATURES = [
     {"id": "momentum_63d"},
+    {"id": "risk_adjusted_momentum_63_21"},
     {"id": "realized_vol_21d"},
     {"id": "drawdown_current"},
     {"id": "ma_ratio_20_50"},
@@ -86,6 +87,7 @@ def quant_config() -> dict[str, Any]:
             "moving_average_trend",
             "volatility_targeting",
             "momentum_ranking",
+            "risk_adjusted_momentum",
             "research_confirmed_momentum",
         ],
         "execution_assumptions": {
@@ -353,12 +355,13 @@ def run_quant_backtest(request: QuantBacktestRequest) -> QuantBacktestResponse:
         initial_capital=1.0,
     )
     try:
-        if request.template == "momentum_ranking" and len(tickers) > 1:
+        if request.template in {"momentum_ranking", "risk_adjusted_momentum"}:
             result = run_momentum_ranking_backtest(
                 prices_by_asset,
                 lookback=request.lookback,
                 top_n=min(request.top_n, len(tickers)),
                 rebalance_every=request.rebalance_every,
+                score_mode="risk_adjusted_momentum" if request.template == "risk_adjusted_momentum" else "momentum",
                 config=config,
             )
         else:
@@ -1040,6 +1043,7 @@ def _engine_strategy_for_template(template: str) -> str | None:
         "moving_average_trend": "moving_average",
         "volatility_targeting": "volatility_targeting",
         "momentum_ranking": "momentum_ranking",
+        "risk_adjusted_momentum": "momentum_ranking",
         "research_confirmed_momentum": "moving_average",
     }.get(clean)
 

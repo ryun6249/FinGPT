@@ -10,6 +10,7 @@ def test_factor_catalog_exposes_ui_safe_ids() -> None:
     assert "momentum_63d" in ids
     assert "realized_vol_21d" in ids
     assert "relative_strength_spy_63d" in ids
+    assert "risk_adjusted_momentum_63_21" in ids
 
 
 def test_new_factor_math_is_deterministic() -> None:
@@ -18,6 +19,7 @@ def test_new_factor_math_is_deterministic() -> None:
     assert moving_average_ratio(prices, short_window=5, long_window=20) > 0
     assert rsi(prices, lookback=14) == 100.0
     assert compute_factor_latest("momentum_63d", prices) is not None
+    assert compute_factor_latest("risk_adjusted_momentum_63_21", prices) is not None
 
 
 def test_benchmark_factors_require_benchmark_prices() -> None:

@@ -10,6 +10,7 @@ from pipelines.factors.core import (
     moving_average_ratio,
     realized_volatility,
     relative_strength,
+    risk_adjusted_momentum,
     rolling_beta,
     rolling_correlation,
     simple_returns,
@@ -47,6 +48,12 @@ _FACTOR_DEFINITIONS: dict[str, FactorDefinition] = {
         "Asset momentum less benchmark momentum.",
         {"lookback": 63},
         requires_benchmark=True,
+    ),
+    "risk_adjusted_momentum_63_21": FactorDefinition(
+        "risk_adjusted_momentum_63_21",
+        "Risk-Adjusted Momentum",
+        "Sixty-three-day momentum divided by twenty-one-day realized volatility.",
+        {"momentum_lookback": 63, "volatility_lookback": 21, "volatility_floor": 0.01},
     ),
     "beta_spy_126d": FactorDefinition(
         "beta_spy_126d",
@@ -107,6 +114,13 @@ def compute_factor_latest(
         if not benchmark_prices:
             return None
         return relative_strength(prices, benchmark_prices, lookback=int(resolved.get("lookback") or 63))
+    if fid == "risk_adjusted_momentum_63_21":
+        return risk_adjusted_momentum(
+            prices,
+            momentum_lookback=int(resolved.get("momentum_lookback") or 63),
+            volatility_lookback=int(resolved.get("volatility_lookback") or 21),
+            volatility_floor=float(resolved.get("volatility_floor") or 0.01),
+        )
     if fid == "beta_spy_126d":
         if not benchmark_prices:
             return None

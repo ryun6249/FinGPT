@@ -15,17 +15,21 @@ def generate_latest_signals(
         return [_row_from_score(row, 1.0, signal=1.0, research_score=research_scores.get(str(row.get("ticker") or ""))).to_dict() for row in feature_rows]
     if template == "volatility_targeting":
         return [_volatility_target_row(row, research_score=research_scores.get(str(row.get("ticker") or ""))).to_dict() for row in feature_rows]
-    if template in {"momentum_ranking", "moving_average_trend", "research_confirmed_momentum"}:
+    if template in {"momentum_ranking", "risk_adjusted_momentum", "moving_average_trend", "research_confirmed_momentum"}:
         scored = [
             _row_from_score(
                 row,
-                _score_features(row.get("features") if isinstance(row.get("features"), dict) else {}, research_scores.get(str(row.get("ticker") or ""))),
+                _score_features(
+                    row.get("features") if isinstance(row.get("features"), dict) else {},
+                    research_scores.get(str(row.get("ticker") or "")),
+                    risk_adjusted=template == "risk_adjusted_momentum",
+                ),
                 research_score=research_scores.get(str(row.get("ticker") or "")),
             )
             for row in feature_rows
         ]
         ranked = sorted(scored, key=lambda item: item.final_score if item.final_score is not None else -999.0, reverse=True)
-        if template == "momentum_ranking":
+        if template in {"momentum_ranking", "risk_adjusted_momentum"}:
             winners = {item.ticker for item in ranked[: max(1, min(2, len(ranked)))] if (item.final_score or 0.0) > 0}
             return [
                 SignalRow(
@@ -104,16 +108,25 @@ def _volatility_target_row(row: dict[str, object], *, research_score: float | No
     )
 
 
-def _score_features(features: dict[str, object], research_score: float | None = None) -> float | None:
+def _score_features(
+    features: dict[str, object],
+    research_score: float | None = None,
+    *,
+    risk_adjusted: bool = False,
+) -> float | None:
     if not features:
         return None
     momentum = _as_float(features.get("momentum_63d") or features.get("momentum_21d") or features.get("return_5d"))
+    risk_adjusted_momentum = _as_float(features.get("risk_adjusted_momentum_63_21"))
     vol = _as_float(features.get("realized_vol_21d"))
     trend = _as_float(features.get("ma_ratio_20_50") or features.get("ma_ratio_50_200"))
     drawdown = _as_float(features.get("drawdown_current"))
     score = 0.0
     weight = 0.0
-    if momentum is not None:
+    if risk_adjusted and risk_adjusted_momentum is not None:
+        score += max(-1.0, min(1.0, risk_adjusted_momentum / 2.0)) * 0.55
+        weight += 0.55
+    elif momentum is not None:
         score += max(-1.0, min(1.0, momentum * 5.0)) * 0.45
         weight += 0.45
     if trend is not None:

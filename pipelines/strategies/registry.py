@@ -43,6 +43,22 @@ FALLBACK_STRATEGIES: list[dict[str, Any]] = [
         "execution": {"trade_at": "next_bar_close", "transaction_cost_bps": 5, "slippage_bps": 2},
         "diagnostics": {"require_fresh_prices": True, "require_no_lookahead": True},
     },
+    {
+        "strategy_id": "risk_adjusted_momentum_v1",
+        "name": "Risk-Adjusted Momentum",
+        "universe": ["SPY", "QQQ", "TLT", "GLD"],
+        "benchmark": "SPY",
+        "frequency": "daily",
+        "features": {
+            "momentum_63d": {"id": "momentum_63d", "lookback": 63},
+            "risk_adjusted_momentum_63_21": {"id": "risk_adjusted_momentum_63_21"},
+            "realized_vol_21d": {"id": "realized_vol_21d", "lookback": 21},
+        },
+        "signal": {"type": "risk_adjusted_rank_top_n", "top_n": 2, "score_mode": "risk_adjusted_momentum"},
+        "portfolio": {"method": "equal_weight", "max_weight": 0.5},
+        "execution": {"trade_at": "next_bar_close", "transaction_cost_bps": 5, "slippage_bps": 2},
+        "diagnostics": {"require_fresh_prices": True, "require_no_lookahead": True},
+    },
 ]
 
 

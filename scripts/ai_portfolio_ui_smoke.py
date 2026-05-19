@@ -18,7 +18,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 REPORTS_DIR = PROJECT_ROOT / "reports"
 DOMAIN_BUNDLE_VERSION = "20260514-domain-modules"
 QUANTAMENTAL_BUNDLE_VERSION = "20260519-quantamental-v12"
-APP_BUNDLE_VERSION = "20260519-continuous-enhancement-v4"
+APP_BUNDLE_VERSION = "20260519-continuous-enhancement-v5"
 VERSIONED_SCRIPT_SELECTORS = [
     f'script[src="modules/market-ui.js?v={DOMAIN_BUNDLE_VERSION}"]',
     f'script[src="modules/macro-ui.js?v={DOMAIN_BUNDLE_VERSION}"]',

@@ -7903,6 +7903,7 @@ function quantFeatureRequestFromControls() {
 function quantSignalTemplateFromStrategy(strategy) {
   const clean = String(strategy || "").toLowerCase();
   if (clean === "momentum_ranking") return "momentum_ranking";
+  if (clean === "risk_adjusted_momentum") return "risk_adjusted_momentum";
   if (clean === "research_confirmed_momentum") return "research_confirmed_momentum";
   if (clean === "moving_average") return "moving_average_trend";
   if (clean === "volatility_targeting") return "volatility_targeting";
@@ -7915,6 +7916,7 @@ const QUANT_TEMPLATE_LABELS = {
   moving_average_trend: "이동평균 추세",
   volatility_targeting: "변동성 타깃",
   momentum_ranking: "모멘텀 랭킹",
+  risk_adjusted_momentum: "위험조정 모멘텀",
   research_confirmed_momentum: "리서치 확인 모멘텀",
 };
 
@@ -9271,8 +9273,13 @@ function applyStrategyToControls(strategy) {
   }
   if (els.backtestStrategy) {
     const hasResearchScore = !!(strategy.features || {}).research_score;
+    const hasRiskAdjustedMomentum = !!(strategy.features || {}).risk_adjusted_momentum_63_21
+      || signal.type === "risk_adjusted_rank_top_n"
+      || signal.score_mode === "risk_adjusted_momentum";
     els.backtestStrategy.value = hasResearchScore
       ? "research_confirmed_momentum"
+      : hasRiskAdjustedMomentum
+        ? "risk_adjusted_momentum"
       : signal.type === "rank_top_n"
         ? "momentum_ranking"
         : "moving_average";
