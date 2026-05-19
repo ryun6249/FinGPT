@@ -120,6 +120,14 @@ def calculate_quant(payload: dict[str, Any]) -> dict[str, Any]:
         risk_adjusted=risk_adjusted,
         liquidity=liquidity,
     )
+    liquidity_stability_algorithm = _liquidity_participation_stability_algorithm(
+        rows=rows,
+        returns=returns,
+        trend=trend,
+        volatility=volatility,
+        drawdown=drawdown,
+        liquidity=liquidity,
+    )
     chart_data = {
         "price": _price_chart(rows),
         "cumulative_return": _cumulative_return_chart(rows),
@@ -141,6 +149,7 @@ def calculate_quant(payload: dict[str, Any]) -> dict[str, Any]:
             "quality_adjusted_momentum": algorithm,
             "volatility_adjusted_breakout": breakout_algorithm,
             "drawdown_recovery_resilience": resilience_algorithm,
+            "liquidity_participation_stability": liquidity_stability_algorithm,
         },
     }
     return {
@@ -459,6 +468,16 @@ def _volume_trend(volumes: list[float | None]) -> float | None:
     return safe_divide((recent or 0.0) - prior, prior) if recent is not None and prior is not None else None
 
 
+def _coefficient_of_variation_tail(values: list[float | None], window: int) -> float | None:
+    nums = [value for value in values[-window:] if value is not None and value > 0]
+    if len(nums) < min(window, 20):
+        return None
+    avg = mean(nums)
+    if avg <= 0:
+        return None
+    return safe_divide(pstdev(nums), avg)
+
+
 def _liquidity_risk(avg_dollar_volume: float | None) -> str:
     if avg_dollar_volume is None:
         return "unknown"
@@ -740,6 +759,99 @@ def _drawdown_recovery_resilience_algorithm(
     }
 
 
+def _liquidity_participation_stability_algorithm(
+    *,
+    rows: list[dict[str, Any]],
+    returns: list[float],
+    trend: dict[str, Any],
+    volatility: dict[str, Any],
+    drawdown: dict[str, Any],
+    liquidity: dict[str, Any],
+) -> dict[str, Any]:
+    closes = [_price(row) for row in rows]
+    volumes = [_finite(row.get("volume")) for row in rows]
+    available_observations = len(rows)
+    required_observations = 90
+    warnings: list[str] = []
+    if available_observations < required_observations:
+        warnings.append("insufficient_price_history_for_liquidity_participation_stability")
+
+    avg_dollar_volume_60d = liquidity.get("average_dollar_volume")
+    volume_trend_20d_vs_prior = liquidity.get("volume_trend")
+    volume_spike = liquidity.get("volume_spike")
+    volume_cv_60d = _coefficient_of_variation_tail(volumes, 60)
+    trend_return_60d = _window_return(closes, 60)
+    positive_share_60d = _positive_return_share(returns, 60)
+    current_drawdown_abs = abs(drawdown.get("current_drawdown")) if drawdown.get("current_drawdown") is not None else None
+
+    liquidity_depth_score = _score_high(
+        math.log10(avg_dollar_volume_60d) if avg_dollar_volume_60d else None,
+        6.0,
+        9.0,
+    )
+    volume_participation_score = _score_high(volume_trend_20d_vs_prior, -0.25, 0.45)
+    volume_stability_score = _score_low(volume_cv_60d, 0.25, 2.0)
+    volume_spike_balance_score = _score_low(abs(volume_spike - 1.0) if volume_spike is not None else None, 0.0, 2.0)
+    trend_score = _avg([
+        _score_high(trend_return_60d, -0.12, 0.25),
+        _trend_regime_score(trend.get("trend_regime")),
+    ])
+    volatility_score = _score_low(volatility.get("realized_volatility_60d"), 0.15, 0.75)
+    drawdown_score = _score_low(current_drawdown_abs, 0.0, 0.35)
+    consistency_score = _score_high(positive_share_60d, 0.42, 0.64)
+    score = _weighted_score(
+        [
+            (liquidity_depth_score, 0.22),
+            (volume_participation_score, 0.16),
+            (volume_stability_score, 0.14),
+            (volume_spike_balance_score, 0.12),
+            (trend_score, 0.14),
+            (volatility_score, 0.10),
+            (drawdown_score, 0.08),
+            (consistency_score, 0.04),
+        ],
+        min_components=5,
+    )
+    if available_observations < required_observations:
+        score = None
+
+    return {
+        "algorithm_id": "liquidity_participation_stability_v1",
+        "liquidity_participation_stability_score": score,
+        "classification": _liquidity_participation_stability_classification(score, avg_dollar_volume_60d),
+        "score_direction": "higher means the price path is supported by durable liquidity, stable volume participation, and controlled risk",
+        "required_observations": required_observations,
+        "available_observations": available_observations,
+        "average_dollar_volume_60d": avg_dollar_volume_60d,
+        "volume_trend_20d_vs_prior": volume_trend_20d_vs_prior,
+        "volume_spike_vs_20d_average": volume_spike,
+        "volume_coefficient_of_variation_60d": volume_cv_60d,
+        "trend_return_60d": trend_return_60d,
+        "positive_return_share_60d": positive_share_60d,
+        "current_drawdown_abs": current_drawdown_abs,
+        "component_scores": {
+            "liquidity_depth": liquidity_depth_score,
+            "volume_participation": volume_participation_score,
+            "volume_stability": volume_stability_score,
+            "volume_spike_balance": volume_spike_balance_score,
+            "trend": trend_score,
+            "volatility": volatility_score,
+            "drawdown": drawdown_score,
+            "consistency": consistency_score,
+        },
+        "inputs": {
+            "liquidity_basis": "average_dollar_volume_60d",
+            "volume_trend_basis": "average_volume_20d_vs_prior_60d",
+            "volume_stability_window": "60d",
+            "trend_window": "60d",
+            "risk_window": "60d",
+        },
+        "warnings": warnings,
+        "not_investment_advice": True,
+        "used_in_composite_score": False,
+    }
+
+
 def _rolling_prior_high(closes: list[float | None], window: int) -> float | None:
     if len(closes) <= window:
         return None
@@ -780,6 +892,21 @@ def _drawdown_recovery_resilience_classification(score: float | None, current_dr
     if score >= 45:
         return "mixed_drawdown_resilience"
     return "weak_drawdown_resilience"
+
+
+def _liquidity_participation_stability_classification(score: float | None, avg_dollar_volume_60d: Any) -> str:
+    if score is None:
+        return "insufficient_data"
+    avg_dollar_volume = _finite(avg_dollar_volume_60d)
+    if avg_dollar_volume is not None and avg_dollar_volume < 10_000_000 and score < 60:
+        return "thin_liquidity_participation"
+    if score >= 75:
+        return "stable_liquidity_participation"
+    if score >= 60:
+        return "constructive_liquidity_participation"
+    if score >= 45:
+        return "mixed_liquidity_participation"
+    return "fragile_liquidity_participation"
 
 
 def _first_numeric(*values: Any) -> float | None:
@@ -897,6 +1024,7 @@ def _component_scores(metrics: dict[str, Any]) -> dict[str, float | None]:
     algorithms = metrics.get("algorithms") or {}
     breakout_algorithm = algorithms.get("volatility_adjusted_breakout") or {}
     resilience_algorithm = algorithms.get("drawdown_recovery_resilience") or {}
+    liquidity_stability_algorithm = algorithms.get("liquidity_participation_stability") or {}
     return {
         "momentum": _avg([
             _score_high(momentum.get("momentum_3m"), -0.10, 0.20),
@@ -927,6 +1055,7 @@ def _component_scores(metrics: dict[str, Any]) -> dict[str, float | None]:
         "quality_adjusted_momentum": _finite(algorithm.get("quality_adjusted_momentum_score")),
         "volatility_adjusted_breakout": _finite(breakout_algorithm.get("volatility_adjusted_breakout_score")),
         "drawdown_recovery_resilience": _finite(resilience_algorithm.get("drawdown_recovery_resilience_score")),
+        "liquidity_participation_stability": _finite(liquidity_stability_algorithm.get("liquidity_participation_stability_score")),
     }
 
 

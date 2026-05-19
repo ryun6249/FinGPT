@@ -289,7 +289,7 @@ REQUIRED_UI_MARKERS: dict[str, str] = {
     "forecast ui module": 'modules/forecast-ui.js?v=20260514-domain-modules',
     "quant ui module": 'modules/quant-ui.js?v=20260514-domain-modules',
     "ai portfolio ui module": 'modules/ai-portfolio-ui.js?v=20260514-domain-modules',
-    "quantamental ui module": 'modules/quantamental-ui.js?v=20260519-quantamental-v14',
+    "quantamental ui module": 'modules/quantamental-ui.js?v=20260519-quantamental-v15',
     "ai portfolio operation hydrate": 'id="aiPortfolioHydrateData"',
     "ai portfolio operation retry": 'id="aiPortfolioRetryMissing"',
     "ai portfolio snapshot job": 'id="aiPortfolioSnapshotJob"',
@@ -353,6 +353,7 @@ REQUIRED_APP_JS_MARKERS: dict[str, str] = {
     "quantamental top signal screen api": "quantamentalTopSignals",
     "quantamental score screen api": "quantamentalScoreScreen",
     "quantamental score screen score key": "score_key",
+    "quantamental score screen liquidity stability": "liquidity_stability",
     "quantamental compare server watchlist api": "quantamentalCompareWatchlists",
     "quantamental snapshot export api": "quantamentalSnapshotExport",
     "quantamental snapshot diff api": "quantamentalSnapshotDiff",
@@ -380,6 +381,8 @@ REQUIRED_QUANTAMENTAL_MODULE_MARKERS: dict[str, str] = {
     "quantamental volatility adjusted breakout algorithm": "volatility_adjusted_breakout_v1",
     "quantamental drawdown resilience summary": "quantamental-drawdown-resilience-algorithm",
     "quantamental drawdown resilience algorithm": "drawdown_recovery_resilience_v1",
+    "quantamental liquidity stability summary": "quantamental-liquidity-stability-algorithm",
+    "quantamental liquidity stability algorithm": "liquidity_participation_stability_v1",
 }
 
 

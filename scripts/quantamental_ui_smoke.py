@@ -114,7 +114,7 @@ def main() -> int:
                 "row_count": page.locator('#quantamentalScreenSurface [data-testid="quantamental-screen-table"] tbody tr').count(),
             }
 
-            page.locator("#quantamentalScoreMetric").select_option("drawdown_resilience", timeout=10_000)
+            page.locator("#quantamentalScoreMetric").select_option("liquidity_stability", timeout=10_000)
             page.locator("#quantamentalScoreThreshold").fill("0", timeout=10_000)
             page.locator("#quantamentalScoreScreenLimit").select_option("10", timeout=10_000)
             page.get_by_test_id("quantamental-score-screen-run").click(timeout=10_000)
@@ -122,7 +122,7 @@ def main() -> int:
                 """() => {
                     const text = document.querySelector("#quantamentalScoreScreenSurface")?.textContent || "";
                     const rows = document.querySelectorAll('#quantamentalScoreScreenSurface [data-testid="quantamental-score-screen-table"] tbody tr').length;
-                    return (text.includes("Drawdown Resilience") || text.includes("낙폭 회복")) && text.includes(">=") && rows > 0 && rows <= 10;
+                    return (text.includes("Liquidity Stability") || text.includes("유동성 안정성")) && text.includes(">=") && rows > 0 && rows <= 10;
                 }""",
                 timeout=180_000,
             )
