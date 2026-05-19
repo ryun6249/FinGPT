@@ -94,7 +94,8 @@ assert.match(koreanAi, /핵심 변화/);
 assert.match(koreanAi, /해석/);
 assert.match(koreanAi, /시나리오/);
 assert.match(koreanAi, /사용자 액션/);
-assert.doesNotMatch(koreanAi, /[�鍮怨諛吏由遺媛쨌]/);
+assert.doesNotMatch(koreanAi, /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\ufffd]/);
+assert.doesNotMatch(koreanAi, /\?{2,}/);
 
 console.log(JSON.stringify({ ok: true }));
 """

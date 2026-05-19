@@ -827,3 +827,115 @@
 - [x] README update not needed
 - [x] PR summary includes changed files
 - [x] PR summary includes validation result
+
+## 2026-05-19 Continuous Enhancement Run 12:03
+
+## Current Project Summary
+- Project purpose: FastAPI-served local financial research workstation for market, macro, Quant Lab, Quantamental, ML Forecast, AI Portfolio, and grounded AI briefing workflows.
+- Main frontend structure: Static `/ui/` shell under `app/web/index.html`, `app/web/app.js`, `app/web/styles.css`, with domain modules under `app/web/modules/`.
+- Main backend structure: FastAPI app in `app/api/server.py`, routers under `app/api/routers/`, shared contracts in `core/schemas/`, and services under `pipelines/`.
+- Data flow: UI controls call `/api/v1/*`; Python routers/services normalize provider/cache data before rendering dashboard cards, charts, tables, and briefing panels.
+- AI/LLM flow: `/api/v1/config` exposes runtime-checked Qwen/Gemma options; Quantamental AI UI defaults to deterministic guardrail and sends LLM models only on explicit user actions.
+- Visualization flow: Static cards/charts render from server payloads; global range, quality summary, and panel filters remain the primary dashboard context controls.
+- Testing flow: Python contract scripts/tests, API route tests, JS syntax checks, and Playwright screenshots/smoke are the current lightweight validation path.
+
+## Current Problems
+- Compatibility: This worktree is a clean stacked branch above previous automation PRs; it still lacks the broader tracked Quantamental router/service implementation present only as prior dirty/untracked work outside this branch.
+- Data consistency: Global range and quality contracts are present, but browser smoke still reaches missing Quantamental endpoints in this clean branch.
+- UI consistency: `Core / Diagnostics / Operations / All` still defaults to All and the top-right quality badge remains visible.
+- Visualization: Browser screenshots show desktop/mobile `/ui/?range=1Y#quantamental`; no chart renderer logic changed in this slice.
+- AI briefing: Quantamental UI/fixture guardrails render used-data sections, but full Quantamental API validation remains blocked by missing `pipelines.quantamental.service` in this branch.
+- Data freshness: Decision context strip now has a server-backed contract; tab-specific freshness values still depend on their data payloads.
+- Translation quality: Static HTML was already checked for mojibake; this run expands checks to dynamic JS UI copy and Quantamental AI panel output.
+- Performance: No background polling, heavy calculation, or LLM call was added.
+- Code structure: Added a small dashboard API contract and contract-test helpers without moving frontend ownership boundaries.
+- User experience: Dashboard context chips now load from `/api/v1/dashboard/decision-cards` instead of failing 404 and falling back silently.
+
+## Enhancement Plan
+- Priority 1: Add server-backed dashboard decision context cards for every dashboard tab.
+- Priority 2: Extend UI contract checks to dynamic JavaScript copy so runtime Korean/English labels cannot regress to mojibake.
+- Priority 3: Re-run browser checks and document the remaining Quantamental clean-branch blocker separately from this run's changes.
+
+## Validation Plan
+- Build: No repo-level frontend package manifest; validate with syntax checks and Python contracts.
+- Lint: Use `git diff --check`; no JS lint command is configured.
+- Unit test: Run dashboard/API/UI routing and Quantamental AI panel fixture tests.
+- Integration test: Run `/api/v1/dashboard/decision-cards`, static UI contract, and live local server route checks.
+- UI test: Capture Playwright desktop/mobile screenshots and DOM-check All/quality/range/decision-card contract.
+- Data quality test: Verify `globalQualitySummary` and `qualityContextSummary` markers remain present and dynamic copy has no mojibake.
+- AI hallucination guard test: Verify Quantamental AI panel fixture still exposes used data, key changes, interpretation, scenarios, user actions, and blocks mojibake/placeholder output.
+
+### 12:03 Changes
+
+- Compatibility: Added `/api/v1/dashboard/decision-cards` without changing existing dashboard, market, macro, strategy, trading/order, secret, or model routes.
+- Data consistency: Dashboard context cards now explicitly identify advisory-only purpose, primary output, and tab-level data/guardrail context instead of leaving UI fallback as the only source.
+- UI/UX: The top dashboard context strip now receives `dashboard_decision_cards.v1` from the API; mobile DOM check confirmed no horizontal overflow at 390px.
+- Visualization: No chart math changed; screenshots were captured for desktop and mobile `/ui/?range=1Y#quantamental`.
+- AI Briefing: Dynamic JS copy and Quantamental AI panel fixture now fail tests on CJK-mojibake/replacement-character output; the panel still requires used-data and guardrail sections.
+- Translation: Extended contract checks from static HTML into `app.js` and all domain modules under `app/web/modules/`.
+- Performance: Decision cards are static contract metadata and add no provider calls, polling loops, or LLM calls.
+
+### 12:03 Validation Results
+
+| Check | Command / Tool | Result | Notes |
+|---|---|---|---|
+| JS syntax | `node --check app/web/app.js`; `node --check app/web/modules/quantamental-ui.js` | Passed | Static UI controller and Quantamental module parse. |
+| Python syntax | `python -m py_compile app/api/routers/dashboard.py scripts/check_ui_contract.py tests/test_dashboard_api.py tests/test_ui_routing_contract.py tests/test_quantamental_ui_ai_panel.py` | Passed | Router, contract script, and tests compile. |
+| UI contract | `python scripts/check_ui_contract.py --output reports/ui_contract_continuous_20260519_1203_after_api.json` | Passed | Static HTML and dynamic JS mojibake checks passed; `/ui/quantamental` 200 and missing asset 404 preserved. |
+| Targeted tests | `python -m pytest tests/test_dashboard_api.py tests/test_api_routing_contract.py tests/test_ui_routing_contract.py tests/test_quantamental_ui_ai_panel.py tests/test_ui_modules.py -q` | Passed | `68 passed, 4 subtests passed`. |
+| Diff hygiene | `git diff --check -- app/api/routers/dashboard.py scripts/check_ui_contract.py tests/test_dashboard_api.py tests/test_ui_routing_contract.py tests/test_quantamental_ui_ai_panel.py` | Passed | Only CRLF normalization warnings. |
+| Live API | `GET /api/v1/dashboard/decision-cards` on `http://127.0.0.1:8408` | Passed | Returned 200 with `dashboard_decision_cards.v1`. |
+| UI screenshots | `npx playwright screenshot --viewport-size "1440,1000"` and `"390,900"` | Passed | Files written to `reports/ui_continuous_20260519_1203_desktop.png` and `reports/ui_continuous_20260519_1203_mobile.png`. |
+| Mobile DOM | Playwright DOM check at `390x900` | Passed | `horizontalOverflow=false`, `panelView=all`, `decisionContract=dashboard_decision_cards.v1`, Quantamental tab selected. |
+| AI Portfolio browser smoke | `python scripts/ai_portfolio_ui_smoke.py --base-url http://127.0.0.1:8408 --timeout-s 120 --output reports/ai_portfolio_ui_smoke_continuous_20260519_1203_after_api.json` | Blocked | Decision-card 404 fixed, but clean branch still lacks `/api/v1/quantamental/*`; smoke times out on Quantamental Top 5 404. |
+| Quantamental API regression | `python -m pytest tests/test_quantamental_api.py -q` | Blocked | Existing clean-branch blocker: `ImportError: cannot import name 'service' from 'pipelines.quantamental'`. |
+| npm/pnpm build/lint/test | Not run | Excluded | Repo root has no `package.json` or `pnpm-lock.yaml`. |
+
+### 12:03 Completion Checklist
+
+#### Compatibility
+- [x] Existing UI/API flows touched by this run still work
+- [x] Existing API contracts were not broken
+- [x] Existing UI flow is preserved
+- [x] No unauthorized strategy logic change
+- [x] No secret or env file exposure
+
+#### Data
+- [x] Date range controls remain present and URL-compatible
+- [x] Data source and 기준일 markers remain in the quality contract
+- [x] Missing data labels remain user-readable
+- [x] Data quality summary is visible at top-right
+- [x] Cache/fresh distinction remains unchanged
+
+#### UI
+- [x] Default view remains All
+- [x] Core/Diagnostics/Operations filters still exist
+- [x] Font and spacing changes were not introduced
+- [x] Desktop/mobile screenshots captured
+- [x] Loading/empty/error markers remain in static contract
+
+#### Visualization
+- [x] Chart contracts were not changed
+- [x] Period controls still render
+- [x] Desktop/mobile screenshots show no immediate layout overflow
+
+#### AI Briefing
+- [x] Gemma/Qwen availability remains runtime-checked through existing config
+- [x] Model selection remains truthful
+- [x] AI panel output includes used-data guardrail sections in fixture tests
+- [x] Dynamic copy mojibake/placeholder guard added
+- [x] Translation preserves numbers/dates/units in the AI panel fixture
+
+#### Validation
+- [x] Lint/diff hygiene executed
+- [x] Build exclusion documented
+- [x] Tests executed with existing blocker documented
+- [x] UI validation executed
+- [x] Data validation executed through UI/API contract checks
+- [x] AI briefing validation executed through Quantamental UI fixture
+
+#### Documentation
+- [x] `docs/CONTINUOUS_ENHANCEMENT_LOG.md` updated
+- [x] README update not needed
+- [x] PR summary includes changed files
+- [x] PR summary includes validation result

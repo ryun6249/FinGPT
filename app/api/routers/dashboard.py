@@ -29,6 +29,104 @@ _EQUITY_HEATMAP_BATCH_SIZE = 60
 _INTRADAY_INTERVALS = {"5": "5m", "5m": "5m", "15": "15m", "15m": "15m", "60": "60m", "60m": "60m", "1h": "60m"}
 _INTRADAY_PERIOD_BY_INTERVAL = {"5m": "5d", "15m": "30d", "60m": "60d"}
 _INTRADAY_CACHE_TTL_SEC = 90
+_DASHBOARD_DECISION_CARD_VERSION = "dashboard_decision_cards.v1"
+
+
+def _decision_card(
+    *,
+    tab: str,
+    title: str,
+    purpose: str,
+    primary_output: str,
+    chips: list[dict[str, str]],
+) -> dict[str, Any]:
+    return {
+        "tab": tab,
+        "title": title,
+        "status": "ok",
+        "purpose": purpose,
+        "primary_output": primary_output,
+        "advisory_only": True,
+        "contract_version": _DASHBOARD_DECISION_CARD_VERSION,
+        "chips": chips,
+    }
+
+
+def _dashboard_decision_cards() -> list[dict[str, Any]]:
+    return [
+        _decision_card(
+            tab="market",
+            title="Market Dashboard",
+            purpose="시장 테이프, 교차자산 신호, 데이터 신선도를 빠르게 점검합니다.",
+            primary_output="시장 상태 요약과 다음 확인 대상",
+            chips=[
+                {"label": "데이터", "value": "Yahoo + local cache", "status": "ok", "detail": "가격·뉴스·히트맵 입력"},
+                {"label": "범위", "value": "시장 스냅샷", "status": "ok", "detail": "시장 테이프와 교차자산 신호"},
+                {"label": "최신성", "value": "가능 시 장중 데이터", "status": "warn", "detail": "freshness 확인 필요"},
+                {"label": "작업", "value": "새로고침과 점검", "status": "ok", "detail": "로컬 데이터 갱신"},
+            ],
+        ),
+        _decision_card(
+            tab="macro",
+            title="Macro",
+            purpose="FRED, Yahoo, data mart 기반 거시 관측치와 레짐 해석을 확인합니다.",
+            primary_output="거시 레짐, 정책 힌트, 데이터 품질",
+            chips=[
+                {"label": "데이터", "value": "FRED / Yahoo / data mart", "status": "ok", "detail": "매크로 관측 데이터"},
+                {"label": "경계", "value": "관측 데이터 우선", "status": "ok", "detail": "AI 해석 전 데이터 확인"},
+                {"label": "레짐", "value": "신호와 AI 해석 분리", "status": "warn", "detail": "레짐 엔진 결과 우선"},
+                {"label": "출력", "value": "정책 힌트 전용", "status": "ok", "detail": "자문용 맥락"},
+            ],
+        ),
+        _decision_card(
+            tab="quant",
+            title="Quant Lab",
+            purpose="저장 가격 이력으로 백테스트, 전략 검증, 아티팩트를 재현합니다.",
+            primary_output="백테스트 결과, 리플레이, 검증 아티팩트",
+            chips=[
+                {"label": "데이터", "value": "저장 가격 이력", "status": "ok", "detail": "data mart 가격"},
+                {"label": "경계", "value": "No-lookahead 검사", "status": "warn", "detail": "미래 데이터 누수 방지"},
+                {"label": "체결", "value": "다음 봉 기준", "status": "ok", "detail": "체결 가정 명시"},
+                {"label": "출력", "value": "아티팩트와 리플레이", "status": "ok", "detail": "재현 가능한 결과"},
+            ],
+        ),
+        _decision_card(
+            tab="quantamental",
+            title="Quantamental",
+            purpose="가격, 재무, 피어, 리스크 엔진 산출값을 AI 해석과 분리해 점검합니다.",
+            primary_output="classification, score, audit, AI interpretation",
+            chips=[
+                {"label": "데이터", "value": "yfinance + SEC/DART", "status": "ok", "detail": "시장별 provider coverage"},
+                {"label": "계산", "value": "deterministic + peer", "status": "ok", "detail": "엔진 산출값 우선"},
+                {"label": "AI", "value": "해석만 수행", "status": "warn", "detail": "AI는 점수 생성 금지"},
+                {"label": "출력", "value": "classification + audit", "status": "ok", "detail": "스냅샷 감사"},
+            ],
+        ),
+        _decision_card(
+            tab="forecast",
+            title="ML Forecast",
+            purpose="가격 기반 예측 피처, 검증, 드리프트, 모델 레지스트리를 점검합니다.",
+            primary_output="예측 실험과 자문용 신호",
+            chips=[
+                {"label": "데이터", "value": "data_mart 가격", "status": "ok", "detail": "예측 피처 입력"},
+                {"label": "검증", "value": "Walk-forward 기본", "status": "ok", "detail": "시계열 검증"},
+                {"label": "가드", "value": "Leakage / embargo", "status": "warn", "detail": "누수 검사 우선"},
+                {"label": "출력", "value": "자문용 신호만", "status": "ok", "detail": "매매 지시 아님"},
+            ],
+        ),
+        _decision_card(
+            tab="ai-portfolio",
+            title="AI Portfolio",
+            purpose="정책 제약, 리밸런싱 후보, 보고서와 감사 이력을 운영 관점에서 확인합니다.",
+            primary_output="정책 기반 추천과 승인 필요 작업",
+            chips=[
+                {"label": "저장소", "value": "Local SQLite", "status": "ok", "detail": "로컬 포트폴리오 상태"},
+                {"label": "정책", "value": "제약조건 우선", "status": "ok", "detail": "정책 기반 엔진"},
+                {"label": "승인", "value": "사용자 확인 작업", "status": "warn", "detail": "자동 리밸런싱 금지"},
+                {"label": "감사", "value": "Hash와 이력", "status": "ok", "detail": "요청/정책 해시"},
+            ],
+        ),
+    ]
 
 
 def _clean_intraday_interval(value: Any) -> str:
@@ -356,6 +454,20 @@ async def dashboard_news(limit: int = 20) -> dict[str, Any]:
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "provider": "google_news_rss",
         "selection_policy": "major_source_priority_issue_coverage",
+    }
+
+
+@router.get("/decision-cards")
+async def dashboard_decision_cards() -> dict[str, Any]:
+    """Return tab-level decision context for the static dashboard strip."""
+
+    items = _dashboard_decision_cards()
+    return {
+        "status": "ok",
+        "contract_version": _DASHBOARD_DECISION_CARD_VERSION,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "advisory_only": True,
+        "items": items,
     }
 
 

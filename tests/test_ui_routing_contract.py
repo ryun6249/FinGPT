@@ -18,6 +18,16 @@ FORECAST_UI_JS = Path(__file__).resolve().parents[1] / "app" / "web" / "modules"
 QUANT_UI_JS = Path(__file__).resolve().parents[1] / "app" / "web" / "modules" / "quant-ui.js"
 QUANTAMENTAL_UI_JS = Path(__file__).resolve().parents[1] / "app" / "web" / "modules" / "quantamental-ui.js"
 AI_PORTFOLIO_UI_SMOKE = Path(__file__).resolve().parents[1] / "scripts" / "ai_portfolio_ui_smoke.py"
+UI_CONTRACT_SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "check_ui_contract.py"
+DYNAMIC_UI_TEXT_FILES = [
+    APP_JS,
+    AI_PORTFOLIO_UI_JS,
+    MARKET_UI_JS,
+    MACRO_UI_JS,
+    FORECAST_UI_JS,
+    QUANT_UI_JS,
+    QUANTAMENTAL_UI_JS,
+]
 
 
 class UiRoutingContractTests(unittest.TestCase):
@@ -86,6 +96,19 @@ class UiRoutingContractTests(unittest.TestCase):
         self.assertNotIn("??", html)
         for bad in ["鍮", "怨", "諛", "吏", "由", "遺", "媛", "쨌", "濡"]:
             self.assertNotIn(bad, html)
+
+    def test_dynamic_ui_copy_is_not_mojibake(self):
+        cjk_or_mojibake = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\ufffd]")
+        bad_tokens = ["鍮", "怨", "諛", "吏", "由", "遺", "媛", "쨌", "濡"]
+        for path in DYNAMIC_UI_TEXT_FILES:
+            text = path.read_text(encoding="utf-8")
+            self.assertIsNone(cjk_or_mojibake.search(text), str(path))
+            for bad in bad_tokens:
+                self.assertNotIn(bad, text, str(path))
+
+        contract_source = UI_CONTRACT_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("CONTRACT_TEXT_FILES", contract_source)
+        self.assertIn("dynamic_mojibake_lines", contract_source)
 
     def test_progress_stage_helpers_are_null_safe(self):
         self.assertIn("function progressNode(stage)", self.source)
