@@ -129,6 +129,26 @@ class DashboardApiTests(unittest.TestCase):
         self.assertEqual(body["items"][0]["category"], "rates_credit")
         self.assertEqual(body["items"][0]["symbol"], "TLT")
 
+    def test_dashboard_decision_cards_cover_all_tabs(self):
+        client = TestClient(api_server.app)
+
+        resp = client.get("/api/v1/dashboard/decision-cards")
+
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertEqual(body["status"], "ok")
+        self.assertEqual(body["contract_version"], "dashboard_decision_cards.v1")
+        self.assertTrue(body["advisory_only"])
+        by_tab = {item["tab"]: item for item in body["items"]}
+        self.assertEqual(
+            {"market", "macro", "quant", "quantamental", "forecast", "ai-portfolio"},
+            set(by_tab),
+        )
+        quantamental = by_tab["quantamental"]
+        self.assertTrue(quantamental["advisory_only"])
+        self.assertIn("AI", {chip["label"] for chip in quantamental["chips"]})
+        self.assertIn("점수 생성 금지", " ".join(chip["detail"] for chip in quantamental["chips"]))
+
     def test_dashboard_market_returns_as_of_quant_snapshot(self):
         fake_yf = types.SimpleNamespace(Ticker=lambda symbol: _FakeTicker(symbol))
         client = TestClient(api_server.app)

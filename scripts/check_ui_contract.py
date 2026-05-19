@@ -17,6 +17,16 @@ from app.api import server as api_server
 
 HTML_MOJIBAKE_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\ufffd]")
 HTML_PLACEHOLDER_RE = re.compile(r"\?{2,}")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+CONTRACT_TEXT_FILES: dict[str, Path] = {
+    "app.js": PROJECT_ROOT / "app" / "web" / "app.js",
+    "market-ui.js": PROJECT_ROOT / "app" / "web" / "modules" / "market-ui.js",
+    "macro-ui.js": PROJECT_ROOT / "app" / "web" / "modules" / "macro-ui.js",
+    "forecast-ui.js": PROJECT_ROOT / "app" / "web" / "modules" / "forecast-ui.js",
+    "quant-ui.js": PROJECT_ROOT / "app" / "web" / "modules" / "quant-ui.js",
+    "quantamental-ui.js": PROJECT_ROOT / "app" / "web" / "modules" / "quantamental-ui.js",
+    "ai-portfolio-ui.js": PROJECT_ROOT / "app" / "web" / "modules" / "ai-portfolio-ui.js",
+}
 
 REQUIRED_UI_MARKERS: dict[str, str] = {
     "analysis form": 'id="analysisForm"',
@@ -382,6 +392,21 @@ def _matching_lines(text: str, pattern: re.Pattern[str]) -> list[dict[str, Any]]
     ]
 
 
+def _matching_file_lines(files: dict[str, Path], pattern: re.Pattern[str]) -> list[dict[str, Any]]:
+    matches: list[dict[str, Any]] = []
+    for label, path in files.items():
+        text = path.read_text(encoding="utf-8")
+        for item in _matching_lines(text, pattern):
+            matches.append(
+                {
+                    "file": str(path.relative_to(PROJECT_ROOT)),
+                    "label": label,
+                    **item,
+                }
+            )
+    return matches
+
+
 def run_check() -> dict[str, Any]:
     with TestClient(api_server.app) as client:
         ui_response = client.get("/ui/")
@@ -390,11 +415,12 @@ def run_check() -> dict[str, Any]:
         health_response = client.get("/api/v1/health")
 
     html = ui_response.text
-    app_js_path = Path(__file__).resolve().parents[1] / "app" / "web" / "app.js"
+    app_js_path = PROJECT_ROOT / "app" / "web" / "app.js"
     app_js = app_js_path.read_text(encoding="utf-8")
     missing = [name for name, marker in REQUIRED_UI_MARKERS.items() if marker not in html]
     missing_js = [name for name, marker in REQUIRED_APP_JS_MARKERS.items() if marker not in app_js]
     mojibake_lines = _matching_lines(html, HTML_MOJIBAKE_RE)
+    dynamic_mojibake_lines = _matching_file_lines(CONTRACT_TEXT_FILES, HTML_MOJIBAKE_RE)
     placeholder_lines = _matching_lines(html, HTML_PLACEHOLDER_RE)
     passed = (
         ui_response.status_code == 200
@@ -404,6 +430,7 @@ def run_check() -> dict[str, Any]:
         and not missing
         and not missing_js
         and not mojibake_lines
+        and not dynamic_mojibake_lines
         and not placeholder_lines
     )
     return {
@@ -415,9 +442,11 @@ def run_check() -> dict[str, Any]:
         "missing_markers": missing,
         "missing_js_markers": missing_js,
         "mojibake_lines": mojibake_lines,
+        "dynamic_mojibake_lines": dynamic_mojibake_lines,
         "placeholder_lines": placeholder_lines,
         "checked_markers": sorted(REQUIRED_UI_MARKERS),
         "checked_js_markers": sorted(REQUIRED_APP_JS_MARKERS),
+        "checked_text_files": sorted(str(path.relative_to(PROJECT_ROOT)) for path in CONTRACT_TEXT_FILES.values()),
         "html_bytes": len(html.encode("utf-8", errors="ignore")),
     }
 
