@@ -10,20 +10,23 @@ import sys
 import time
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 from urllib.request import urlopen
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 REPORTS_DIR = PROJECT_ROOT / "reports"
-STATIC_BUNDLE_VERSION = "20260514-domain-modules"
+DOMAIN_BUNDLE_VERSION = "20260514-domain-modules"
+QUANTAMENTAL_BUNDLE_VERSION = "20260519-quantamental-v12"
+APP_BUNDLE_VERSION = "20260519-continuous-enhancement-v3"
 VERSIONED_SCRIPT_SELECTORS = [
-    f'script[src="modules/market-ui.js?v={STATIC_BUNDLE_VERSION}"]',
-    f'script[src="modules/macro-ui.js?v={STATIC_BUNDLE_VERSION}"]',
-    f'script[src="modules/forecast-ui.js?v={STATIC_BUNDLE_VERSION}"]',
-    f'script[src="modules/quant-ui.js?v={STATIC_BUNDLE_VERSION}"]',
-    f'script[src="modules/ai-portfolio-ui.js?v={STATIC_BUNDLE_VERSION}"]',
-    f'script[src="app.js?v={STATIC_BUNDLE_VERSION}"]',
+    f'script[src="modules/market-ui.js?v={DOMAIN_BUNDLE_VERSION}"]',
+    f'script[src="modules/macro-ui.js?v={DOMAIN_BUNDLE_VERSION}"]',
+    f'script[src="modules/forecast-ui.js?v={DOMAIN_BUNDLE_VERSION}"]',
+    f'script[src="modules/quant-ui.js?v={DOMAIN_BUNDLE_VERSION}"]',
+    f'script[src="modules/ai-portfolio-ui.js?v={DOMAIN_BUNDLE_VERSION}"]',
+    f'script[src="modules/quantamental-ui.js?v={QUANTAMENTAL_BUNDLE_VERSION}"]',
+    f'script[src="app.js?v={APP_BUNDLE_VERSION}"]',
 ]
 DOMAIN_MODULE_GLOBALS = [
     "typeof window.FinGPTMarketUi?.marketTape === 'function'",
@@ -33,13 +36,15 @@ DOMAIN_MODULE_GLOBALS = [
     "typeof window.FinGPTQuantUi?.exportStorageReport === 'function'",
     "typeof window.FinGPTAiPortfolioUi?.dashboardMeta === 'function'",
     "typeof window.FinGPTAiPortfolioUi?.operationList === 'function'",
+    "typeof window.FinGPTQuantamentalUi?.topSignals === 'function'",
+    "typeof window.FinGPTQuantamentalUi?.scoreScreen === 'function'",
 ]
 DASHBOARD_TAB_CHECKS = [
     (
         "market-dashboard-tab",
         "market",
         "#market-dashboard",
-        ["#marketTapeSurface", "#marketSignalSurface", "#marketOverviewMeta"],
+        ["#marketTapeSurface", "#marketSignalSurface", "#crossAssetAnalysisSurface", "#marketOverviewMeta"],
     ),
     (
         "macro-dashboard-tab",
@@ -58,6 +63,12 @@ DASHBOARD_TAB_CHECKS = [
         "forecast",
         "#ml-forecast",
         ["#mlForecastSurface", "#forecastJobsSurface", "#forecastRegistrySurface"],
+    ),
+    (
+        "quantamental-tab",
+        "quantamental",
+        "#quantamental",
+        ["#quantamentalSurface", "#quantamentalScreenSurface", "#quantamentalDataQualitySurface"],
     ),
     (
         "ai-portfolio-tab",
@@ -82,6 +93,7 @@ def run_ai_portfolio_ui_smoke(
         base_url = f"http://127.0.0.1:{port}"
         started_server = True
         _wait_for_health(base_url, timeout_s=min(45, timeout_s))
+    base_url = _normalize_base_url(base_url)
 
     try:
         result = _run_playwright_flow(base_url, timeout_s=timeout_s, screenshot_dir=screenshot_dir)
@@ -90,6 +102,14 @@ def run_ai_portfolio_ui_smoke(
     finally:
         if proc is not None:
             _stop_server(proc)
+
+
+def _normalize_base_url(base_url: str) -> str:
+    clean = str(base_url or "").strip().rstrip("/")
+    parsed = urlparse(clean)
+    if parsed.path.rstrip("/") == "/ui":
+        return urlunparse(parsed._replace(path="", params="", query="", fragment="")).rstrip("/")
+    return clean
 
 
 def _run_playwright_flow(base_url: str, *, timeout_s: int, screenshot_dir: Path) -> dict[str, Any]:
@@ -118,7 +138,7 @@ def _run_playwright_flow(base_url: str, *, timeout_s: int, screenshot_dir: Path)
         page.on("console", lambda msg: console_errors.append(msg.text) if msg.type in {"error", "warning"} else None)
         try:
             page.goto(
-                f"{base_url.rstrip('/')}/ui/?v={STATIC_BUNDLE_VERSION}#ai-portfolio",
+                f"{base_url.rstrip('/')}/ui/?v={APP_BUNDLE_VERSION}#ai-portfolio",
                 wait_until="domcontentloaded",
                 timeout=timeout_ms,
             )
@@ -168,7 +188,7 @@ def _run_playwright_flow(base_url: str, *, timeout_s: int, screenshot_dir: Path)
                     page.locator(selector).wait_for(state="visible", timeout=timeout_ms)
             _mark(checked, "dashboard tab surface matrix")
 
-            _run_dashboard_action_smoke(page, timeout_ms=timeout_ms)
+            _run_dashboard_action_smoke(page, checked=checked, timeout_ms=timeout_ms)
             _mark(checked, "dashboard action smoke")
 
             page.get_by_test_id("ai-portfolio-tab").click()
@@ -218,6 +238,15 @@ def _select_dashboard_tab(page: Any, tab_test_id: str, tab_value: str, hash_valu
         raise AssertionError(f"{tab_test_id} did not update hash to {hash_value}: {page.url}")
 
 
+def _show_all_dashboard_panels(page: Any, timeout_ms: int) -> None:
+    page.wait_for_function("typeof window.setDashboardPanelView === 'function'", timeout=timeout_ms)
+    page.evaluate("window.setDashboardPanelView('all')")
+    page.wait_for_function(
+        "document.querySelector('#homeSurfaceGrid')?.getAttribute('data-panel-view') === 'all'",
+        timeout=timeout_ms,
+    )
+
+
 def _wait_surface_settled(page: Any, selector: str, loading_text: str, timeout_ms: int) -> str:
     page.wait_for_function(
         """
@@ -232,8 +261,9 @@ def _wait_surface_settled(page: Any, selector: str, loading_text: str, timeout_m
     return page.locator(selector).inner_text(timeout=timeout_ms)
 
 
-def _run_dashboard_action_smoke(page: Any, *, timeout_ms: int) -> None:
+def _run_dashboard_action_smoke(page: Any, *, checked: list[str], timeout_ms: int) -> None:
     _select_dashboard_tab(page, "market-dashboard-tab", "market", "#market-dashboard", timeout_ms)
+    _show_all_dashboard_panels(page, timeout_ms)
     page.locator("#tvChartSource").select_option("internal", timeout=timeout_ms)
     page.locator("#tvChartSymbol").select_option("SPY", timeout=timeout_ms)
     page.locator("#tvChartInterval").select_option("D", timeout=timeout_ms)
@@ -251,31 +281,84 @@ def _run_dashboard_action_smoke(page: Any, *, timeout_ms: int) -> None:
     page.locator("#tvOverviewMeta").wait_for(state="visible", timeout=timeout_ms)
 
     _select_dashboard_tab(page, "macro-dashboard-tab", "macro", "#macro", timeout_ms)
+    _show_all_dashboard_panels(page, timeout_ms)
+    page.locator("#macroProviderFilter").select_option("", timeout=timeout_ms)
+    page.locator("#macroCategoryFilter").select_option("", timeout=timeout_ms)
     page.locator("#macroSeriesSearchInput").fill("US 10Y", timeout=timeout_ms)
     page.get_by_test_id("macro-series-search-run").click()
     page.locator("#macroSeriesSearchResults .macro-series-result").first.wait_for(state="visible", timeout=timeout_ms)
     page.locator("#macroSeriesDetailSurface .macro-detail-head").first.wait_for(state="visible", timeout=timeout_ms)
 
     _select_dashboard_tab(page, "quant-lab-tab", "quant", "#quant-lab", timeout_ms)
+    _show_all_dashboard_panels(page, timeout_ms)
     page.get_by_test_id("quant-run-history-refresh").click()
-    quant_text = _wait_surface_settled(page, "#quantRunHistorySurface", "불러오는 중", timeout_ms)
-    if "실행 이력 로드 실패" in quant_text:
+    quant_text = _wait_surface_settled(page, "#quantRunHistorySurface", "\ubd88\ub7ec\uc624\ub294 \uc911", timeout_ms)
+    if "\uc2e4\ud589 \uc774\ub825 \ub85c\ub4dc \uc2e4\ud328" in quant_text:
         raise AssertionError(quant_text)
 
     _select_dashboard_tab(page, "ml-forecast-tab", "forecast", "#ml-forecast", timeout_ms)
+    _show_all_dashboard_panels(page, timeout_ms)
     page.get_by_test_id("ml-forecast-ai-provider-check").click()
-    provider_text = _wait_surface_settled(page, "#forecastAiProviderSurface", "확인", timeout_ms)
-    if "AI provider 상태 확인 실패" in provider_text:
+    provider_text = _wait_surface_settled(page, "#forecastAiProviderSurface", "\ud655\uc778", timeout_ms)
+    if "AI provider \uc0c1\ud0dc \ud655\uc778 \uc2e4\ud328" in provider_text:
         raise AssertionError(provider_text)
     page.get_by_test_id("ml-forecast-jobs-refresh").click()
-    jobs_text = _wait_surface_settled(page, "#forecastJobsSurface", "로드", timeout_ms)
-    if "Forecast job 로드 실패" in jobs_text:
+    jobs_text = _wait_surface_settled(page, "#forecastJobsSurface", "\ub85c\ub4dc", timeout_ms)
+    if "Forecast job \ub85c\ub4dc \uc2e4\ud328" in jobs_text:
         raise AssertionError(jobs_text)
 
+    _select_dashboard_tab(page, "quantamental-tab", "quantamental", "#quantamental", timeout_ms)
+    _show_all_dashboard_panels(page, timeout_ms)
+    page.locator('#languageToggle [data-language="en"]').click(timeout=timeout_ms)
+    page.wait_for_function(
+        """
+        () => document.querySelector('#languageToggle [data-language="en"]')?.getAttribute('aria-pressed') === 'true'
+        """,
+        timeout=timeout_ms,
+    )
+    page.locator('#languageToggle [data-language="ko"]').click(timeout=timeout_ms)
+    page.wait_for_function(
+        """
+        () => document.querySelector('#languageToggle [data-language="ko"]')?.getAttribute('aria-pressed') === 'true'
+        """,
+        timeout=timeout_ms,
+    )
+    page.get_by_test_id("quantamental-screen-run").click(timeout=timeout_ms)
+    page.wait_for_function(
+        """
+        () => {
+          const text = document.querySelector('#quantamentalScreenSurface')?.textContent || '';
+          const rows = document.querySelectorAll('#quantamentalScreenSurface [data-testid="quantamental-screen-table"] tbody tr').length;
+          return rows > 0 && rows <= 5 && !/failed|error|Not Found/i.test(text);
+        }
+        """,
+        timeout=timeout_ms,
+    )
+    page.locator('#quantamentalScreenSurface [data-testid="quantamental-screen-table"]').wait_for(
+        state="visible",
+        timeout=timeout_ms,
+    )
+    page.locator("#quantamentalScoreMetric").select_option("momentum", timeout=timeout_ms)
+    page.locator("#quantamentalScoreThreshold").fill("0", timeout=timeout_ms)
+    page.locator("#quantamentalScoreScreenLimit").select_option("10", timeout=timeout_ms)
+    page.get_by_test_id("quantamental-score-screen-run").click(timeout=timeout_ms)
+    page.wait_for_function(
+        """
+        () => {
+          const text = document.querySelector('#quantamentalScoreScreenSurface')?.textContent || '';
+          const rows = document.querySelectorAll('#quantamentalScoreScreenSurface [data-testid="quantamental-score-screen-table"] tbody tr').length;
+          return rows > 0 && rows <= 10 && text.includes('>=') && (text.includes('Momentum') || text.includes('\ubaa8\uba58\ud140'));
+        }
+        """,
+        timeout=timeout_ms,
+    )
+    _mark(checked, "quantamental language toggle top 5 and score screen")
+
     _select_dashboard_tab(page, "ai-portfolio-tab", "ai-portfolio", "#ai-portfolio", timeout_ms)
+    _show_all_dashboard_panels(page, timeout_ms)
     page.locator("#aiPortfolioOpsRefresh").click()
-    ops_text = _wait_surface_settled(page, "#aiPortfolioOpsSurface", "확인하는 중", timeout_ms)
-    if "운영 상태 조회 실패" in ops_text:
+    ops_text = _wait_surface_settled(page, "#aiPortfolioOpsSurface", "\ud655\uc778\ud558\ub294 \uc911", timeout_ms)
+    if "\uc6b4\uc601 \uc0c1\ud0dc \uc870\ud68c \uc2e4\ud328" in ops_text:
         raise AssertionError(ops_text)
 
 
@@ -288,6 +371,8 @@ def _find_free_port() -> int:
 def _start_server(port: int) -> subprocess.Popen[str]:
     env = os.environ.copy()
     env["PYTHONPATH"] = str(PROJECT_ROOT)
+    env["PYTHONUTF8"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
     return subprocess.Popen(  # nosec B603
         [
             sys.executable,
@@ -301,9 +386,8 @@ def _start_server(port: int) -> subprocess.Popen[str]:
         ],
         cwd=PROJECT_ROOT,
         env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
 
@@ -313,7 +397,8 @@ def _wait_for_health(base_url: str, *, timeout_s: int) -> None:
     last_error = ""
     while time.time() < deadline:
         try:
-            with urlopen(url, timeout=2) as response:  # nosec B310 - trusted local URL.
+            # The smoke target is the local FastAPI server started by this script.
+            with urlopen(url, timeout=2) as response:  # nosec B310
                 if response.status == 200:
                     return
         except Exception as exc:  # noqa: BLE001

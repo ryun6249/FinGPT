@@ -23,9 +23,23 @@ const API = {
   qdrantInfo: "/api/v1/qdrant/collection",
   qdrantPurge: "/api/v1/qdrant/purge",
   evalDashboard: "/api/v1/eval/dashboard",
-  dashboardNews: "/api/v1/dashboard/news?limit=20",
+  dashboardNews: (options = {}) => {
+    const params = new URLSearchParams({ limit: String(options.limit || 20) });
+    if (options.query) params.set("query", options.query);
+    if (options.ticker) params.set("ticker", options.ticker);
+    if (options.topic) params.set("topic", options.topic);
+    return `/api/v1/dashboard/news?${params.toString()}`;
+  },
   dashboardMarket: "/api/v1/dashboard/market",
   dashboardMarketOverview: "/api/v1/dashboard/market/overview",
+  dashboardDecisionCards: "/api/v1/dashboard/decision-cards",
+  dashboardCrossAssetAnalyze: (options = {}) => {
+    const params = new URLSearchParams();
+    if (options.symbols) params.set("symbols", options.symbols);
+    if (options.topic) params.set("topic", options.topic);
+    if (options.horizon) params.set("horizon", options.horizon);
+    return `/api/v1/dashboard/cross-asset/analyze?${params.toString()}`;
+  },
   dashboardIntraday: (ticker, interval = "5m", limit = 500) => {
     const params = new URLSearchParams({ interval: String(interval), limit: String(limit) });
     return `/api/v1/dashboard/market/intraday/${encodeURIComponent(ticker)}?${params.toString()}`;
@@ -60,6 +74,11 @@ const API = {
     if (options.refresh) params.set("refresh", "true");
     if (options.startDate) params.set("start_date", options.startDate);
     if (options.endDate) params.set("end_date", options.endDate);
+    if (options.freshnessProfile) params.set("freshness_profile", options.freshnessProfile);
+    if (options.requireFreshPrices) params.set("require_fresh_prices", "true");
+    if (options.maxMarketCalendarLagDays !== undefined && options.maxMarketCalendarLagDays !== null) {
+      params.set("max_market_calendar_lag_days", String(options.maxMarketCalendarLagDays));
+    }
     return `/api/v1/data/prices/${encodeURIComponent(ticker)}?${params.toString()}`;
   },
   dataFundamentals: (ticker) => `/api/v1/data/fundamentals/${encodeURIComponent(ticker)}`,
@@ -131,6 +150,69 @@ const API = {
   aiPortfolioReportsGenerate: "/api/v1/ai-portfolio/reports",
   aiPortfolioReports: (policyId) => `/api/v1/ai-portfolio/reports?policy_id=${encodeURIComponent(policyId)}`,
   aiPortfolioHistory: (policyId) => `/api/v1/ai-portfolio/history?policy_id=${encodeURIComponent(policyId)}`,
+  quantamentalAnalysis: (ticker, options = {}) => {
+    const params = new URLSearchParams({
+      market: String(options.market || "US"),
+      period: String(options.period || "annual"),
+      years: String(options.years || 5),
+      lookback: String(options.lookback || 252),
+      style: String(options.style || "balanced"),
+      include_ai: String(options.includeAi ?? true),
+      use_llm: String(options.useLlm ?? false),
+      force_refresh: String(options.forceRefresh ?? false),
+      output_language: String(options.outputLanguage || selectedOutputLanguage()),
+    });
+    return `/api/v1/quantamental/analysis/${encodeURIComponent(ticker)}?${params.toString()}`;
+  },
+  quantamentalAiReport: "/api/v1/quantamental/ai/report",
+  quantamentalAiQa: "/api/v1/quantamental/ai/qa",
+  quantamentalCompare: "/api/v1/quantamental/compare",
+  quantamentalTopSignals: (options = {}) => {
+    const params = new URLSearchParams({
+      universe: String(options.universe || "default_us_large_cap"),
+      market: String(options.market || "US"),
+      period: String(options.period || "annual"),
+      years: String(options.years || 5),
+      lookback: String(options.lookback || 252),
+      style: String(options.style || "balanced"),
+      limit: String(options.limit || 5),
+      refresh_stale: String(options.refreshStale ?? true),
+      force_refresh: String(options.forceRefresh ?? false),
+      output_language: String(options.outputLanguage || selectedOutputLanguage()),
+    });
+    if (options.tickers) params.set("tickers", String(options.tickers));
+    return `/api/v1/quantamental/screen/top-signals?${params.toString()}`;
+  },
+  quantamentalScoreScreen: (options = {}) => {
+    const params = new URLSearchParams({
+      universe: String(options.universe || "default_us_large_cap"),
+      market: String(options.market || "US"),
+      period: String(options.period || "annual"),
+      years: String(options.years || 5),
+      lookback: String(options.lookback || 252),
+      style: String(options.style || "balanced"),
+      score_key: String(options.scoreKey || "composite"),
+      min_score: String(options.minScore ?? 70),
+      limit: String(options.limit || 20),
+      refresh_stale: String(options.refreshStale ?? true),
+      force_refresh: String(options.forceRefresh ?? false),
+      output_language: String(options.outputLanguage || selectedOutputLanguage()),
+    });
+    if (options.tickers) params.set("tickers", String(options.tickers));
+    return `/api/v1/quantamental/screen/by-score?${params.toString()}`;
+  },
+  quantamentalCompareWatchlists: "/api/v1/quantamental/compare/watchlists",
+  quantamentalCompareWatchlist: (id) => `/api/v1/quantamental/compare/watchlists/${encodeURIComponent(id || "")}`,
+  quantamentalSnapshotExport: (snapshotId, format = "json") => `/api/v1/quantamental/snapshots/${encodeURIComponent(snapshotId || "")}/export?format=${encodeURIComponent(format)}`,
+  quantamentalSnapshotDiff: (baseSnapshotId, targetSnapshotId) => `/api/v1/quantamental/snapshots/diff?base_snapshot_id=${encodeURIComponent(baseSnapshotId || "")}&target_snapshot_id=${encodeURIComponent(targetSnapshotId || "")}`,
+  quantamentalSnapshotRetention: (options = {}) => {
+    const params = new URLSearchParams({
+      keep_last: String(options.keepLast || 20),
+      dry_run: String(options.dryRun ?? true),
+    });
+    if (options.ticker) params.set("ticker", String(options.ticker));
+    return `/api/v1/quantamental/snapshots/retention?${params.toString()}`;
+  },
 };
 
 const STORAGE = {
@@ -138,14 +220,40 @@ const STORAGE = {
   form: "fingpt.form.v1",
   controlPanel: "fingpt.controlPanel.v1",
   dashboardLayout: "fingpt.dashboardLayout.v1",
+  dashboardLayoutVersion: "fingpt.dashboardLayout.version",
+  dashboardRange: "fingpt.dashboardRange.v1",
   tvChart: "fingpt.tvChart.v1",
   theme: "fingpt.theme.v1",
+  outputLanguage: "fingpt.outputLanguage.v1",
+  quantamentalCompareWatchlists: "fingpt.quantamental.compareWatchlists.v1",
 };
 
 const STAGES = ["collect", "ingest", "retrieve", "infer", "analyze", "report", "output"];
+const DASHBOARD_PANEL_LAYOUT_VERSION = "20260519-all-default";
+const DEFAULT_DASHBOARD_PANEL_VIEWS = {
+  market: "all",
+  macro: "all",
+  quant: "all",
+  quantamental: "all",
+  forecast: "all",
+  "ai-portfolio": "all",
+};
+const DEFAULT_GLOBAL_RANGE = { range: "1Y", startDate: "", endDate: "" };
+const DASHBOARD_RANGE_OPTIONS = new Set(["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "3Y", "5Y", "MAX", "custom"]);
+const DASHBOARD_RANGE_LOOKBACK_DAYS = {
+  "1D": 1,
+  "1W": 5,
+  "1M": 21,
+  "3M": 63,
+  "6M": 126,
+  "1Y": 252,
+  "3Y": 756,
+  "5Y": 1260,
+  MAX: 5000,
+};
 
 const TV_ADVANCED_CHART_SCRIPT = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
-const TV_CHART_DEFAULTS = { source: "tradingview", symbolKey: "SPY", interval: "D", compareKey: "" };
+const TV_CHART_DEFAULTS = { source: "internal", symbolKey: "SPY", interval: "D", compareKey: "" };
 const TV_CHART_SYMBOLS = {
   SPY: { label: "SPY · S&P 500", symbol: "AMEX:SPY", dataTicker: "SPY" },
   QQQ: { label: "QQQ · Nasdaq 100", symbol: "NASDAQ:QQQ", dataTicker: "QQQ" },
@@ -196,6 +304,35 @@ function safeWriteStoredValue(key, value) {
   try {
     localStorage.setItem(key, value);
   } catch (_) {}
+}
+
+function initDashboardPanelViews() {
+  const savedVersion = safeReadStoredValue(STORAGE.dashboardLayoutVersion, "");
+  if (savedVersion !== DASHBOARD_PANEL_LAYOUT_VERSION) {
+    safeWriteStoredJson(STORAGE.dashboardLayout, DEFAULT_DASHBOARD_PANEL_VIEWS);
+    safeWriteStoredValue(STORAGE.dashboardLayoutVersion, DASHBOARD_PANEL_LAYOUT_VERSION);
+    return { ...DEFAULT_DASHBOARD_PANEL_VIEWS };
+  }
+  return safeReadStoredJson(STORAGE.dashboardLayout, DEFAULT_DASHBOARD_PANEL_VIEWS);
+}
+
+function normalizeGlobalRange(value) {
+  const raw = String(value || "").trim();
+  const normalized = raw.toLowerCase() === "custom" ? "custom" : raw.toUpperCase();
+  return DASHBOARD_RANGE_OPTIONS.has(normalized) ? normalized : "1Y";
+}
+
+function initGlobalRangeFromLocation() {
+  const saved = safeReadStoredJson(STORAGE.dashboardRange, DEFAULT_GLOBAL_RANGE);
+  const params = new URLSearchParams(window.location.search || "");
+  const urlRange = params.get("range");
+  const range = normalizeGlobalRange(urlRange || saved.range || DEFAULT_GLOBAL_RANGE.range);
+  const ordered = normalizeCustomGlobalDateOrder(params.get("start") || saved.startDate, params.get("end") || saved.endDate);
+  return {
+    range,
+    startDate: ordered.startDate,
+    endDate: ordered.endDate,
+  };
 }
 
 const els = {
@@ -249,10 +386,13 @@ const els = {
   qdrantPurgeResult: document.getElementById("qdrantPurgeResult"),
 
   qualityDashBtn: document.getElementById("qualityDashBtn"),
+  globalQualitySummary: document.getElementById("globalQualitySummary"),
   themeToggleBtn: document.getElementById("themeToggleBtn"),
+  languageToggle: document.getElementById("languageToggle"),
   qualityPanel: document.getElementById("qualityPanel"),
   qualitySubtitle: document.getElementById("qualitySubtitle"),
   qualitySummary: document.getElementById("qualitySummary"),
+  qualityContextSummary: document.getElementById("qualityContextSummary"),
   qualityDataHealth: document.getElementById("qualityDataHealth"),
   qualityMacroData: document.getElementById("qualityMacroData"),
   qualityCategories: document.getElementById("qualityCategories"),
@@ -324,13 +464,25 @@ const els = {
   homeNewsList: document.getElementById("homeNewsList"),
   homeNewsCategories: document.getElementById("homeNewsCategories"),
   homeNewsRefresh: document.getElementById("homeNewsRefresh"),
+  homeNewsTicker: document.getElementById("homeNewsTicker"),
+  homeNewsTickerOpen: document.getElementById("homeNewsTickerOpen"),
+  homeNewsTopic: document.getElementById("homeNewsTopic"),
+  homeNewsSearchRun: document.getElementById("homeNewsSearchRun"),
+  homeNewsSearchStatus: document.getElementById("homeNewsSearchStatus"),
+  homeNewsFocusedList: document.getElementById("homeNewsFocusedList"),
   homeDashboardTabs: document.getElementById("homeDashboardTabs"),
   dashboardContextStrip: document.getElementById("dashboardContextStrip"),
+  dashboardRangeControls: document.getElementById("dashboardRangeControls"),
+  dashboardRangeSelect: document.getElementById("dashboardRangeSelect"),
+  dashboardRangeStart: document.getElementById("dashboardRangeStart"),
+  dashboardRangeEnd: document.getElementById("dashboardRangeEnd"),
+  dashboardRangeSupport: document.getElementById("dashboardRangeSupport"),
   dashboardViewControls: document.getElementById("dashboardViewControls"),
   homeSurfaceGrid: document.getElementById("homeSurfaceGrid"),
   marketDashboardTab: document.getElementById("marketDashboardTab"),
   macroDashboardTab: document.getElementById("macroDashboardTab"),
   quantLabTab: document.getElementById("quantLabTab"),
+  quantamentalTab: document.getElementById("quantamentalTab"),
   mlForecastTab: document.getElementById("mlForecastTab"),
   aiPortfolioTab: document.getElementById("aiPortfolioTab"),
   homeHeatmap: document.getElementById("homeHeatmap"),
@@ -339,6 +491,13 @@ const els = {
   marketOverviewMeta: document.getElementById("marketOverviewMeta"),
   marketTapeSurface: document.getElementById("marketTapeSurface"),
   marketSignalSurface: document.getElementById("marketSignalSurface"),
+  crossAssetSymbols: document.getElementById("crossAssetSymbols"),
+  crossAssetSymbolOpen: document.getElementById("crossAssetSymbolOpen"),
+  crossAssetHorizon: document.getElementById("crossAssetHorizon"),
+  crossAssetTopic: document.getElementById("crossAssetTopic"),
+  crossAssetRun: document.getElementById("crossAssetRun"),
+  crossAssetStatus: document.getElementById("crossAssetStatus"),
+  crossAssetAnalysisSurface: document.getElementById("crossAssetAnalysisSurface"),
   homeMarketList: document.getElementById("homeMarketList"),
   dataHealthRefresh: document.getElementById("dataHealthRefresh"),
   homeDataHealth: document.getElementById("homeDataHealth"),
@@ -554,6 +713,43 @@ const els = {
   aiPortfolioReportRebalance: document.getElementById("aiPortfolioReportRebalance"),
   aiPortfolioReportsSurface: document.getElementById("aiPortfolioReportsSurface"),
   aiPortfolioHistorySurface: document.getElementById("aiPortfolioHistorySurface"),
+  quantamentalTicker: document.getElementById("quantamentalTicker"),
+  quantamentalTickerOpen: document.getElementById("quantamentalTickerOpen"),
+  quantamentalMarket: document.getElementById("quantamentalMarket"),
+  quantamentalPeriod: document.getElementById("quantamentalPeriod"),
+  quantamentalYears: document.getElementById("quantamentalYears"),
+  quantamentalLookback: document.getElementById("quantamentalLookback"),
+  quantamentalStyle: document.getElementById("quantamentalStyle"),
+  quantamentalAiModel: document.getElementById("quantamentalAiModel"),
+  quantamentalAiModelStatus: document.getElementById("quantamentalAiModelStatus"),
+  quantamentalAnalyze: document.getElementById("quantamentalAnalyze"),
+  quantamentalStatus: document.getElementById("quantamentalStatus"),
+  quantamentalCompanySurface: document.getElementById("quantamentalCompanySurface"),
+  quantamentalSignalSurface: document.getElementById("quantamentalSignalSurface"),
+  quantamentalScoreSurface: document.getElementById("quantamentalScoreSurface"),
+  quantamentalFactorSurface: document.getElementById("quantamentalFactorSurface"),
+  quantamentalMainSurface: document.getElementById("quantamentalMainSurface"),
+  quantamentalAiRefresh: document.getElementById("quantamentalAiRefresh"),
+  quantamentalDataQualitySurface: document.getElementById("quantamentalDataQualitySurface"),
+  quantamentalCompareTickers: document.getElementById("quantamentalCompareTickers"),
+  quantamentalCompareRun: document.getElementById("quantamentalCompareRun"),
+  quantamentalCompareSurface: document.getElementById("quantamentalCompareSurface"),
+  quantamentalExpandPeers: document.getElementById("quantamentalExpandPeers"),
+  quantamentalPeerLimit: document.getElementById("quantamentalPeerLimit"),
+  quantamentalWatchlistName: document.getElementById("quantamentalWatchlistName"),
+  quantamentalWatchlistSelect: document.getElementById("quantamentalWatchlistSelect"),
+  quantamentalWatchlistSave: document.getElementById("quantamentalWatchlistSave"),
+  quantamentalWatchlistLoad: document.getElementById("quantamentalWatchlistLoad"),
+  quantamentalCompareCsv: document.getElementById("quantamentalCompareCsv"),
+  quantamentalScreenRun: document.getElementById("quantamentalScreenRun"),
+  quantamentalScreenSurface: document.getElementById("quantamentalScreenSurface"),
+  quantamentalScreenStatus: document.getElementById("quantamentalScreenStatus"),
+  quantamentalScoreThreshold: document.getElementById("quantamentalScoreThreshold"),
+  quantamentalScoreMetric: document.getElementById("quantamentalScoreMetric"),
+  quantamentalScoreScreenLimit: document.getElementById("quantamentalScoreScreenLimit"),
+  quantamentalScoreScreenRun: document.getElementById("quantamentalScoreScreenRun"),
+  quantamentalScoreScreenSurface: document.getElementById("quantamentalScoreScreenSurface"),
+  quantamentalScoreScreenStatus: document.getElementById("quantamentalScoreScreenStatus"),
   tvOverviewMeta: document.getElementById("tvOverviewMeta"),
   tvOverviewWidget: document.getElementById("tvOverviewWidget"),
   tvOverviewFallback: document.getElementById("tvOverviewFallback"),
@@ -609,18 +805,21 @@ const state = {
   dashboardHeatmapLoaded: false,
   tradingViewInitialized: false,
   dashboardNewsItems: [],
+  focusedNewsItems: [],
   dashboardNewsCategory: "all",
+  crossAssetAnalysis: null,
   marketOverview: null,
   dashboardMarketItems: [],
+  dashboardDecisionCardsByTab: {},
+  dashboardDecisionCardsLoaded: false,
+  dashboardDecisionCardsRequest: null,
   activeDashboardTab: "market",
+  outputLanguage: safeReadStoredValue(STORAGE.outputLanguage, "ko"),
   tvChartSettings: safeReadStoredJson(STORAGE.tvChart, TV_CHART_DEFAULTS),
-  dashboardPanelViewByTab: safeReadStoredJson(STORAGE.dashboardLayout, {
-    market: "all",
-    macro: "overview",
-    quant: "overview",
-    forecast: "overview",
-    "ai-portfolio": "overview",
-  }),
+  dashboardPanelViewByTab: initDashboardPanelViews(),
+  globalRange: initGlobalRangeFromLocation(),
+  globalRangeNotice: "",
+  globalQuality: null,
   macroLoaded: false,
   macroLoading: false,
   macroOverview: null,
@@ -673,6 +872,19 @@ const state = {
   aiPortfolioPolicy: null,
   aiPortfolioRecommendation: null,
   aiPortfolioSignal: null,
+  quantamentalLoaded: false,
+  quantamentalLoading: false,
+  quantamentalAnalysis: null,
+  quantamentalComparison: null,
+  quantamentalCompareWatchlists: [],
+  quantamentalAiModels: [],
+  quantamentalLastSnapshotId: "",
+  quantamentalActiveTab: "overview",
+  quantamentalScreen: null,
+  quantamentalScreenLoaded: false,
+  quantamentalScreenLoading: false,
+  quantamentalScoreScreen: null,
+  quantamentalScoreScreenLoading: false,
 };
 
 function symbolList(text) {
@@ -1364,6 +1576,13 @@ const KOREAN_ETF_NAMES = Object.fromEntries(symbolNameList(`
 
 const CRYPTO_SYMBOLS = ["BTC-USD", "ETH-USD"];
 
+const GLOBAL_EQUITY_SYMBOLS = [
+  "ASML.AS", "SHEL.L", "AZN.L", "BP.L", "RIO.L", "BHP.AX",
+  "ULVR.L", "HSBA.L", "7203.T", "6758.T", "7267.T", "7974.T", "9984.T",
+  "0700.HK", "9988.HK", "TSM", "NVO", "SAP", "SIE.DE", "BAS.DE", "SHOP.TO",
+  "UBSG.SW", "NESN.SW", "NOVN.SW", "MC.PA", "OR.PA", "AIR.PA",
+];
+
 const SYMBOL_NAME_OVERRIDES = {
   AAPL: "Apple Inc.",
   MSFT: "Microsoft Corporation",
@@ -1384,6 +1603,33 @@ const SYMBOL_NAME_OVERRIDES = {
   "035720.KS": "카카오 (035720 · KOSPI 200)",
   "357780.KQ": "솔브레인 (357780 · KOSDAQ 100)",
   "247540.KQ": "에코프로비엠 (247540 · KOSDAQ 100)",
+  "ASML.AS": "ASML Holding N.V. (Euronext Amsterdam)",
+  "SHEL.L": "Shell plc (London)",
+  "ULVR.L": "Unilever PLC (London)",
+  "AZN.L": "AstraZeneca PLC (London)",
+  "HSBA.L": "HSBC Holdings plc (London)",
+  "BP.L": "BP p.l.c. (London)",
+  "RIO.L": "Rio Tinto Group (London)",
+  "BHP.AX": "BHP Group (Australia)",
+  "7203.T": "Toyota Motor Corporation (Tokyo)",
+  "6758.T": "Sony Group Corporation (Tokyo)",
+  "7267.T": "Honda Motor Co., Ltd. (Tokyo)",
+  "7974.T": "Nintendo Co., Ltd. (Tokyo)",
+  "9984.T": "SoftBank Group Corp. (Tokyo)",
+  "0700.HK": "Tencent Holdings (Hong Kong)",
+  "9988.HK": "Alibaba Group (Hong Kong)",
+  TSM: "Taiwan Semiconductor Manufacturing Company ADR",
+  NVO: "Novo Nordisk A/S ADR",
+  SAP: "SAP SE ADR",
+  "SIE.DE": "Siemens AG (Xetra)",
+  "BAS.DE": "BASF SE (Xetra)",
+  "SHOP.TO": "Shopify Inc. (Toronto)",
+  "UBSG.SW": "UBS Group AG (SIX)",
+  "NESN.SW": "Nestle S.A. (SIX)",
+  "NOVN.SW": "Novartis AG (SIX)",
+  "MC.PA": "LVMH (Euronext Paris)",
+  "OR.PA": "L'Oreal S.A. (Euronext Paris)",
+  "AIR.PA": "Airbus SE (Euronext Paris)",
   "BTC-USD": "Bitcoin USD",
   "ETH-USD": "Ethereum USD",
 };
@@ -1495,6 +1741,16 @@ function buildSymbolCatalog() {
     universe: "crypto_major",
     rank: idx + 1,
   }));
+  GLOBAL_EQUITY_SYMBOLS.forEach((symbol, idx) => pushCatalogItem(rows, seen, {
+    symbol,
+    name: SYMBOL_NAME_OVERRIDES[symbol] || `${symbol} · Global equity`,
+    type: "stock",
+    country: "GLOBAL",
+    sector: "global_equity",
+    exchange: "Global",
+    universe: "global_equity",
+    rank: idx + 1,
+  }));
   return rows;
 }
 
@@ -1524,6 +1780,173 @@ const sourceStatusClass = (s) => {
   if (["empty", "entitlement_required", "credentials_missing", "rate_limited", "no_data_in_window", "provider_unavailable", "partial"].includes(key)) return "warn";
   return "muted";
 };
+
+function qualityStatusClass(status) {
+  const key = String(status || "").toLowerCase();
+  if (["ok", "success", "good", "normal", "fresh", "healthy"].includes(key)) return "ok";
+  if (["failed", "fail", "error", "poor", "danger", "critical"].includes(key)) return "fail";
+  if (["partial", "warn", "warning", "stale", "limited", "empty", "delayed"].includes(key)) return "warn";
+  return "unknown";
+}
+
+function qualityStatusLabel(status) {
+  const cls = qualityStatusClass(status);
+  if (cls === "ok") return "정상";
+  if (cls === "warn") return "주의";
+  if (cls === "fail") return "위험";
+  return "확인 불가";
+}
+
+function displayQualityValue(value, fallback = "-") {
+  if (value === null || value === undefined || value === "") return fallback;
+  if (Array.isArray(value)) return value.length ? value.join(", ") : "없음";
+  return String(value);
+}
+
+function displayQualityCount(value, fallback = "확인 불가") {
+  if (value === null || value === undefined || value === "") return fallback;
+  if (Array.isArray(value)) return value.length ? _fmtNumber(value.length) : "0";
+  const numeric = Number(value);
+  if (Number.isFinite(numeric)) return _fmtNumber(numeric);
+  return displayQualityValue(value, fallback);
+}
+
+function displayMissingSummary(value, fallback = "확인 불가") {
+  if (value === null || value === undefined || value === "") return fallback;
+  if (Array.isArray(value)) return value.length ? `${_fmtNumber(value.length)}개` : "없음";
+  if (typeof value === "boolean") return value ? "있음" : "없음";
+  const numeric = Number(value);
+  if (Number.isFinite(numeric)) return numeric > 0 ? `${_fmtNumber(numeric)}개` : "없음";
+  const text = displayQualityValue(value, fallback);
+  return ["none", "no", "false", "0", "없음"].includes(text.toLowerCase()) ? "없음" : text;
+}
+
+function displayCompactQualityTime(value, fallback = "확인 불가") {
+  const text = displayQualityValue(value, fallback);
+  if (text === fallback || text === "-") return text;
+  const match = text.match(/^(\d{4}-\d{2}-\d{2})(?:[T\s](\d{2}:\d{2}))?/);
+  if (match) return match[2] ? `${match[1]} ${match[2]}` : match[1];
+  return text.length > 24 ? `${text.slice(0, 21)}...` : text;
+}
+
+function selectedRangeLabel() {
+  const range = state.globalRange || DEFAULT_GLOBAL_RANGE;
+  if (range.range === "custom") {
+    const bounds = globalRangeDateBounds(range.range, range.startDate, range.endDate);
+    const start = bounds.startDate || "시작일 미지정";
+    const end = bounds.endDate || range.endDate || "종료일 미지정";
+    return `${start}~${end}`;
+  }
+  return range.range || DEFAULT_GLOBAL_RANGE.range;
+}
+
+function renderGlobalQualitySummary() {
+  if (!els.globalQualitySummary) return;
+  const detail = globalQualityContextModel();
+  const status = detail.status;
+  const statusClassName = qualityStatusClass(status);
+  const label = [
+    `품질 ${detail.statusLabel}`,
+    `기준일 ${detail.asOf}`,
+    `업데이트 ${detail.updatedAt}`,
+    `기간 ${detail.range}`,
+    `관측치 ${detail.observations}`,
+    `결측 ${detail.missing}`,
+    `AI 기준 ${detail.aiSnapshot}`,
+  ].join(", ");
+  els.globalQualitySummary.className = `global-quality-summary ${statusClassName}`;
+  els.globalQualitySummary.setAttribute("aria-label", label);
+  els.globalQualitySummary.title = [
+    `데이터 소스: ${detail.source}`,
+    `분석 기간: ${detail.range}`,
+    `관측치 수: ${detail.observations}`,
+    `결측치: ${detail.missing}`,
+    `캐시: ${detail.cache}`,
+    `AI 분석 기준: ${detail.aiSnapshot}`,
+  ].join("\n");
+  els.globalQualitySummary.innerHTML = `
+    <span class="quality-status">품질: ${escapeHtml(detail.statusLabel)}</span>
+    <span class="quality-meta">기준일: ${escapeHtml(detail.asOf)}</span>
+    <span class="quality-meta">업데이트: ${escapeHtml(detail.updatedAt)}</span>
+    <span class="quality-meta quality-range">기간: ${escapeHtml(detail.range)}</span>
+    <span class="quality-meta quality-observations" data-summary-field="observations">관측치: ${escapeHtml(detail.observations)}</span>
+    <span class="quality-meta quality-missing" data-summary-field="missing">결측: ${escapeHtml(detail.missing)}</span>
+    <span class="quality-meta quality-ai" data-summary-field="ai-snapshot">AI 기준: ${escapeHtml(detail.aiSnapshot)}</span>
+  `;
+  renderGlobalQualityContextSummary();
+}
+
+function updateGlobalQualitySummary(next = {}) {
+  state.globalQuality = {
+    ...(state.globalQuality || {}),
+    ...next,
+  };
+  renderGlobalQualitySummary();
+}
+
+function markGlobalQualityRangePending() {
+  const isEnglish = selectedOutputLanguage() === "en";
+  state.globalQuality = {
+    status: "unknown",
+    asOf: "",
+    updatedAt: isEnglish ? "refreshing" : "갱신 중",
+    source: isEnglish ? "range changed; waiting for refreshed data" : "기간 변경 후 데이터 재계산 대기",
+    observations: "",
+    missing: isEnglish ? "checking" : "확인 중",
+    cache: isEnglish ? "refreshing" : "재조회 중",
+    aiSnapshotAt: isEnglish ? "pending recalculation" : "재계산 대기",
+  };
+  renderGlobalQualitySummary();
+}
+
+function globalQualityContextModel() {
+  const quality = state.globalQuality || {};
+  const status = quality.status || "unknown";
+  const cacheValue = quality.cache ?? quality.cacheStatus ?? quality.cacheLayer
+    ?? (quality.cache_hit === true ? "사용" : (quality.cache_hit === false ? "미사용" : undefined));
+  const rangeSupport = globalRangeSupportSummary();
+  return {
+    status,
+    statusLabel: qualityStatusLabel(status),
+    asOf: displayQualityValue(quality.asOf || quality.dataBasisDate),
+    updatedAt: displayCompactQualityTime(quality.updatedAt || quality.lastUpdated, "-"),
+    range: selectedRangeLabel(),
+    observations: displayQualityCount(quality.observations, "확인 불가"),
+    missing: displayMissingSummary(quality.missing, "확인 불가"),
+    source: displayQualityValue(quality.source, "확인 불가"),
+    cache: displayQualityValue(cacheValue, "확인 불가"),
+    aiSnapshot: displayCompactQualityTime(quality.aiSnapshotAt, "확인 불가"),
+    rangeSupport: rangeSupport.detail,
+  };
+}
+
+function qualityContextItem(label, value, field) {
+  return `<span class="quality-context-item" data-quality-detail="${escapeHtml(field)}"><strong>${escapeHtml(label)}</strong><em>${escapeHtml(value)}</em></span>`;
+}
+
+function renderGlobalQualityContextSummary() {
+  if (!els.qualityContextSummary) return;
+  const detail = globalQualityContextModel();
+  const statusClassName = qualityStatusClass(detail.status);
+  els.qualityContextSummary.className = `quality-context-summary ${statusClassName}`;
+  els.qualityContextSummary.innerHTML = `
+    <div class="quality-context-head">
+      <strong>현재 분석 신뢰도: ${escapeHtml(detail.statusLabel)}</strong>
+      <span>상단 품질 배지와 같은 기준입니다. 확인 불가 값은 아직 출처나 기준일이 확보되지 않은 항목입니다.</span>
+    </div>
+    <div class="quality-context-grid">
+      ${qualityContextItem("데이터 소스", detail.source, "source")}
+      ${qualityContextItem("분석 기간", detail.range, "range")}
+      ${qualityContextItem("기준일", detail.asOf, "basis-date")}
+      ${qualityContextItem("마지막 업데이트", detail.updatedAt, "updated-at")}
+      ${qualityContextItem("관측치", detail.observations, "observations")}
+      ${qualityContextItem("결측치", detail.missing, "missing")}
+      ${qualityContextItem("캐시", detail.cache, "cache")}
+      ${qualityContextItem("AI 분석 기준", detail.aiSnapshot, "ai-snapshot")}
+      ${qualityContextItem("기간 적용 방식", detail.rangeSupport, "range-support")}
+    </div>
+  `;
+}
 
 const KNOWN_TICKERS = SYMBOL_CATALOG
   .map((item) => normalizeTickerToken(item.symbol))
@@ -1575,6 +1998,22 @@ const SYMBOL_PICKER_TARGETS = {
     title: "리서치 티커 선택",
     description: "종목 분석은 단일 선택, 비교 모드에서는 여러 심볼을 선택합니다.",
     emptyLabel: "리서치에 사용할 심볼을 선택하세요.",
+    applyLabel: "티커 적용",
+  },
+  crossAssetSymbols: {
+    inputKey: "crossAssetSymbols",
+    mode: "multi",
+    title: "교차자산 심볼 선택",
+    description: "대시보드 교차자산 분석에 사용할 지수, ETF, 암호화폐, 글로벌 심볼을 선택합니다.",
+    emptyLabel: "교차자산 분석에 사용할 심볼을 선택하세요.",
+    applyLabel: "자산 적용",
+  },
+  homeNewsTicker: {
+    inputKey: "homeNewsTicker",
+    mode: "single",
+    title: "뉴스 티커 선택",
+    description: "회사 자체 뉴스를 조회할 단일 티커를 선택합니다.",
+    emptyLabel: "뉴스를 조회할 티커를 선택하세요.",
     applyLabel: "티커 적용",
   },
   assetDetailTicker: {
@@ -1642,6 +2081,14 @@ const SYMBOL_PICKER_TARGETS = {
     description: "excess return과 비교 평가에 사용할 벤치마크를 선택합니다.",
     emptyLabel: "예측 벤치마크를 선택하세요.",
     applyLabel: "벤치마크 적용",
+  },
+  quantamentalTicker: {
+    inputKey: "quantamentalTicker",
+    mode: "single",
+    title: "Quantamental 티커 선택",
+    description: "재무제표, 가격, 팩터, 리스크를 분석할 단일 종목을 선택합니다.",
+    emptyLabel: "Quantamental 분석 대상 심볼을 선택하세요.",
+    applyLabel: "티커 적용",
   },
   aiPortfolioCustomUniverse: {
     inputKey: "aiPortfolioCustomUniverse",
@@ -1741,10 +2188,15 @@ function renderUniverseResolutionNotice(data) {
   if (!data || typeof data !== "object") return "";
   const available = Array.isArray(data.available) ? data.available : [];
   const unavailable = Array.isArray(data.unavailable) ? data.unavailable : [];
+  const staleAssets = Array.isArray(data.stale_assets) ? data.stale_assets : [];
   const hydration = data.hydration || {};
   const hydratedCount = Number(hydration.hydrated_count || (Array.isArray(hydration.hydrated) ? hydration.hydrated.length : 0));
-  const status = unavailable.length ? "warn" : "ok";
+  const staleRefreshed = Array.isArray(hydration.stale_refreshed) ? hydration.stale_refreshed : [];
+  const staleRefreshAttempted = !!hydration.stale_refresh_attempted;
+  const strictViolation = !!data.strict_freshness_violation;
+  const status = unavailable.length || strictViolation || staleAssets.length ? "warn" : "ok";
   const hidden = Math.max(0, unavailable.length - 12);
+  const hiddenStale = Math.max(0, staleAssets.length - 12);
   let summary = unavailable.length
     ? `실행 가능 ${_fmtNumber(available.length)}개 · 보강 후에도 가격 이력이 부족한 종목 ${_fmtNumber(unavailable.length)}개가 남았습니다.`
     : `실행 가능 ${_fmtNumber(available.length)}개 · 선택 종목의 저장 가격을 확인했습니다.`;
@@ -1753,25 +2205,44 @@ function renderUniverseResolutionNotice(data) {
       ? `가격 이력 ${_fmtNumber(hydratedCount)}개 자동 보강 · 실행 가능 ${_fmtNumber(available.length)}개 · 추가 확인 필요 ${_fmtNumber(unavailable.length)}개`
       : `가격 이력 ${_fmtNumber(hydratedCount)}개 자동 보강 완료 · 실행 가능 ${_fmtNumber(available.length)}개`;
   }
+  if (staleRefreshAttempted && staleRefreshed.length > 0) {
+    summary += ` · stale 가격 ${_fmtNumber(staleRefreshed.length)}개 최신 보강`;
+  }
   return `
     <div class="decision-summary ${escapeHtml(decisionStatusClass(status))}">
       ${escapeHtml(summary)}
+      ${data.expected_latest_date ? `<br><span class="muted small">기대 최신일: ${escapeHtml(data.expected_latest_date)}</span>` : ""}
       ${unavailable.length ? `<br><span class="muted small">확인 필요: ${escapeHtml(unavailable.slice(0, 12).join(", "))}${hidden ? ` 외 ${escapeHtml(_fmtNumber(hidden))}개` : ""}</span>` : ""}
-      ${unavailable.length ? `<div class="freshness-cta"><button type="button" class="linkish decision-inline-action" data-action="enable-strict-freshness">최신 가격 강제 후 다시 실행</button></div>` : ""}
+      ${staleAssets.length ? `<br><span class="muted small">stale: ${escapeHtml(staleAssets.slice(0, 12).join(", "))}${hiddenStale ? ` 외 ${escapeHtml(_fmtNumber(hiddenStale))}개` : ""}</span>` : ""}
+      ${(unavailable.length || strictViolation || staleAssets.length) ? `<div class="freshness-cta"><button type="button" class="linkish decision-inline-action" data-action="enable-strict-freshness">공급자 갱신 후 엄격 검증</button></div>` : ""}
     </div>
   `;
+  updateGlobalQualitySummary({
+    status: quality.status || (statusCounts.stale || statusCounts.partial || statusCounts.unavailable ? "warn" : "ok"),
+    asOf: quality.as_of || quality.latest_date || quality.last_updated || "",
+    updatedAt: quality.last_updated || macroJob.finished_at || lastResult.finished_at || "",
+    source: `macro · ${quality.provider || "mixed"}`,
+    observations: coverage.evaluated_series || rows.length || "",
+    missing: (quality.missing_series || []).length ? `${(quality.missing_series || []).length} series` : "없음",
+  });
 }
 
 async function resolveQuantUniverseForTickers(tickers, options = {}) {
   const clean = Array.isArray(tickers) ? tickers.map(normalizeTickerToken).filter(Boolean) : [];
   if (!clean.length) return null;
+  const extra = Array.isArray(options.extraTickers) ? options.extraTickers.map(normalizeTickerToken).filter(Boolean) : [];
+  const requested = normalizeSymbolSelection([...clean, ...extra], "multi");
   const res = await fetch(API.quantUniverseResolve, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      tickers: clean,
+      tickers: requested,
       start_date: options.startDate || null,
       end_date: options.endDate || null,
+      freshness_profile: options.freshnessProfile || els.backtestFreshnessProfile?.value || "research_default",
+      require_fresh_prices: options.requireFreshPrices ? true : undefined,
+      max_market_calendar_lag_days: options.maxMarketCalendarLagDays || undefined,
+      refresh_stale: options.refreshStale !== false,
       min_rows: options.minRows || 2,
       hydrate_missing: options.hydrateMissing !== false,
       max_hydrate_assets: options.maxHydrateAssets || 750,
@@ -1782,6 +2253,42 @@ async function resolveQuantUniverseForTickers(tickers, options = {}) {
   if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
   state.lastUniverseResolution = data;
   return data;
+}
+
+function scopeUniverseResolution(data, tickers) {
+  if (!data || !Array.isArray(tickers)) return data;
+  const selected = new Set(tickers.map(normalizeTickerToken).filter(Boolean));
+  const items = (Array.isArray(data.items) ? data.items : []).filter((item) => selected.has(normalizeTickerToken(item.ticker || "")));
+  const available = (Array.isArray(data.available) ? data.available : []).filter((ticker) => selected.has(normalizeTickerToken(ticker)));
+  const unavailable = (Array.isArray(data.unavailable) ? data.unavailable : []).filter((ticker) => selected.has(normalizeTickerToken(ticker)));
+  const scopedCounts = {};
+  const scopedLatest = {};
+  Object.entries(data.price_counts || {}).forEach(([ticker, value]) => {
+    if (selected.has(normalizeTickerToken(ticker))) scopedCounts[ticker] = value;
+  });
+  Object.entries(data.latest_price_dates || {}).forEach(([ticker, value]) => {
+    if (selected.has(normalizeTickerToken(ticker))) scopedLatest[ticker] = value;
+  });
+  return {
+    ...data,
+    requested_count: selected.size,
+    available_count: available.length,
+    unavailable_count: unavailable.length,
+    available,
+    unavailable,
+    items,
+    price_counts: scopedCounts,
+    latest_price_dates: scopedLatest,
+    stale_assets: (Array.isArray(data.stale_assets) ? data.stale_assets : []).filter((ticker) => selected.has(normalizeTickerToken(ticker))),
+  };
+}
+
+function selectedQuantFreshnessOptions() {
+  return {
+    freshnessProfile: els.backtestFreshnessProfile?.value || "research_default",
+    requireFreshPrices: !!els.backtestRequireFresh?.checked,
+    refreshStale: true,
+  };
 }
 
 async function resolveBacktestUniverseAvailability(surface = null, options = {}) {
@@ -1797,14 +2304,18 @@ async function resolveBacktestUniverseAvailability(surface = null, options = {})
       numberInputValue(els.backtestLongWindow, 50, { min: 2, max: 5000 }) + 2,
       options.minRows || 2,
     );
+    const benchmark = normalizeTickerToken(els.backtestBenchmark?.value || "SPY") || "SPY";
     const data = await resolveQuantUniverseForTickers(tickers, {
       startDate: textInputValue(els.backtestStartDate),
       endDate: textInputValue(els.backtestEndDate),
+      extraTickers: benchmark && !tickers.includes(benchmark) ? [benchmark] : [],
       minRows: requiredRows,
       hydrateMissing: options.hydrateMissing !== false,
+      ...selectedQuantFreshnessOptions(),
     });
-    const available = Array.isArray(data?.available) ? data.available : [];
-    const unavailable = Array.isArray(data?.unavailable) ? data.unavailable : [];
+    const scopedData = scopeUniverseResolution(data, tickers);
+    const available = Array.isArray(scopedData?.available) ? scopedData.available : [];
+    const unavailable = Array.isArray(scopedData?.unavailable) ? scopedData.unavailable : [];
     if (available.length && unavailable.length) {
       setBacktestUniverse(available);
       if (els.portfolioTickers) {
@@ -1817,9 +2328,9 @@ async function resolveBacktestUniverseAvailability(surface = null, options = {})
       if (surface) {
         surface.innerHTML = decisionEmpty("선택한 종목 중 저장 가격이 있는 종목이 없습니다. 데이터 마트 업데이트 후 다시 실행하세요.");
       }
-      return { ok: false, tickers: [], data };
+      return { ok: false, tickers: [], data: scopedData };
     }
-    return { ok: true, tickers: available, data };
+    return { ok: true, tickers: available, data: scopedData };
   } catch (err) {
     if (surface) surface.innerHTML = decisionEmpty(`종목 데이터 확인 실패: ${err.message || err}`);
     return { ok: false, tickers: [], data: null, error: err };
@@ -1832,23 +2343,27 @@ async function resolvePortfolioUniverseAvailability(surface = null) {
   if (surface) surface.innerHTML = decisionEmpty(`${tickers.length}개 종목의 포트폴리오 가격 이력을 확인하고 자동 보강하는 중입니다.`);
   try {
     const requiredRows = Math.max(2, Math.min(52, numberInputValue(els.portfolioLookbackDays, 756, { min: 2, max: 5000 })));
+    const benchmark = normalizeTickerToken(els.portfolioBenchmark?.value || "SPY") || "SPY";
     const data = await resolveQuantUniverseForTickers(tickers, {
       startDate: textInputValue(els.portfolioStartDate),
       endDate: textInputValue(els.portfolioEndDate),
+      extraTickers: benchmark && !tickers.includes(benchmark) ? [benchmark] : [],
       minRows: requiredRows,
       hydrateMissing: true,
+      ...selectedQuantFreshnessOptions(),
     });
-    const available = Array.isArray(data?.available) ? data.available : [];
-    const unavailable = Array.isArray(data?.unavailable) ? data.unavailable : [];
+    const scopedData = scopeUniverseResolution(data, tickers);
+    const available = Array.isArray(scopedData?.available) ? scopedData.available : [];
+    const unavailable = Array.isArray(scopedData?.unavailable) ? scopedData.unavailable : [];
     if (available.length && unavailable.length && els.portfolioTickers) {
       els.portfolioTickers.value = available.join(",");
       renderSymbolTargetChips("portfolio");
     }
     if (!available.length) {
       if (surface) surface.innerHTML = decisionEmpty("포트폴리오 최적화에 사용할 가격 이력이 있는 종목이 없습니다.");
-      return { ok: false, tickers: [], data };
+      return { ok: false, tickers: [], data: scopedData };
     }
-    return { ok: true, tickers: available, data };
+    return { ok: true, tickers: available, data: scopedData };
   } catch (err) {
     if (surface) surface.innerHTML = decisionEmpty(`포트폴리오 종목 확인 실패: ${err.message || err}`);
     return { ok: false, tickers: [], data: null, error: err };
@@ -1888,6 +2403,7 @@ function renderSymbolPickerSummary(filteredCount, selectedCount) {
     ["미국 대형주", symbolPickerScopeCount("us_large_cap"), "us_large_cap"],
     ["ETF", symbolPickerScopeCount("etf_core"), "etf_core"],
     ["한국", symbolPickerScopeCount("kr_equity"), "kr_equity"],
+    ["글로벌 주식", symbolPickerScopeCount("global_equity"), "global_equity"],
     ["암호화폐", symbolPickerScopeCount("crypto_major"), "crypto_major"],
   ];
   els.symbolPickerSummary.innerHTML = `
@@ -1911,6 +2427,7 @@ function applySymbolPickerScope(scope) {
     us_large_cap: { type: "stock", country: "US", sector: "us_large_cap" },
     etf_core: { type: "etf", country: "all", sector: "all" },
     kr_equity: { type: "stock", country: "KR", sector: "all" },
+    global_equity: { type: "stock", country: "GLOBAL", sector: "global_equity" },
     crypto_major: { type: "crypto", country: "GLOBAL", sector: "crypto" },
   };
   const preset = presets[scope];
@@ -2404,6 +2921,7 @@ function renderQdrantInfo(info) {
 async function openQualityPanel() {
   if (!els.qualityPanel) return;
   els.qualityPanel.classList.remove("hidden");
+  renderGlobalQualityContextSummary();
   await loadQualityDashboard();
 }
 
@@ -2678,13 +3196,19 @@ async function loadConfig() {
       return;
     }
     state.config = await res.json();
+    if (!safeReadStoredValue(STORAGE.outputLanguage, "")) {
+      state.outputLanguage = normalizeOutputLanguage(state.config.output_language || "ko");
+    }
     renderModelOptions(state.config.models || []);
+    renderQuantamentalAiModelOptions(state.config.models || []);
     renderPresets(state.config.presets || []);
     applyLimits(state.config.limits || {});
     renderFinGPTStatus(state.config);
+    applyUiLanguage(state.outputLanguage, { persist: false });
   } catch (e) {
     console.warn("config fetch failed", e);
     renderModelOptions([]);
+    renderQuantamentalAiModelOptions([]);
     renderPresets([]);
     renderFinGPTStatus(null);
   }
@@ -2698,9 +3222,456 @@ const CLEAN_PRESETS = [
   { id: "competitive", label: "경쟁 구도", question: "경쟁 구도가 어떻게 변하고 있고, 가격 결정력과 시장점유율에는 어떤 영향을 주나요?" },
 ];
 
+const CLEAN_PRESETS_EN = [
+  { id: "risk", label: "Near-term risk", question: "What near-term risks are visible now, and which downside scenario is the market underpricing?" },
+  { id: "catalyst", label: "Growth catalyst", question: "Which catalysts could move the price over the next 6 to 12 months, and what metrics should verify them?" },
+  { id: "thesis", label: "12-month thesis", question: "Build a 12-month investment thesis using the latest public evidence and quantitative metrics." },
+  { id: "earnings", label: "Earnings signal", question: "Summarize the key revenue, margin, cost, and guidance signals from recent results." },
+  { id: "competitive", label: "Competition", question: "How is the competitive landscape changing, and what does that imply for pricing power and share?" },
+];
+
+const UI_LANGUAGE_COPY = {
+  ko: {
+    languageLabel: "출력 언어",
+    pipeline: "수집 -> 적재 -> 검색 -> 추론 -> 분석 -> 보고",
+    preflightTitle: "로컬 의존성 상태 확인",
+    preflightChecking: "사전 점검: 확인 중",
+    quality: "품질",
+    qualityTitle: "평가 및 품질 대시보드",
+    theme: "테마",
+    themeTitle: "테마 전환",
+    healthChecking: "api · 확인 중",
+    tickerHint: "ticker 없이 질의 가능, ticker는 참고 힌트",
+    formLabels: {
+      ticker: "티커",
+      question: "질문",
+      sources: "소스",
+      compare: "비교 모드",
+      find: "찾기",
+      lookback: "조회 기간",
+      topK: "상위 K",
+      model: "추론 경로",
+      hotkey: "실행",
+    },
+    tickerPlaceholder: "선택: TLT, GLD, BTC-USD",
+    questionPlaceholder: "예: 현재 시장이 무시하는 리스크는 무엇인가요?",
+    questionHint: "자유 질문 또는 프리셋 선택",
+    modeLabels: { auto: "자동", ticker: "종목", topic: "주제" },
+    run: "분석 실행",
+    latest: "최근 결과",
+    commandPanel: "리서치 패널",
+    commandOpen: "컨트롤 열기",
+    commandHide: "컨트롤 숨기기",
+    formNotice: "요청 언어: 한국어",
+    dashboardContext: [
+      ["Data", "시장 데이터"],
+      ["Mode", "근거 우선"],
+      ["Runtime", "로컬 전용"],
+      ["Execution", "자문용"],
+    ],
+    dashboardHero: {
+      market: ["시장 대시보드", "티커를 입력하면 종목 분석으로, 비워두고 질문만 입력하면 금리·신용·FX·원자재·테마 topic 분석으로 라우팅합니다."],
+      macro: ["매크로", "데이터 품질, 레짐, 자산군 영향, 정책 힌트, 리서치 맥락을 AI 해석과 분리해 점검합니다."],
+      quant: ["퀀트 랩", "저장 가격 기반 리스크, 전략 검증, 포트폴리오 배분을 같은 조건으로 점검합니다."],
+      quantamental: ["Quantamental", "재무제표, 가격, 팩터, 리스크를 deterministic engine으로 계산하고 AI는 구조화 결과만 해석합니다."],
+      forecast: ["ML Forecast", "검증 가능한 예측 실험실입니다. 가격 경로가 아니라 OOS forward return, 확률, 신뢰도, 신호, 비용 반영 백테스트를 분리해 점검합니다."],
+      "ai-portfolio": ["AI Portfolio", "투자형과 정책을 선택하고, 정량 엔진이 계산한 포트폴리오를 AI가 설명하는 사용자 승인 기반 워크플로우입니다."],
+    },
+    quantamental: {
+      labels: {
+        ticker: "티커",
+        market: "시장",
+        period: "기간",
+        years: "연수",
+        lookback: "가격 조회",
+        style: "전략 스타일",
+        peerLimit: "피어 한도",
+        scoreMetric: "점수 기준",
+        scoreThreshold: "최소 점수",
+        scoreScreenLimit: "결과 한도",
+      },
+      buttons: {
+        find: "찾기",
+        analyze: "분석",
+        refresh: "새로고침",
+        aiReport: "AI 보고서",
+        compare: "비교",
+        screen: "스크린",
+        ask: "질문",
+        expandPeers: "피어 확장",
+        saveSet: "세트 저장",
+        loadSet: "세트 불러오기",
+      },
+      cards: {
+        signal: ["Quantamental 신호", "리서치 후보 분류"],
+        composite: ["복합 점수 대시보드", "하이브리드 점수와 데이터 품질"],
+        screen: ["Signal Screener Top 5", "복합 점수 자동 랭킹"],
+        scoreScreen: ["점수 임계값 스크리너", "선택한 점수 기준 이상의 후보"],
+        factor: ["팩터 점수 그리드", "가치, 퀄리티, 성장, 모멘텀, 저변동성, 유동성"],
+        terminal: ["리서치 터미널", "개요, 재무, 퀀트, 리스크, 밸류에이션, AI, Q&A"],
+        quality: ["데이터 품질", "누락 데이터와 제공자 커버리지"],
+        compare: ["피어 비교", "배치 비교와 피어 상대 팩터"],
+      },
+      messages: {
+        status: "Quantamental 분석은 리서치 전용이며 투자 자문이 아닙니다.",
+        topStatus: "Top 5 스크리너가 신선한 신호 후보를 자동 로드합니다.",
+        topEmpty: "Top 5 신호 스크리너가 여기에 표시됩니다.",
+        scoreStatus: "최소 점수를 설정한 뒤 현재 Quantamental 유니버스를 스크리닝합니다.",
+        scoreEmpty: "점수 임계값 스크리너가 여기에 표시됩니다.",
+        compareEmpty: "두 개 이상 티커를 비교해 팩터를 피어 대비 정규화합니다.",
+        screenLoading: "Top 5 신호 스크리너가 최신 데이터를 새로고침 중입니다.",
+        scoreScreenLoading: "점수 임계값 스크리너가 최신 데이터를 새로고침 중입니다.",
+        compareLoading: "피어 비교를 실행 중입니다.",
+        qaLoading: "Q&A 답변을 생성하는 중입니다.",
+        questionRequired: "질문을 입력해야 합니다.",
+        runFirst: "Quantamental 분석을 먼저 실행하세요.",
+        tickerRequired: "티커가 필요합니다.",
+        noSavedSets: "저장된 세트 없음",
+      },
+      scoreMetricLabels: {
+        composite: "복합",
+        value: "가치",
+        quality: "품질",
+        growth: "성장",
+        momentum: "모멘텀",
+        low_volatility: "저변동성",
+        liquidity: "유동성",
+      },
+    },
+  },
+  en: {
+    languageLabel: "Output language",
+    pipeline: "Collect -> Store -> Search -> Infer -> Analyze -> Report",
+    preflightTitle: "Check local dependencies",
+    preflightChecking: "Preflight: checking",
+    quality: "Quality",
+    qualityTitle: "Evaluation and quality dashboard",
+    theme: "Theme",
+    themeTitle: "Toggle theme",
+    healthChecking: "api · checking",
+    tickerHint: "Ticker is optional; questions can route by topic",
+    formLabels: {
+      ticker: "Ticker",
+      question: "Question",
+      sources: "Sources",
+      compare: "Compare mode",
+      find: "Find",
+      lookback: "Lookback",
+      topK: "Top K",
+      model: "Inference route",
+      hotkey: "run",
+    },
+    tickerPlaceholder: "Optional: TLT, GLD, BTC-USD",
+    questionPlaceholder: "Example: What risk is the market ignoring right now?",
+    questionHint: "Free-form question or preset",
+    modeLabels: { auto: "Auto", ticker: "Ticker", topic: "Topic" },
+    run: "Run analysis",
+    latest: "Latest result",
+    commandPanel: "Research panel",
+    commandOpen: "Open controls",
+    commandHide: "Hide controls",
+    formNotice: "Request language: English",
+    dashboardContext: [
+      ["Data", "Market feed"],
+      ["Mode", "Evidence-first"],
+      ["Runtime", "Local only"],
+      ["Execution", "Advisory"],
+    ],
+    dashboardHero: {
+      market: ["Market Dashboard", "Enter a ticker for single-name research, or leave it blank so the question can route to rates, credit, FX, commodities, or themes."],
+      macro: ["Macro", "Review data quality, regimes, asset impact, policy hints, and research context separately from AI interpretation."],
+      quant: ["Quant Lab", "Evaluate stored-price risk, strategy validation, and portfolio allocation under consistent assumptions."],
+      quantamental: ["Quantamental", "Compute fundamentals, price, factor, and risk signals deterministically while AI only interprets the structured output."],
+      forecast: ["ML Forecast", "A verifiable forecasting lab for OOS forward returns, probabilities, confidence, signals, and cost-aware backtests."],
+      "ai-portfolio": ["AI Portfolio", "Choose investment type and policy, then review user-approved portfolios calculated by the quantitative engine and explained by AI."],
+    },
+    quantamental: {
+      labels: {
+        ticker: "Ticker",
+        market: "Market",
+        period: "Period",
+        years: "Years",
+        lookback: "Lookback",
+        style: "Style",
+        peerLimit: "Peer limit",
+        scoreMetric: "Score Type",
+        scoreThreshold: "Min Score",
+        scoreScreenLimit: "Limit",
+      },
+      buttons: {
+        find: "Find",
+        analyze: "Analyze",
+        refresh: "Refresh",
+        aiReport: "AI Report",
+        compare: "Compare",
+        screen: "Screen",
+        ask: "Ask",
+        expandPeers: "Expand peers",
+        saveSet: "Save set",
+        loadSet: "Load set",
+      },
+      cards: {
+        signal: ["Quantamental Signal", "research candidate classification"],
+        composite: ["Composite Score Dashboard", "hybrid score and data quality"],
+        screen: ["Signal Screener Top 5", "auto-ranked by composite score"],
+        scoreScreen: ["Score Threshold Screener", "filter candidates above a selected minimum score"],
+        factor: ["Factor Score Grid", "value, quality, growth, momentum, low volatility, liquidity"],
+        terminal: ["Research Terminal", "Overview, Fundamentals, Quant, Risk, Valuation, AI, and Q&A"],
+        quality: ["Data Quality", "missing data and provider coverage"],
+        compare: ["Peer Comparison", "batch compare and peer-relative factors"],
+      },
+      messages: {
+        status: "Quantamental analysis is research-only, not investment advice.",
+        topStatus: "Top 5 screener loads fresh signal candidates automatically.",
+        topEmpty: "Top 5 signal screener appears here.",
+        scoreStatus: "Set a minimum score, then screen the current Quantamental universe.",
+        scoreEmpty: "Score threshold screener appears here.",
+        compareEmpty: "Compare two or more tickers to normalize factors against peers.",
+        screenLoading: "Top 5 signal screener is refreshing fresh data.",
+        scoreScreenLoading: "Score threshold screener is refreshing fresh data.",
+        compareLoading: "Peer comparison is running.",
+        qaLoading: "Q&A answer is being generated.",
+        questionRequired: "Question is required.",
+        runFirst: "Run Quantamental analysis first.",
+        tickerRequired: "Ticker is required.",
+        noSavedSets: "No saved sets",
+      },
+      scoreMetricLabels: {
+        composite: "Composite",
+        value: "Value",
+        quality: "Quality",
+        growth: "Growth",
+        momentum: "Momentum",
+        low_volatility: "Low Volatility",
+        liquidity: "Liquidity",
+      },
+    },
+  },
+};
+
+const FORM_MESSAGES = {
+  ko: {
+    tickerRequired: "종목 모드는 ticker가 필요합니다. ticker 없이 질문하려면 자동 또는 주제 모드를 선택하세요.",
+    questionRequired: "질문을 입력해야 분석을 실행할 수 있습니다.",
+    sourceRequired: "최소 한 개의 소스를 선택해야 합니다.",
+    compareRequired: "Compare mode는 2개 이상의 ticker가 필요합니다. 쉼표 또는 공백으로 구분하세요.",
+    streamNoResult: "스트림이 결과 이벤트 없이 종료되었습니다.",
+  },
+  en: {
+    tickerRequired: "Ticker mode requires a ticker. Use Auto or Topic mode for tickerless questions.",
+    questionRequired: "Enter a question before running analysis.",
+    sourceRequired: "Select at least one source.",
+    compareRequired: "Compare mode requires at least two tickers separated by commas or spaces.",
+    streamNoResult: "The stream closed without a result event.",
+  },
+};
+
+function normalizeOutputLanguage(value) {
+  const clean = String(value || "ko").trim().toLowerCase();
+  if (["en", "eng", "english"].includes(clean)) return "en";
+  return "ko";
+}
+
+function selectedOutputLanguage() {
+  return normalizeOutputLanguage(state.outputLanguage || state.config?.output_language || "ko");
+}
+
+function formMessage(key) {
+  const language = selectedOutputLanguage();
+  return FORM_MESSAGES[language]?.[key] || FORM_MESSAGES.ko[key] || key;
+}
+
+function setLeadingText(selector, text) {
+  const el = document.querySelector(selector);
+  if (!el) return;
+  const node = Array.from(el.childNodes).find((child) => child.nodeType === Node.TEXT_NODE && child.textContent.trim());
+  if (node) node.textContent = `${text} `;
+  else el.insertBefore(document.createTextNode(`${text} `), el.firstChild);
+}
+
+function dashboardHeroForTab(tab = "market") {
+  const copy = UI_LANGUAGE_COPY[selectedOutputLanguage()] || UI_LANGUAGE_COPY.ko;
+  return copy.dashboardHero?.[tab] || copy.dashboardHero?.market || UI_LANGUAGE_COPY.ko.dashboardHero.market;
+}
+
+function updateDashboardHero(tab = "market") {
+  const [title, body] = dashboardHeroForTab(tab);
+  const homeTitle = document.querySelector(".home-hero h2");
+  const homeCopy = document.querySelector(".home-hero p:not(.eyebrow)");
+  if (homeTitle) homeTitle.textContent = title;
+  if (homeCopy) homeCopy.textContent = body;
+}
+
+function setWrappedLabelText(control, text) {
+  const label = control?.closest?.("label");
+  const span = label?.querySelector?.("span");
+  if (span) span.textContent = text;
+}
+
+function setCardCopy(surface, copy) {
+  const card = surface?.closest?.(".home-card");
+  const [title, subtitle] = copy || [];
+  if (!card || !title) return;
+  const heading = card.querySelector(".home-card-head h3");
+  const caption = card.querySelector(".home-card-head span");
+  if (heading) heading.textContent = title;
+  if (caption && subtitle) caption.textContent = subtitle;
+}
+
+function applyQuantamentalUiLanguage(copy) {
+  const q = copy.quantamental || UI_LANGUAGE_COPY.en.quantamental;
+  setWrappedLabelText(els.quantamentalTicker, q.labels.ticker);
+  setWrappedLabelText(els.quantamentalMarket, q.labels.market);
+  setWrappedLabelText(els.quantamentalPeriod, q.labels.period);
+  setWrappedLabelText(els.quantamentalYears, q.labels.years);
+  setWrappedLabelText(els.quantamentalLookback, q.labels.lookback);
+  setWrappedLabelText(els.quantamentalStyle, q.labels.style);
+  setWrappedLabelText(els.quantamentalPeerLimit, q.labels.peerLimit);
+  setWrappedLabelText(els.quantamentalScoreMetric, q.labels.scoreMetric);
+  setWrappedLabelText(els.quantamentalScoreThreshold, q.labels.scoreThreshold);
+  setWrappedLabelText(els.quantamentalScoreScreenLimit, q.labels.scoreScreenLimit);
+  if (els.quantamentalScoreMetric) {
+    Array.from(els.quantamentalScoreMetric.options || []).forEach((option) => {
+      option.textContent = q.scoreMetricLabels?.[option.value] || option.textContent;
+    });
+  }
+  if (els.quantamentalTickerOpen) els.quantamentalTickerOpen.textContent = q.buttons.find;
+  if (els.quantamentalAnalyze) els.quantamentalAnalyze.textContent = q.buttons.analyze;
+  if (els.quantamentalScreenRun) els.quantamentalScreenRun.textContent = q.buttons.refresh;
+  if (els.quantamentalScoreScreenRun) els.quantamentalScoreScreenRun.textContent = q.buttons.screen;
+  if (els.quantamentalAiRefresh) els.quantamentalAiRefresh.textContent = q.buttons.aiReport;
+  if (els.quantamentalCompareRun) els.quantamentalCompareRun.textContent = q.buttons.compare;
+  const expandLabel = els.quantamentalExpandPeers?.closest?.("label");
+  const expandText = Array.from(expandLabel?.childNodes || []).find((node) => node.nodeType === Node.TEXT_NODE);
+  if (expandText) expandText.textContent = ` ${q.buttons.expandPeers}`;
+  if (els.quantamentalWatchlistSave) els.quantamentalWatchlistSave.textContent = q.buttons.saveSet;
+  if (els.quantamentalWatchlistLoad) els.quantamentalWatchlistLoad.textContent = q.buttons.loadSet;
+  setCardCopy(els.quantamentalSignalSurface, q.cards.signal);
+  setCardCopy(els.quantamentalScoreSurface, q.cards.composite);
+  setCardCopy(els.quantamentalScreenSurface, q.cards.screen);
+  setCardCopy(els.quantamentalScoreScreenSurface, q.cards.scoreScreen);
+  setCardCopy(els.quantamentalFactorSurface, q.cards.factor);
+  setCardCopy(els.quantamentalMainSurface, q.cards.terminal);
+  setCardCopy(els.quantamentalDataQualitySurface, q.cards.quality);
+  setCardCopy(els.quantamentalCompareSurface, q.cards.compare);
+  if (!state.quantamentalLoaded && !state.quantamentalLoading) {
+    const starter = quantamentalUi().starter ? quantamentalUi().starter() : decisionEmpty(q.messages.status);
+    if (els.quantamentalCompanySurface) els.quantamentalCompanySurface.innerHTML = starter;
+    if (els.quantamentalSignalSurface) els.quantamentalSignalSurface.innerHTML = starter;
+    if (els.quantamentalScoreSurface) els.quantamentalScoreSurface.innerHTML = starter;
+    if (els.quantamentalFactorSurface) els.quantamentalFactorSurface.innerHTML = starter;
+    if (els.quantamentalMainSurface) els.quantamentalMainSurface.innerHTML = starter;
+    if (els.quantamentalDataQualitySurface) els.quantamentalDataQualitySurface.innerHTML = starter;
+  }
+  if (!state.quantamentalLoaded && els.quantamentalStatus) els.quantamentalStatus.textContent = q.messages.status;
+  if (!state.quantamentalScreenLoaded && !state.quantamentalScreenLoading && els.quantamentalScreenStatus) els.quantamentalScreenStatus.textContent = q.messages.topStatus;
+  if (!state.quantamentalScreenLoaded && !state.quantamentalScreenLoading && els.quantamentalScreenSurface) els.quantamentalScreenSurface.innerHTML = decisionEmpty(q.messages.topEmpty);
+  if (!state.quantamentalScoreScreen && !state.quantamentalScoreScreenLoading && els.quantamentalScoreScreenStatus) els.quantamentalScoreScreenStatus.textContent = q.messages.scoreStatus;
+  if (!state.quantamentalScoreScreen && !state.quantamentalScoreScreenLoading && els.quantamentalScoreScreenSurface) els.quantamentalScoreScreenSurface.innerHTML = decisionEmpty(q.messages.scoreEmpty);
+  if (!state.quantamentalComparison && els.quantamentalCompareSurface) els.quantamentalCompareSurface.innerHTML = decisionEmpty(q.messages.compareEmpty);
+  renderQuantamentalCompareWatchlists();
+}
+
+function applyUiLanguage(language, options = {}) {
+  const normalized = normalizeOutputLanguage(language);
+  state.outputLanguage = normalized;
+  const copy = UI_LANGUAGE_COPY[normalized] || UI_LANGUAGE_COPY.ko;
+  document.documentElement.lang = normalized;
+  document.title = "FinGPT Local Research Assistant";
+  if (options.persist !== false) safeWriteStoredValue(STORAGE.outputLanguage, normalized);
+  if (els.languageToggle) {
+    els.languageToggle.setAttribute("aria-label", copy.languageLabel);
+    els.languageToggle.querySelectorAll("[data-language]").forEach((button) => {
+      const active = button.dataset.language === normalized;
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+      button.classList.toggle("active", active);
+    });
+  }
+  setText(".pipeline-pill", copy.pipeline);
+  if (els.preflightPill) {
+    els.preflightPill.title = copy.preflightTitle;
+    if (els.preflightLabel && /확인 중|checking/i.test(els.preflightLabel.textContent || "")) {
+      els.preflightLabel.textContent = copy.preflightChecking;
+    }
+  }
+  if (els.qualityDashBtn) {
+    els.qualityDashBtn.textContent = copy.quality;
+    els.qualityDashBtn.title = copy.qualityTitle;
+  }
+  if (els.themeToggleBtn) {
+    els.themeToggleBtn.textContent = copy.theme;
+    els.themeToggleBtn.title = copy.themeTitle;
+    els.themeToggleBtn.setAttribute("aria-label", copy.themeTitle);
+  }
+  if (els.healthPill && /확인 중|checking/i.test(els.healthPill.textContent || "")) {
+    els.healthPill.textContent = copy.healthChecking;
+  }
+  if (els.tickerHint) els.tickerHint.textContent = copy.tickerHint;
+  if (els.ticker) els.ticker.placeholder = copy.tickerPlaceholder;
+  if (els.question) els.question.placeholder = copy.questionPlaceholder;
+  setLeadingText('label[for="ticker"]', copy.formLabels.ticker);
+  setLeadingText('label[for="question"]', copy.formLabels.question);
+  setLeadingText('label[for="lookback"]', copy.formLabels.lookback);
+  setLeadingText('label[for="topk"]', copy.formLabels.topK);
+  setLeadingText('label[for="model"]', copy.formLabels.model);
+  const sourceLabel = document.querySelector("#sourceToggles")?.closest(".field-group")?.querySelector(".field-label");
+  if (sourceLabel) sourceLabel.textContent = copy.formLabels.sources;
+  const compareLabel = document.querySelector(".compare-toggle span");
+  if (compareLabel) compareLabel.textContent = copy.formLabels.compare;
+  if (els.tickerSearchOpen) els.tickerSearchOpen.textContent = copy.formLabels.find;
+  const qHint = document.querySelector('label[for="question"] .hint');
+  if (qHint) qHint.textContent = copy.questionHint;
+  els.researchModeInputs().forEach((input) => {
+    const span = input.parentElement?.querySelector("span");
+    if (span && copy.modeLabels[input.value]) span.textContent = copy.modeLabels[input.value];
+  });
+  const runLabel = els.runBtn?.querySelector(".btn-label");
+  if (runLabel) runLabel.textContent = copy.run;
+  if (els.loadLatestBtn) els.loadLatestBtn.textContent = copy.latest;
+  const commandLabel = els.commandPanelToggle?.querySelector(".command-panel-label");
+  if (commandLabel) commandLabel.textContent = copy.commandPanel;
+  const commandState = els.commandPanelToggle?.querySelector(".command-panel-state");
+  if (commandState) {
+    const collapsed = els.controlPanel?.classList.contains("is-collapsed");
+    commandState.textContent = collapsed ? copy.commandOpen : copy.commandHide;
+  }
+  const contextItems = els.dashboardContextStrip?.querySelectorAll("span") || [];
+  copy.dashboardContext.forEach(([label, value], idx) => {
+    if (contextItems[idx]) contextItems[idx].innerHTML = `<strong>${escapeHtml(label)}</strong> ${escapeHtml(value)}`;
+  });
+  if (state.config) renderPresets(state.config.presets || []);
+  const runMeta = document.querySelector(".meta-row");
+  if (runMeta) runMeta.innerHTML = `<span class="kbd">Ctrl</span> + <span class="kbd">Enter</span> ${escapeHtml(copy.formLabels.hotkey)}`;
+  updateDashboardHero(state.activeDashboardTab || "market");
+  renderGlobalQualitySummary();
+  applyQuantamentalUiLanguage(copy);
+  updateQuantamentalAiModelStatus();
+  if (state.quantamentalAnalysis) renderQuantamentalAnalysis(state.quantamentalAnalysis);
+  if (state.quantamentalScreen) renderQuantamentalScreen(state.quantamentalScreen);
+  if (state.quantamentalScoreScreen) renderQuantamentalScoreScreen(state.quantamentalScoreScreen);
+  if (
+    state.tradingViewInitialized
+    && els.tvOverviewWidget
+    && state.activeDashboardTab === "market"
+    && normalizeTvChartSettings(state.tvChartSettings).source === "tradingview"
+  ) {
+    mountMarketOverviewChart(state.tvChartSettings);
+  }
+}
+
+function bindLanguageToggle() {
+  if (!els.languageToggle) return;
+  els.languageToggle.querySelectorAll("[data-language]").forEach((button) => {
+    button.addEventListener("click", () => {
+      applyUiLanguage(button.dataset.language || "ko", { persist: true });
+      persistForm();
+    });
+  });
+}
+
 function isReadablePreset(p) {
   const text = `${p?.label || ""} ${p?.question || ""}`;
-  return /[가-힣A-Za-z]/.test(text) && !/[�]/.test(text);
+  return /[가-힣A-Za-z]/.test(text) && !/\uFFFD/.test(text);
 }
 
 function renderModelOptions(models) {
@@ -2709,16 +3680,115 @@ function renderModelOptions(models) {
   const rawOptions = Array.isArray(models) && models.length
     ? models.map((m) => (typeof m === "string" ? { id: m, label: m } : m))
     : [{ id: "qwen", label: "qwen2.5:7b (Ollama · 기본)" }];
-  const options = rawOptions.filter((m) => m && m.id && (m.id === "qwen" || m.role === "fallback" || m.role === "experimental"));
+  const options = rawOptions.filter((m) => (
+    m
+    && m.id
+    && m.enabled !== false
+    && (m.id === "qwen" || m.role === "fallback" || m.role === "experimental")
+  ));
   if (!options.length) options.push({ id: "qwen", label: "qwen2.5:7b (Ollama · 기본)" });
   els.model.innerHTML = "";
   options.forEach((m) => {
       const opt = document.createElement("option");
       opt.value = m.id;
+      const availability = m.availability || "runtime_checked";
       opt.textContent = m.label || m.id;
+      opt.title = availability === "runtime_checked"
+        ? "Configured route; actual Ollama model availability is checked when a request runs."
+        : String(availability);
+      opt.dataset.availability = availability;
       els.model.appendChild(opt);
-    });
+  });
   els.model.value = Array.from(els.model.options).some((opt) => opt.value === current) ? current : "qwen";
+}
+
+function normalizeQuantamentalAiModels(models) {
+  const runtimeModels = (Array.isArray(models) ? models : [])
+    .map((m) => (typeof m === "string" ? { id: m, model: m, label: m } : m))
+    .filter((m) => (
+      m
+      && m.id
+      && m.enabled !== false
+      && (m.id === "qwen" || String(m.id).toLowerCase().includes("gemma") || m.role === "experimental" || m.role === "fallback")
+    ))
+    .map((m) => ({
+      id: String(m.id),
+      model: String(m.model || m.model_name || m.id),
+      label: String(m.label || m.model || m.id),
+      role: String(m.role || "runtime"),
+      availability: String(m.availability || "runtime_checked"),
+      note: String(m.availability_note || "Model availability is checked when the AI request runs."),
+    }));
+  return [
+    {
+      id: "deterministic",
+      model: "",
+      label: "Deterministic guardrail",
+      role: "guardrail",
+      availability: "always_available",
+      note: "Uses the deterministic Quantamental interpreter and does not call a local LLM.",
+    },
+    ...runtimeModels,
+  ];
+}
+
+function quantamentalAiModelStatusText(option) {
+  const isEnglish = selectedOutputLanguage() === "en";
+  if (!option || option.id === "deterministic") {
+    return isEnglish
+      ? "Deterministic guardrail active. No local LLM call is made."
+      : "Deterministic 해석이 활성화되어 로컬 LLM을 호출하지 않습니다.";
+  }
+  const role = option.role === "primary" ? "primary" : option.role;
+  const availability = option.availability === "runtime_checked"
+    ? (isEnglish ? "runtime checked" : "실행 시 확인")
+    : option.availability;
+  return isEnglish
+    ? `${option.label} · ${role} · ${availability}; fallback remains deterministic if the provider fails.`
+    : `${option.label} · ${role} · ${availability}; 공급자 실패 시 deterministic fallback을 유지합니다.`;
+}
+
+function selectedQuantamentalAiModelOption() {
+  const options = state.quantamentalAiModels?.length
+    ? state.quantamentalAiModels
+    : normalizeQuantamentalAiModels(state.config?.models || []);
+  const selected = els.quantamentalAiModel?.value || "deterministic";
+  return options.find((option) => option.id === selected) || options[0];
+}
+
+function quantamentalAiRequestOptions() {
+  const option = selectedQuantamentalAiModelOption();
+  return {
+    use_llm: option?.id !== "deterministic",
+    model: option?.id === "deterministic" ? null : option?.model,
+  };
+}
+
+function updateQuantamentalAiModelStatus() {
+  if (!els.quantamentalAiModelStatus) return;
+  els.quantamentalAiModelStatus.textContent = quantamentalAiModelStatusText(selectedQuantamentalAiModelOption());
+}
+
+function renderQuantamentalAiModelOptions(models) {
+  state.quantamentalAiModels = normalizeQuantamentalAiModels(models);
+  if (!els.quantamentalAiModel) return;
+  const current = els.quantamentalAiModel.value || "deterministic";
+  els.quantamentalAiModel.innerHTML = "";
+  state.quantamentalAiModels.forEach((model) => {
+    const opt = document.createElement("option");
+    opt.value = model.id;
+    opt.textContent = model.id === "deterministic"
+      ? model.label
+      : `${model.label} · ${model.availability === "runtime_checked" ? "runtime checked" : model.availability}`;
+    opt.title = model.note;
+    opt.dataset.model = model.model || "";
+    opt.dataset.availability = model.availability;
+    els.quantamentalAiModel.appendChild(opt);
+  });
+  els.quantamentalAiModel.value = state.quantamentalAiModels.some((model) => model.id === current)
+    ? current
+    : "deterministic";
+  updateQuantamentalAiModelStatus();
 }
 
 function renderFinGPTStatus(config) {
@@ -2738,9 +3808,11 @@ function renderFinGPTStatus(config) {
 
 function renderPresets(presets) {
   els.presetChips.innerHTML = "";
-  const usable = Array.isArray(presets) && presets.length && presets.every(isReadablePreset)
+  const language = selectedOutputLanguage();
+  const fallbackPresets = language === "en" ? CLEAN_PRESETS_EN : CLEAN_PRESETS;
+  const usable = language === "ko" && Array.isArray(presets) && presets.length && presets.every(isReadablePreset)
     ? presets
-    : CLEAN_PRESETS;
+    : fallbackPresets;
   usable.forEach((p) => {
     const btn = document.createElement("button");
     btn.type = "button";
@@ -2793,6 +3865,7 @@ function readForm() {
     lookback_days: parseInt(els.lookback.value, 10),
     top_k: parseInt(els.topk.value, 10),
     model: els.model.value,
+    output_language: selectedOutputLanguage(),
   };
 }
 
@@ -2812,6 +3885,9 @@ function restoreForm() {
     if (Number.isFinite(saved.top_k)) els.topk.value = saved.top_k;
     if (saved.model && Array.from(els.model.options).some((opt) => opt.value === saved.model)) {
       els.model.value = saved.model;
+    }
+    if (saved.output_language) {
+      applyUiLanguage(saved.output_language, { persist: false });
     }
     if (Array.isArray(saved.sources)) {
       els.sourceInputs().forEach((i) => {
@@ -2891,50 +3967,109 @@ function setCardHeader(surfaceId, title, subtitle = "") {
   if (caption && subtitle) caption.textContent = subtitle;
 }
 
-function setDashboardContextStrip(tab = "market") {
-  if (!els.dashboardContextStrip) return;
+function fallbackDashboardContextItems(tab = "market") {
   const itemsByTab = {
     market: [
-      ["데이터", "TradingView / Yahoo"],
-      ["범위", "시장 스냅샷"],
-      ["최신성", "가능 시 장중 데이터"],
-      ["작업", "새로고침과 점검"],
+      { label: "데이터", value: "TradingView / Yahoo", status: "ok", detail: "시장 대시보드 기본 데이터" },
+      { label: "범위", value: "시장 스냅샷", status: "ok", detail: "시장 테이프와 교차자산 신호" },
+      { label: "최신성", value: "가능 시 장중 데이터", status: "warn", detail: "freshness 확인 필요" },
+      { label: "작업", value: "새로고침과 점검", status: "ok", detail: "로컬 데이터 갱신" },
     ],
     macro: [
-      ["데이터", "FRED / Yahoo / data mart"],
-      ["경계", "관측 데이터 우선"],
-      ["레짐", "신호와 AI 해석 분리"],
-      ["출력", "정책 힌트 전용"],
+      { label: "데이터", value: "FRED / Yahoo / data mart", status: "ok", detail: "매크로 관측 데이터" },
+      { label: "경계", value: "관측 데이터 우선", status: "ok", detail: "AI 해석 전 데이터 확인" },
+      { label: "레짐", value: "신호와 AI 해석 분리", status: "warn", detail: "레짐 엔진 결과 우선" },
+      { label: "출력", value: "정책 힌트 전용", status: "ok", detail: "자문용 맥락" },
     ],
     quant: [
-      ["데이터", "저장 가격 이력"],
-      ["경계", "No-lookahead 검사"],
-      ["체결", "다음 봉 기준"],
-      ["출력", "아티팩트와 리플레이"],
+      { label: "데이터", value: "저장 가격 이력", status: "ok", detail: "data mart 가격" },
+      { label: "경계", value: "No-lookahead 검사", status: "warn", detail: "미래 데이터 누수 방지" },
+      { label: "체결", value: "다음 봉 기준", status: "ok", detail: "체결 가정 명시" },
+      { label: "출력", value: "아티팩트와 리플레이", status: "ok", detail: "재현 가능한 결과" },
+    ],
+    quantamental: [
+      { label: "데이터", value: "yfinance + DART", status: "ok", detail: "시장별 provider coverage" },
+      { label: "계산", value: "deterministic + peer", status: "ok", detail: "엔진 산출값 우선" },
+      { label: "AI", value: "해석만 수행", status: "warn", detail: "AI는 점수 생성 금지" },
+      { label: "출력", value: "classification + audit", status: "ok", detail: "스냅샷 감사" },
     ],
     forecast: [
-      ["데이터", "data_mart 가격"],
-      ["검증", "Walk-forward 기본"],
-      ["가드", "Leakage / embargo"],
-      ["출력", "자문용 신호만"],
+      { label: "데이터", value: "data_mart 가격", status: "ok", detail: "예측 피처 입력" },
+      { label: "검증", value: "Walk-forward 기본", status: "ok", detail: "시계열 검증" },
+      { label: "가드", value: "Leakage / embargo", status: "warn", detail: "누수 검사 우선" },
+      { label: "출력", value: "자문용 신호만", status: "ok", detail: "매매 지시 아님" },
     ],
     "ai-portfolio": [
-      ["저장소", "Local SQLite"],
-      ["정책", "제약조건 우선"],
-      ["승인", "사용자 확인 작업"],
-      ["감사", "Hash와 이력"],
+      { label: "저장소", value: "Local SQLite", status: "ok", detail: "로컬 포트폴리오 상태" },
+      { label: "정책", value: "제약조건 우선", status: "ok", detail: "정책 기반 엔진" },
+      { label: "승인", value: "사용자 확인 작업", status: "warn", detail: "자동 리밸런싱 금지" },
+      { label: "감사", value: "Hash와 이력", status: "ok", detail: "요청/정책 해시" },
     ],
   };
-  const items = itemsByTab[tab] || itemsByTab.market;
-  els.dashboardContextStrip.innerHTML = items
-    .map(([label, value]) => `<span><strong>${escapeHtml(label)}</strong>${escapeHtml(value)}</span>`)
+  return itemsByTab[tab] || itemsByTab.market;
+}
+
+function dashboardDecisionCardForTab(tab = "market") {
+  return state.dashboardDecisionCardsByTab?.[tab] || null;
+}
+
+function setDashboardContextStrip(tab = "market") {
+  if (!els.dashboardContextStrip) return;
+  const card = dashboardDecisionCardForTab(tab);
+  const chips = Array.isArray(card?.chips) && card.chips.length
+    ? card.chips
+    : fallbackDashboardContextItems(tab);
+  els.dashboardContextStrip.dataset.contract = card?.contract_version || "static-fallback";
+  els.dashboardContextStrip.innerHTML = chips
+    .map((item) => {
+      const status = decisionStatusClass(item.status || card?.status || "ok");
+      const detail = item.detail || card?.primary_output || "";
+      return `
+        <span class="decision-card-chip ${escapeHtml(status)}" title="${escapeHtml(detail)}">
+          <strong>${escapeHtml(item.label || "Context")}</strong>
+          ${escapeHtml(item.value || "")}
+          ${detail ? `<small>${escapeHtml(detail)}</small>` : ""}
+        </span>
+      `;
+    })
     .join("");
+}
+
+async function loadDashboardDecisionCards(force = false) {
+  if (!els.dashboardContextStrip) return null;
+  if (state.dashboardDecisionCardsLoaded && !force) return state.dashboardDecisionCardsByTab;
+  if (state.dashboardDecisionCardsRequest && !force) return state.dashboardDecisionCardsRequest;
+  state.dashboardDecisionCardsRequest = (async () => {
+    try {
+      const res = await fetch(API.dashboardDecisionCards);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const byTab = {};
+      for (const item of Array.isArray(data.items) ? data.items : []) {
+        if (item?.tab) {
+          byTab[item.tab] = { ...item, contract_version: data.contract_version };
+        }
+      }
+      state.dashboardDecisionCardsByTab = byTab;
+      state.dashboardDecisionCardsLoaded = true;
+      setDashboardContextStrip(state.activeDashboardTab || "market");
+      return byTab;
+    } catch (err) {
+      els.dashboardContextStrip.dataset.contract = "static-fallback-error";
+      console.warn("dashboard decision cards fetch failed", err);
+      return state.dashboardDecisionCardsByTab || {};
+    } finally {
+      state.dashboardDecisionCardsRequest = null;
+    }
+  })();
+  return state.dashboardDecisionCardsRequest;
 }
 
 const DASHBOARD_PANEL_VIEWS = new Set(["overview", "details", "operations", "all"]);
 
 function panelViewForTab(tab = "market") {
-  return state.dashboardPanelViewByTab?.[tab] || (tab === "market" ? "all" : "overview");
+  if (state.dashboardPanelViewByTab?.[tab]) return state.dashboardPanelViewByTab[tab];
+  return "all";
 }
 
 function updateDashboardViewControls() {
@@ -2950,9 +4085,9 @@ function updateDashboardViewControls() {
   });
 }
 
-function setDashboardPanelView(view = "overview", options = {}) {
+function setDashboardPanelView(view = "all", options = {}) {
   const activeTab = options.tab || state.activeDashboardTab || "market";
-  const fallback = activeTab === "market" ? "all" : "overview";
+  const fallback = "all";
   const normalized = DASHBOARD_PANEL_VIEWS.has(view) ? view : fallback;
   if (state.dashboardPanelViewByTab) {
     state.dashboardPanelViewByTab[activeTab] = normalized;
@@ -2967,9 +4102,11 @@ function setDashboardPanelView(view = "overview", options = {}) {
 function setCommandPanelCollapsed(collapsed, options = {}) {
   if (!els.controlPanel || !els.commandPanelToggle) return;
   els.controlPanel.classList.toggle("is-collapsed", collapsed);
+  document.body.classList.toggle("command-panel-expanded", !collapsed);
   els.commandPanelToggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
   const stateLabel = els.commandPanelToggle.querySelector(".command-panel-state");
-  if (stateLabel) stateLabel.textContent = collapsed ? "컨트롤 열기" : "컨트롤 숨기기";
+  const copy = UI_LANGUAGE_COPY[selectedOutputLanguage()] || UI_LANGUAGE_COPY.ko;
+  if (stateLabel) stateLabel.textContent = collapsed ? copy.commandOpen : copy.commandHide;
   if (options.persist) {
     safeWriteStoredValue(STORAGE.controlPanel, collapsed ? "collapsed" : "expanded");
   }
@@ -3024,28 +4161,32 @@ function dashboardTabFromLocation() {
   if (fromParam === "ai-portfolio" || fromParam === "ai") return "ai-portfolio";
   if (fromParam === "ml-forecast" || fromParam === "forecast") return "forecast";
   if (fromParam === "macro") return "macro";
+  if (fromParam === "quantamental") return "quantamental";
   if (fromParam === "quant") return "quant";
   if (fromParam === "market") return "market";
   if (window.location.hash === "#ai-portfolio" || window.location.hash === "#ai") return "ai-portfolio";
   if (window.location.hash === "#ml-forecast" || window.location.hash === "#forecast-lab" || window.location.hash === "#forecast") return "forecast";
   if (window.location.hash === "#macro") return "macro";
+  if (window.location.hash === "#quantamental") return "quantamental";
   if (window.location.hash === "#quant-lab" || window.location.hash === "#quant") return "quant";
   if (window.location.hash === "#market-dashboard" || window.location.hash === "#market") return "market";
   return "";
 }
 
 function setDashboardTab(tab = "market", options = {}) {
-  const active = tab === "quant" ? "quant" : (tab === "forecast" || tab === "ml-forecast" ? "forecast" : (tab === "macro" ? "macro" : (tab === "ai-portfolio" || tab === "ai" ? "ai-portfolio" : "market")));
+  const active = tab === "quantamental" ? "quantamental" : (tab === "quant" ? "quant" : (tab === "forecast" || tab === "ml-forecast" ? "forecast" : (tab === "macro" ? "macro" : (tab === "ai-portfolio" || tab === "ai" ? "ai-portfolio" : "market"))));
   state.activeDashboardTab = active;
   if (els.homeSurfaceGrid) {
     els.homeSurfaceGrid.dataset.dashboardTab = active;
   }
   setDashboardContextStrip(active);
+  loadDashboardDecisionCards(false);
   setDashboardPanelView(panelViewForTab(active), { tab: active });
   const buttons = [
     { el: els.marketDashboardTab, tab: "market" },
     { el: els.macroDashboardTab, tab: "macro" },
     { el: els.quantLabTab, tab: "quant" },
+    { el: els.quantamentalTab, tab: "quantamental" },
     { el: els.mlForecastTab, tab: "forecast" },
     { el: els.aiPortfolioTab, tab: "ai-portfolio" },
   ];
@@ -3055,32 +4196,23 @@ function setDashboardTab(tab = "market", options = {}) {
     el.classList.toggle("active", isActive);
     el.setAttribute("aria-selected", isActive ? "true" : "false");
   });
-  const homeTitle = document.querySelector(".home-hero h2");
-  const homeCopy = document.querySelector(".home-hero p:not(.eyebrow)");
+  updateDashboardHero(active);
   if (active === "quant") {
-    if (homeTitle) homeTitle.textContent = "퀀트 랩";
-    if (homeCopy) homeCopy.textContent = "저장 가격 기반 리스크, 전략 검증, 포트폴리오 배분을 같은 조건으로 점검합니다.";
     loadQuantRunHistory(false);
     loadQuantStrategies(false);
+  } else if (active === "quantamental") {
+    loadQuantamental(false);
   } else if (active === "forecast") {
-    if (homeTitle) homeTitle.textContent = "ML Forecast";
-    if (homeCopy) homeCopy.textContent = "검증 가능한 예측 실험실입니다. 가격 경로가 아니라 OOS forward return, 확률, 신뢰도, 신호, 비용 반영 백테스트를 분리해 점검합니다.";
     loadForecastLab(false);
   } else if (active === "macro") {
-    if (homeTitle) homeTitle.textContent = "매크로";
-    if (homeCopy) homeCopy.textContent = "데이터 품질, 레짐, 자산군 영향, 정책 힌트, 리서치 맥락을 AI 해석과 분리해 점검합니다.";
     loadMacro(false);
   } else if (active === "ai-portfolio") {
-    if (homeTitle) homeTitle.textContent = "AI Portfolio";
-    if (homeCopy) homeCopy.textContent = "투자형과 정책을 선택하고, 정량 엔진이 계산한 포트폴리오를 AI가 설명하는 사용자 승인 기반 워크플로우입니다.";
     loadAiPortfolio(false);
   } else {
-    if (homeTitle) homeTitle.textContent = "시장 대시보드";
-    if (homeCopy) homeCopy.textContent = "티커를 입력하면 종목 분석으로, 비워두고 질문만 입력하면 금리·신용·FX·원자재·테마 topic 분석으로 라우팅합니다.";
     loadMarketDashboard(false);
   }
   if (options.updateUrl && window.history?.replaceState) {
-    const hash = active === "quant" ? "#quant-lab" : (active === "forecast" ? "#ml-forecast" : (active === "macro" ? "#macro" : (active === "ai-portfolio" ? "#ai-portfolio" : "#market-dashboard")));
+    const hash = active === "quantamental" ? "#quantamental" : (active === "quant" ? "#quant-lab" : (active === "forecast" ? "#ml-forecast" : (active === "macro" ? "#macro" : (active === "ai-portfolio" ? "#ai-portfolio" : "#market-dashboard"))));
     window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${hash}`);
   }
 }
@@ -3124,6 +4256,7 @@ function normalizeStaticLabels() {
   if (els.marketDashboardTab) els.marketDashboardTab.textContent = "Market Dashboard";
   if (els.macroDashboardTab) els.macroDashboardTab.textContent = "Macro";
   if (els.quantLabTab) els.quantLabTab.textContent = "Quant Lab";
+  if (els.quantamentalTab) els.quantamentalTab.textContent = "Quantamental";
   if (els.mlForecastTab) els.mlForecastTab.textContent = "ML Forecast";
   if (els.aiPortfolioTab) els.aiPortfolioTab.textContent = "AI Portfolio";
   setCardHeader("macroOverviewSurface", "매크로 레짐 요약", "데이터, 신호, 해석 분리");
@@ -3169,6 +4302,7 @@ function normalizeStaticLabels() {
   setText(".home-news-card .home-card-head h3", "주요 뉴스");
   const runMeta = document.querySelector(".meta-row");
   if (runMeta) runMeta.innerHTML = '<span class="kbd">Ctrl</span> + <span class="kbd">Enter</span> 실행';
+  applyUiLanguage(state.outputLanguage || "ko", { persist: false });
   applyUrlUiMode();
 }
 
@@ -3231,52 +4365,31 @@ function mountTradingViewIframe(container, scriptSrc, config, label) {
 
 function mountTradingViewWidget(container, fallback, scriptSrc, config, label) {
   if (!container) return;
-  container.innerHTML = '<div class="tradingview-widget-container__widget"></div>';
-  container.dataset.tvStatus = "loading";
   hideTvFallback(fallback);
-  const script = document.createElement("script");
-  script.type = "text/javascript";
-  script.async = true;
-  script.src = scriptSrc;
-  script.textContent = JSON.stringify(config);
-  script.onerror = () => {
-    const iframeMounted = mountTradingViewIframe(container, scriptSrc, config, label);
-    container.dataset.tvStatus = iframeMounted ? "iframe-fallback" : "failed";
-    showTvFallback(fallback, iframeMounted
-      ? `${label} 스크립트가 차단되어 직접 iframe 경로로 전환했습니다.`
-      : `${label} 로드에 실패했습니다. 아래 내부 시장 스냅샷을 기준으로 확인하세요.`);
-  };
-  container.appendChild(script);
-
-  let checks = 0;
-  const verify = () => {
-    const frame = container.querySelector("iframe");
-    const frameSrc = frame?.getAttribute("src") || "";
-    if (frame && frameSrc && frameSrc !== "about:blank") {
-      hideTvFallback(fallback);
+  const iframeMounted = mountTradingViewIframe(container, scriptSrc, config, label);
+  if (!iframeMounted) {
+    container.dataset.tvStatus = "failed";
+    showTvFallback(fallback, `${label} 로드에 실패했습니다. 아래 내부 시장 스냅샷을 기준으로 확인하세요.`);
+    return;
+  }
+  container.dataset.tvStatus = "iframe-loading";
+  const frame = container.querySelector("iframe");
+  if (frame) {
+    frame.addEventListener("load", () => {
       container.dataset.tvStatus = "ready";
-      return;
-    }
-    checks += 1;
-    if (checks === 4) {
-      const iframeMounted = mountTradingViewIframe(container, scriptSrc, config, label);
-      if (iframeMounted) {
-        container.dataset.tvStatus = "iframe-fallback";
-        showTvFallback(fallback, `${label} 로딩이 지연되어 직접 iframe 경로로 재시도했습니다.`);
-      }
-    }
-    if (checks >= 8) {
-      container.dataset.tvStatus = "degraded";
-      showTvFallback(fallback, `${label} 위젯이 아직 응답하지 않습니다. 네트워크 또는 외부 스크립트 차단 시 내부 시장 스냅샷을 사용하세요.`);
-      return;
-    }
-    window.setTimeout(verify, 1000);
-  };
-  window.setTimeout(verify, 1200);
+      hideTvFallback(fallback);
+    }, { once: true });
+  }
+
+  window.setTimeout(() => {
+    if (container.dataset.tvStatus === "ready") return;
+    container.dataset.tvStatus = "iframe-fallback";
+    showTvFallback(fallback, `${label}는 직접 iframe 경로로 로드 중입니다. 외부 네트워크가 느리면 내부 시장 스냅샷을 함께 확인하세요.`);
+  }, 6000);
 }
 
 function normalizeTvChartSettings(raw = {}) {
-  const source = raw.source === "internal" ? "internal" : TV_CHART_DEFAULTS.source;
+  const source = raw.source === "tradingview" ? "tradingview" : raw.source === "internal" ? "internal" : TV_CHART_DEFAULTS.source;
   const symbolKey = TV_CHART_SYMBOLS[raw.symbolKey] ? raw.symbolKey : TV_CHART_DEFAULTS.symbolKey;
   const interval = TV_CHART_INTERVALS[raw.interval] ? raw.interval : TV_CHART_DEFAULTS.interval;
   let compareKey = TV_CHART_SYMBOLS[raw.compareKey] ? raw.compareKey : "";
@@ -3335,7 +4448,7 @@ function tradingViewOverviewConfig(settings = state.tvChartSettings) {
     timezone: "Etc/UTC",
     theme: visual.theme,
     style: "1",
-    locale: "kr",
+    locale: selectedOutputLanguage() === "en" ? "en" : "kr",
     backgroundColor: visual.backgroundColor,
     gridColor: visual.gridColor,
     hide_top_toolbar: false,
@@ -3460,15 +4573,16 @@ async function fetchInternalChartPayload(symbolKey, interval) {
 
 function renderInternalOhlcChart(primaryPayload, comparePayload, settings = state.tvChartSettings) {
   const safe = normalizeTvChartSettings(settings);
-  const primaryRows = normalizeInternalChartRows(primaryPayload).slice(-160);
+  const allPrimaryRows = normalizeInternalChartRows(primaryPayload);
+  const primaryRows = allPrimaryRows;
   if (primaryRows.length < 2) {
     return decisionEmpty(`내부 가격 데이터가 부족합니다: ${TV_CHART_SYMBOLS[safe.symbolKey]?.dataTicker || safe.symbolKey}`);
   }
   const hasOhlc = primaryRows.some((row) => Number.isFinite(row.open) && Number.isFinite(row.high) && Number.isFinite(row.low));
-  const width = 920;
+  const width = Math.max(980, Math.min(5600, primaryRows.length * 8 + 150));
   const height = 390;
   const padLeft = 72;
-  const padRight = 22;
+  const padRight = 56;
   const padTop = 24;
   const padBottom = 44;
   const domainValues = primaryRows.flatMap((row) => [
@@ -3488,7 +4602,7 @@ function renderInternalOhlcChart(primaryPayload, comparePayload, settings = stat
       closeY: chartY(min, max, row.close, height, padTop, padBottom),
     };
   });
-  const candleWidth = Math.max(2.8, Math.min(7, (width - padLeft - padRight) / Math.max(points.length, 1) * 0.42));
+  const candleWidth = Math.max(2.8, Math.min(7.5, (width - padLeft - padRight) / Math.max(points.length, 1) * 0.46));
   const candles = points.map((point) => {
     const up = point.close >= point.open;
     const bodyTop = Math.min(point.openY, point.closeY);
@@ -3507,7 +4621,7 @@ function renderInternalOhlcChart(primaryPayload, comparePayload, settings = stat
   const last = primaryRows[primaryRows.length - 1];
   const returnPct = first.close ? (last.close / first.close - 1) * 100 : null;
   const returnClass = Number(returnPct) >= 0 ? "ok" : "warn";
-  const compareRows = normalizeInternalChartRows(comparePayload).slice(-160);
+  const compareRows = normalizeInternalChartRows(comparePayload).slice(-primaryRows.length);
   const compareChart = safe.compareKey && compareRows.length >= 2
     ? renderNormalizedComparisonChart({
       primary: internalChartReturnRows(primaryRows),
@@ -3527,22 +4641,25 @@ function renderInternalOhlcChart(primaryPayload, comparePayload, settings = stat
         </div>
         <b class="${escapeHtml(returnClass)}">${escapeHtml(returnPct === null ? "-" : fmtPct(returnPct))}</b>
       </div>
-      <svg class="internal-ohlc-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(safe.symbolKey)} internal OHLC chart">
-        ${renderChartYAxis({
-          width,
-          height,
-          padLeft,
-          padRight,
-          padTop,
-          padBottom,
-          min,
-          max,
-          formatter: (value) => fmtDecimal(value, Math.abs(value) >= 100 ? 0 : 2),
-        })}
-        ${candles}
-        <polyline points="${closePoints}" class="internal-close-line"></polyline>
-        ${renderChartHoverTargets(points.map((point) => ({ ...point, y: point.closeY, value: point.close })), (point) => `${point.date || "-"} · Close ${fmtDecimal(point.value, 2)}`)}
-      </svg>
+      <div class="internal-chart-scroll" tabindex="0" aria-label="Internal chart horizontal scroll">
+        <svg class="internal-ohlc-chart" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(safe.symbolKey)} internal OHLC chart">
+          ${renderChartYAxis({
+            width,
+            height,
+            padLeft,
+            padRight,
+            padTop,
+            padBottom,
+            min,
+            max,
+            formatter: (value) => fmtDecimal(value, Math.abs(value) >= 100 ? 0 : 2),
+          })}
+          ${candles}
+          <polyline points="${closePoints}" class="internal-close-line"></polyline>
+          ${renderChartHoverTargets(points.map((point) => ({ ...point, y: point.closeY, value: point.close })), (point) => `${point.date || "-"} · Close ${fmtDecimal(point.value, 2)}`)}
+        </svg>
+      </div>
+      <div class="internal-chart-hint">좌우 스크롤로 전체 내부 데이터 구간을 확인할 수 있습니다. 최신 구간은 오른쪽 끝입니다.</div>
       <div class="internal-chart-foot">
         <span>Open ${escapeHtml(fmtDecimal(last.open, 2))}</span>
         <span>High ${escapeHtml(fmtDecimal(Math.max(...primaryRows.map((row) => row.high)), 2))}</span>
@@ -3552,6 +4669,14 @@ function renderInternalOhlcChart(primaryPayload, comparePayload, settings = stat
       ${compareChart}
     </div>
   `;
+}
+
+function scrollInternalChartToLatest() {
+  const scroller = els.tvOverviewWidget?.querySelector?.(".internal-chart-scroll");
+  if (!scroller) return;
+  window.requestAnimationFrame(() => {
+    scroller.scrollLeft = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
+  });
 }
 
 async function mountInternalMarketChart(settings = state.tvChartSettings) {
@@ -3568,6 +4693,7 @@ async function mountInternalMarketChart(settings = state.tvChartSettings) {
     const comparePromise = safe.compareKey ? fetchInternalChartPayload(safe.compareKey, safe.interval) : Promise.resolve(null);
     const [primaryPayload, comparePayload] = await Promise.all([primaryPromise, comparePromise]);
     els.tvOverviewWidget.innerHTML = renderInternalOhlcChart(primaryPayload, comparePayload, safe);
+    scrollInternalChartToLatest();
     els.tvOverviewWidget.dataset.tvStatus = normalizeInternalChartRows(primaryPayload).length >= 2 ? "internal-ready" : "internal-empty";
   } catch (err) {
     els.tvOverviewWidget.dataset.tvStatus = "internal-failed";
@@ -3640,7 +4766,7 @@ function initializeTradingViewDashboard(force = false) {
       grouping: "sector",
       blockSize: "market_cap_basic",
       blockColor: "change",
-      locale: "kr",
+      locale: selectedOutputLanguage() === "en" ? "en" : "kr",
       symbolUrl: "",
       colorTheme: "dark",
       hasTopBar: false,
@@ -4175,6 +5301,157 @@ function renderMarketSignals(overview) {
   els.marketSignalSurface.innerHTML = rendered || decisionEmpty("Market UI module is unavailable.");
 }
 
+function crossAssetRequestFromControls() {
+  const symbols = parseTickerInput(els.crossAssetSymbols?.value || "")
+    .slice(0, 12)
+    .join(",");
+  return {
+    symbols: symbols || "SPY,QQQ,TLT,HYG,LQD,GLD,BTC-USD,DXY,US10Y",
+    horizon: els.crossAssetHorizon?.value || "1m",
+    topic: textInputValue(els.crossAssetTopic) || "",
+  };
+}
+
+function crossAssetStateLabel(stateKey) {
+  const labels = {
+    risk_on: "위험선호",
+    risk_off: "방어 우위",
+    mixed: "혼재",
+    unavailable: "데이터 부족",
+  };
+  return labels[stateKey] || stateKey || "미확인";
+}
+
+function crossAssetRoleLabel(role) {
+  const labels = {
+    equity: "주식",
+    rates: "금리/채권",
+    credit: "신용",
+    commodity: "원자재",
+    crypto: "크립토",
+    fx: "FX",
+    custom: "사용자",
+  };
+  return labels[role] || role || "기타";
+}
+
+function crossAssetReturnCell(label, value) {
+  const cls = Number(value) >= 0 ? "ok" : "warn";
+  return `<span class="${escapeHtml(cls)}"><b>${escapeHtml(label)}</b> ${escapeHtml(fmtPct(value))}</span>`;
+}
+
+function renderCrossAssetAnalysis(payload) {
+  if (!els.crossAssetAnalysisSurface) return;
+  const items = Array.isArray(payload?.items) ? payload.items : [];
+  const summary = payload?.summary || {};
+  if (!items.length) {
+    els.crossAssetAnalysisSurface.innerHTML = decisionEmpty("교차자산 분석 결과가 없습니다.");
+    return;
+  }
+  const horizon = payload?.horizon || "1m";
+  const maxAbs = Math.max(1, ...items.map((item) => Math.abs(Number(item?.returns?.[horizon] || 0))).filter(Number.isFinite));
+  const usable = items.filter((item) => item.is_decision_usable);
+  const roleReturns = summary.role_returns || {};
+  const roleKeys = ["equity", "credit", "rates", "defensive", "crypto"].filter((key) => roleReturns[key] !== null && roleReturns[key] !== undefined);
+  els.crossAssetAnalysisSurface.innerHTML = `
+    <div class="cross-asset-summary ${escapeHtml(decisionStatusClass(payload?.status))}">
+      <div>
+        <span>현재 상태</span>
+        <strong>${escapeHtml(crossAssetStateLabel(summary.state))}</strong>
+      </div>
+      <div>
+        <span>Regime score</span>
+        <strong>${escapeHtml(fmtDecimal(summary.risk_score, 2))}</strong>
+      </div>
+      <div>
+        <span>사용 가능</span>
+        <strong>${escapeHtml(_fmtNumber(usable.length))}/${escapeHtml(_fmtNumber(items.length))}</strong>
+      </div>
+      <div>
+        <span>기준 기간</span>
+        <strong>${escapeHtml(String(horizon).toUpperCase())}</strong>
+      </div>
+    </div>
+    <div class="cross-asset-narrative">
+      <section>
+        <h4>${escapeHtml(summary.title || "교차자산 해석")}</h4>
+        <p>${escapeHtml(summary.current_state || "현재 상태를 계산하지 못했습니다.")}</p>
+      </section>
+      <section>
+        <h4>향후 동향</h4>
+        <p>${escapeHtml(summary.forward_bias || "추가 데이터 확인이 필요합니다.")}</p>
+      </section>
+    </div>
+    ${roleKeys.length ? `
+      <div class="cross-asset-role-strip">
+        ${roleKeys.map((key) => crossAssetReturnCell(key === "defensive" ? "방어자산" : crossAssetRoleLabel(key), roleReturns[key])).join("")}
+      </div>
+    ` : ""}
+    <div class="cross-asset-bars">
+      ${items.map((item) => {
+        const value = item?.returns?.[horizon];
+        const n = Number(value);
+        const width = Number.isFinite(n) ? Math.max(4, Math.min(100, Math.abs(n) / maxAbs * 100)) : 0;
+        const cls = !item.is_decision_usable ? "muted" : n >= 0 ? "up" : "down";
+        return `
+          <article class="cross-asset-row ${cls}">
+            <div class="cross-asset-row-head">
+              <strong>${escapeHtml(item.symbol || "")}</strong>
+              <span>${escapeHtml(item.label || "")} · ${escapeHtml(crossAssetRoleLabel(item.role))}</span>
+              <b>${escapeHtml(fmtPct(value))}</b>
+            </div>
+            <div class="cross-asset-bar-track"><i style="width:${width.toFixed(1)}%"></i></div>
+            <div class="cross-asset-row-meta">
+              <span>1D ${escapeHtml(fmtPct(item?.returns?.["1d"]))}</span>
+              <span>5D ${escapeHtml(fmtPct(item?.returns?.["5d"]))}</span>
+              <span>1M ${escapeHtml(fmtPct(item?.returns?.["1m"]))}</span>
+              <span>3M ${escapeHtml(fmtPct(item?.returns?.["3m"]))}</span>
+              ${item.error ? `<span class="warn">${escapeHtml(item.error)}</span>` : `<span>${escapeHtml(item.as_of || "")}</span>`}
+            </div>
+          </article>
+        `;
+      }).join("")}
+    </div>
+    <div class="cross-asset-watch">
+      ${(Array.isArray(summary.watch_points) ? summary.watch_points : []).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+    </div>
+    <details class="developer-detail">
+      <summary>개발자 진단</summary>
+      <pre>${escapeHtml(JSON.stringify({
+        provider: payload?.provider,
+        engine: payload?.analysis_engine,
+        generated_at: payload?.generated_at,
+        guardrails: payload?.guardrails,
+        contributors: summary.contributors,
+      }, null, 2))}</pre>
+    </details>
+  `;
+}
+
+async function loadCrossAssetAnalysis(force = false) {
+  if (!els.crossAssetAnalysisSurface || (state.crossAssetAnalysis && !force)) return;
+  const request = crossAssetRequestFromControls();
+  if (els.crossAssetStatus) els.crossAssetStatus.textContent = "교차자산 데이터를 계산하는 중입니다.";
+  if (els.crossAssetRun) els.crossAssetRun.disabled = true;
+  els.crossAssetAnalysisSurface.innerHTML = '<div class="home-news-empty">교차자산 분석을 불러오는 중입니다.</div>';
+  try {
+    const res = await fetch(API.dashboardCrossAssetAnalyze(request));
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    state.crossAssetAnalysis = data;
+    renderCrossAssetAnalysis(data);
+    if (els.crossAssetStatus) {
+      const usable = Number(data.decision_usable_count || 0);
+      els.crossAssetStatus.textContent = `${_fmtNumber(usable)}개 자산 기준 · ${fmtDate(data.generated_at)}`;
+    }
+  } catch (err) {
+    els.crossAssetAnalysisSurface.innerHTML = decisionEmpty(`교차자산 분석 실패: ${err.message || err}`);
+    if (els.crossAssetStatus) els.crossAssetStatus.textContent = "교차자산 분석 실패";
+  } finally {
+    if (els.crossAssetRun) els.crossAssetRun.disabled = false;
+  }
+}
+
 async function loadDashboardMarketOverview(force = false) {
   if ((!els.marketTapeSurface && !els.marketSignalSurface) || (state.marketOverviewLoaded && !force)) return;
   if (els.marketTapeSurface) els.marketTapeSurface.innerHTML = '<div class="home-news-empty">시장 테이프를 불러오는 중입니다.</div>';
@@ -4186,12 +5463,25 @@ async function loadDashboardMarketOverview(force = false) {
     state.marketOverview = data;
     renderMarketTape(data);
     renderMarketSignals(data);
+    updateGlobalQualitySummary({
+      status: data.status || data.quality_status || data.decision_status || "ok",
+      asOf: data.as_of || data.generated_at || data.updated_at || "",
+      updatedAt: data.generated_at || data.updated_at || "",
+      source: data.provider || data.source || "market overview",
+      observations: data.observation_count || data.count || "",
+      missing: data.missing_count ? `${data.missing_count}` : "없음",
+    });
     state.marketOverviewLoaded = true;
   } catch (err) {
     const message = `시장 overview 로드 실패: ${escapeHtml(err.message || err)}`;
     if (els.marketTapeSurface) els.marketTapeSurface.innerHTML = `<div class="home-news-empty">${message}</div>`;
     if (els.marketSignalSurface) els.marketSignalSurface.innerHTML = `<div class="home-news-empty">${message}</div>`;
     if (els.marketOverviewMeta) els.marketOverviewMeta.textContent = "overview load failed";
+    updateGlobalQualitySummary({
+      status: "unknown",
+      source: "market overview",
+      missing: "확인 불가",
+    });
   }
 }
 
@@ -4233,10 +5523,12 @@ function renderActionCompletion(label, startedAt, detail = "", status = "ok") {
   `;
 }
 
-function setButtonBusy(button, busy, busyText = "처리 중") {
+function setButtonBusy(button, busy, busyText = "처리 중", idleText = null) {
   if (!button) return;
   if (busy) {
-    if (!button.dataset.idleText) button.dataset.idleText = button.textContent || "";
+    if (idleText !== null || button.getAttribute("aria-busy") !== "true") {
+      button.dataset.idleText = idleText !== null ? String(idleText) : (button.textContent || "");
+    }
     button.textContent = busyText;
     button.disabled = true;
     button.setAttribute("aria-busy", "true");
@@ -4244,7 +5536,10 @@ function setButtonBusy(button, busy, busyText = "처리 중") {
   }
   button.disabled = false;
   button.removeAttribute("aria-busy");
-  if (button.dataset.idleText) button.textContent = button.dataset.idleText;
+  if (button.dataset.idleText) {
+    button.textContent = button.dataset.idleText;
+    delete button.dataset.idleText;
+  }
 }
 
 function decisionMetric(label, value, status = "") {
@@ -4561,6 +5856,235 @@ function localIsoDate(date = new Date()) {
   return local.toISOString().slice(0, 10);
 }
 
+function isoDateDayOffset(dateText, days = 0) {
+  if (!dateText) return "";
+  const date = new Date(`${dateText}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setDate(date.getDate() - Number(days || 0));
+  return date.toISOString().slice(0, 10);
+}
+
+function sanitizeDateInput(value) {
+  const text = String(value || "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : "";
+}
+
+function normalizeCustomGlobalDateOrder(startDate, endDate) {
+  const start = sanitizeDateInput(startDate);
+  const end = sanitizeDateInput(endDate);
+  if (start && end && start > end) {
+    return { startDate: end, endDate: start, reordered: true };
+  }
+  return { startDate: start, endDate: end, reordered: false };
+}
+
+function globalRangeValidationMessage(rangeState = state.globalRange) {
+  const normalized = normalizeGlobalRange(rangeState?.range);
+  if (normalized !== "custom") return state.globalRangeNotice || "";
+  if (state.globalRangeNotice) return state.globalRangeNotice;
+  const start = sanitizeDateInput(rangeState?.startDate);
+  const end = sanitizeDateInput(rangeState?.endDate);
+  if (!start && !end) return "Custom 기간은 시작일 또는 종료일이 필요합니다. 현재는 1Y 기본 기간으로 계산합니다.";
+  if (!start) return "시작일이 없어 1Y lookback으로 계산합니다.";
+  if (!end) return "종료일이 없어 오늘 기준으로 계산합니다.";
+  return "";
+}
+
+function globalRangeLookbackDays(range = state.globalRange?.range, startDate = state.globalRange?.startDate, endDate = state.globalRange?.endDate) {
+  const normalized = normalizeGlobalRange(range);
+  if (normalized === "YTD") {
+    const today = sanitizeDateInput(endDate) || localIsoDate();
+    const start = `${today.slice(0, 4)}-01-01`;
+    const diff = Math.ceil((new Date(`${today}T00:00:00`) - new Date(`${start}T00:00:00`)) / 86400000) + 1;
+    return Math.max(1, Math.min(5000, diff));
+  }
+  if (normalized === "custom") {
+    const ordered = normalizeCustomGlobalDateOrder(startDate, endDate);
+    const start = ordered.startDate;
+    const end = ordered.endDate || localIsoDate();
+    if (!start) return DASHBOARD_RANGE_LOOKBACK_DAYS["1Y"];
+    const diff = Math.ceil((new Date(`${end}T00:00:00`) - new Date(`${start}T00:00:00`)) / 86400000) + 1;
+    return Number.isFinite(diff) ? Math.max(1, Math.min(5000, diff)) : DASHBOARD_RANGE_LOOKBACK_DAYS["1Y"];
+  }
+  return DASHBOARD_RANGE_LOOKBACK_DAYS[normalized] || DASHBOARD_RANGE_LOOKBACK_DAYS["1Y"];
+}
+
+function globalRangeDateBounds(range = state.globalRange?.range, startDate = state.globalRange?.startDate, endDate = state.globalRange?.endDate) {
+  const normalized = normalizeGlobalRange(range);
+  const end = sanitizeDateInput(endDate) || localIsoDate();
+  if (normalized === "custom") {
+    const ordered = normalizeCustomGlobalDateOrder(startDate, endDate || end);
+    return { startDate: ordered.startDate, endDate: ordered.endDate || end };
+  }
+  if (normalized === "MAX") return { startDate: "", endDate: end };
+  if (normalized === "YTD") return { startDate: `${end.slice(0, 4)}-01-01`, endDate: end };
+  const months = { "1M": 1, "3M": 3, "6M": 6 }[normalized] || 0;
+  const years = { "1Y": 1, "3Y": 3, "5Y": 5 }[normalized] || 0;
+  if (months || years) return { startDate: isoDateOffset(end, { months, years }), endDate: end };
+  if (normalized === "1W") return { startDate: isoDateDayOffset(end, 7), endDate: end };
+  if (normalized === "1D") return { startDate: end, endDate: end };
+  return { startDate: isoDateOffset(end, { years: 1 }), endDate: end };
+}
+
+function globalRangeToAssetRange(range = state.globalRange?.range) {
+  const normalized = normalizeGlobalRange(range);
+  return {
+    "1D": "1d",
+    "1W": "1w",
+    "1M": "1m",
+    "3M": "3m",
+    "6M": "6m",
+    YTD: "ytd",
+    "1Y": "1y",
+    "3Y": "3y",
+    "5Y": "5y",
+    MAX: "all",
+    custom: "custom",
+  }[normalized] || "1y";
+}
+
+function quantamentalLookbackFromRange(range = state.globalRange?.range, startDate = state.globalRange?.startDate, endDate = state.globalRange?.endDate) {
+  const days = globalRangeLookbackDays(range, startDate, endDate);
+  if (days <= 1) return "1";
+  if (days <= 7) return "5";
+  if (days <= 31) return "21";
+  if (days <= 95) return "63";
+  if (days <= 190) return "126";
+  if (days <= 380) return "252";
+  if (days <= 900) return "756";
+  if (days <= 1500) return "1260";
+  return "5000";
+}
+
+function globalRangeSupportSummary(rangeState = state.globalRange) {
+  const range = normalizeGlobalRange(rangeState?.range);
+  const bounds = globalRangeDateBounds(range, rangeState?.startDate, rangeState?.endDate);
+  const lookbackDays = globalRangeLookbackDays(range, bounds.startDate, bounds.endDate);
+  const researchDays = Math.max(
+    Number(els.lookback?.min || 1),
+    Math.min(Number(els.lookback?.max || 180), lookbackDays),
+  );
+  const quantamentalBucket = quantamentalLookbackFromRange(range, bounds.startDate, bounds.endDate);
+  const dateTargets = "자산·백테스트·포트폴리오·Forecast";
+  const dateWindow = range === "custom" && !bounds.startDate
+    ? `Custom 시작일 없음(1Y 기본 기간)~${bounds.endDate || "오늘"}`
+    : `${bounds.startDate || "시작 제한 없음"}~${bounds.endDate || "오늘"}`;
+  return {
+    lookbackDays,
+    researchDays,
+    quantamentalBucket,
+    summary: `${selectedRangeLabel()} · 약 ${_fmtNumber(lookbackDays)}일 기준. 날짜 지원 화면은 직접 반영하고, lookback 기반 화면은 지원 버킷으로 변환합니다.`,
+    detail: `${dateTargets}: ${dateWindow} · Research: ${_fmtNumber(researchDays)}일 · Quantamental: ${_fmtNumber(Number(quantamentalBucket))}일 버킷`,
+  };
+}
+
+function setSelectValueIfPresent(select, value) {
+  if (!select) return false;
+  const exists = Array.from(select.options || []).some((option) => option.value === value);
+  if (!exists) return false;
+  select.value = value;
+  return true;
+}
+
+function syncDashboardRangeControls() {
+  if (!state.globalRange) state.globalRange = { ...DEFAULT_GLOBAL_RANGE };
+  if (els.dashboardRangeSelect) els.dashboardRangeSelect.value = normalizeGlobalRange(state.globalRange.range);
+  if (els.dashboardRangeStart) els.dashboardRangeStart.value = sanitizeDateInput(state.globalRange.startDate);
+  if (els.dashboardRangeEnd) els.dashboardRangeEnd.value = sanitizeDateInput(state.globalRange.endDate);
+  const isCustom = normalizeGlobalRange(state.globalRange.range) === "custom";
+  const validationMessage = globalRangeValidationMessage();
+  if (els.dashboardRangeControls) els.dashboardRangeControls.classList.toggle("custom-active", isCustom);
+  if (els.dashboardRangeControls) els.dashboardRangeControls.classList.toggle("range-warning", Boolean(validationMessage));
+  const missingCustomStart = isCustom && !state.globalRangeNotice && !sanitizeDateInput(state.globalRange.startDate);
+  const missingCustomEnd = isCustom && !state.globalRangeNotice && !sanitizeDateInput(state.globalRange.endDate);
+  if (els.dashboardRangeStart) els.dashboardRangeStart.setAttribute("aria-invalid", missingCustomStart ? "true" : "false");
+  if (els.dashboardRangeEnd) els.dashboardRangeEnd.setAttribute("aria-invalid", missingCustomEnd ? "true" : "false");
+  if (els.dashboardRangeSupport) {
+    const support = globalRangeSupportSummary();
+    els.dashboardRangeSupport.textContent = validationMessage ? `${validationMessage} · ${support.summary}` : support.summary;
+    els.dashboardRangeSupport.title = support.detail;
+    if (els.dashboardRangeControls) els.dashboardRangeControls.dataset.rangeSupport = support.detail;
+  }
+  renderGlobalQualitySummary();
+}
+
+function applyGlobalRangeToControls() {
+  const range = normalizeGlobalRange(state.globalRange?.range);
+  const bounds = globalRangeDateBounds(range, state.globalRange?.startDate, state.globalRange?.endDate);
+  const lookbackDays = globalRangeLookbackDays(range, bounds.startDate, bounds.endDate);
+  const cappedResearchLookback = Math.max(
+    Number(els.lookback?.min || 1),
+    Math.min(Number(els.lookback?.max || 180), lookbackDays),
+  );
+  if (els.lookback) {
+    els.lookback.value = String(cappedResearchLookback);
+    els.lookback.dataset.globalRange = range;
+  }
+  setSelectValueIfPresent(els.assetDetailRange, globalRangeToAssetRange(range));
+  if (els.assetDetailStartDate) els.assetDetailStartDate.value = bounds.startDate;
+  if (els.assetDetailEndDate) els.assetDetailEndDate.value = bounds.endDate;
+  if (els.backtestStartDate) els.backtestStartDate.value = bounds.startDate;
+  if (els.backtestEndDate) els.backtestEndDate.value = bounds.endDate;
+  if (els.portfolioStartDate) els.portfolioStartDate.value = bounds.startDate;
+  if (els.portfolioEndDate) els.portfolioEndDate.value = bounds.endDate;
+  if (els.portfolioLookbackDays) els.portfolioLookbackDays.value = String(Math.min(5000, Math.max(1, lookbackDays)));
+  if (els.forecastStartDate) els.forecastStartDate.value = bounds.startDate;
+  if (els.forecastEndDate) els.forecastEndDate.value = bounds.endDate;
+  setSelectValueIfPresent(els.quantamentalLookback, quantamentalLookbackFromRange(range, bounds.startDate, bounds.endDate));
+  if (els.aiPortfolioLookbackMonths) {
+    const months = range === "MAX" ? 120 : Math.max(1, Math.round(lookbackDays / 21));
+    els.aiPortfolioLookbackMonths.value = String(Math.min(120, months));
+  }
+  if (els.crossAssetHorizon) {
+    const horizon = lookbackDays <= 1 ? "1d" : (lookbackDays <= 7 ? "5d" : (lookbackDays <= 63 ? "1m" : "3m"));
+    setSelectValueIfPresent(els.crossAssetHorizon, horizon);
+  }
+  updateRangeLabels();
+  syncDashboardRangeControls();
+  persistForm();
+}
+
+function updateGlobalRangeUrl() {
+  if (!window.history?.replaceState) return;
+  const params = new URLSearchParams(window.location.search || "");
+  const range = normalizeGlobalRange(state.globalRange?.range);
+  params.set("range", range);
+  if (range === "custom") {
+    if (state.globalRange.startDate) params.set("start", state.globalRange.startDate);
+    else params.delete("start");
+    if (state.globalRange.endDate) params.set("end", state.globalRange.endDate);
+    else params.delete("end");
+  } else {
+    params.delete("start");
+    params.delete("end");
+  }
+  const query = params.toString();
+  window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
+}
+
+function setGlobalRange(range, options = {}) {
+  const normalized = normalizeGlobalRange(range);
+  const start = sanitizeDateInput(options.startDate ?? els.dashboardRangeStart?.value ?? state.globalRange?.startDate);
+  const end = sanitizeDateInput(options.endDate ?? els.dashboardRangeEnd?.value ?? state.globalRange?.endDate);
+  state.globalRangeNotice = "";
+  if (normalized === "custom") {
+    const ordered = normalizeCustomGlobalDateOrder(start, end);
+    if (ordered.reordered) {
+      state.globalRangeNotice = "시작일과 종료일이 역순이라 자동으로 정렬했습니다.";
+    }
+    state.globalRange = { range: normalized, startDate: ordered.startDate, endDate: ordered.endDate };
+  } else {
+    state.globalRange = { range: normalized, ...globalRangeDateBounds(normalized, start, end) };
+  }
+  if (options.persist !== false) safeWriteStoredJson(STORAGE.dashboardRange, state.globalRange);
+  applyGlobalRangeToControls();
+  if (options.updateUrl) updateGlobalRangeUrl();
+  if (options.reload) {
+    markGlobalQualityRangePending();
+    loadActiveDashboardResources(true);
+  }
+}
+
 function assetDetailOptionsFromControls() {
   return {
     range: els.assetDetailRange?.value || "1y",
@@ -4574,9 +6098,15 @@ function assetDetailOptionsFromControls() {
 
 function assetDetailRangeStart(latestDate, range) {
   if (!latestDate || range === "all") return "";
+  if (range === "custom") return "";
+  if (range === "1d") return latestDate;
+  if (range === "1w") return isoDateDayOffset(latestDate, 7);
+  if (range === "1m") return isoDateOffset(latestDate, { months: 1 });
   if (range === "3m") return isoDateOffset(latestDate, { months: 3 });
   if (range === "6m") return isoDateOffset(latestDate, { months: 6 });
+  if (range === "ytd") return `${latestDate.slice(0, 4)}-01-01`;
   if (range === "3y") return isoDateOffset(latestDate, { years: 3 });
+  if (range === "5y") return isoDateOffset(latestDate, { years: 5 });
   return isoDateOffset(latestDate, { years: 1 });
 }
 
@@ -4587,20 +6117,32 @@ function assetDetailRefreshStart(options) {
 }
 
 function assetDetailPriceQueryOptions(options) {
+  const freshness = selectedQuantFreshnessOptions();
   return {
     refresh: true,
     startDate: assetDetailRefreshStart(options),
     endDate: options.endDate || "",
+    freshnessProfile: freshness.freshnessProfile,
+    requireFreshPrices: freshness.requireFreshPrices,
   };
 }
 
 function assetDetailRefreshWarning(data, ticker) {
+  const warnings = [];
   const refresh = data?.refresh || {};
-  if (!refresh.enabled || !refresh.attempted) return "";
-  const status = String(refresh.status || "").toLowerCase();
-  if (!status || ["success", "ok", "partial"].includes(status)) return "";
-  const message = refresh.error ? ` · ${refresh.error}` : "";
-  return `${ticker} 최신 종가 보강 실패${message}`;
+  if (refresh.enabled && refresh.attempted) {
+    const status = String(refresh.status || "").toLowerCase();
+    if (status && !["success", "ok", "partial"].includes(status)) {
+      const message = refresh.error ? ` · ${refresh.error}` : "";
+      warnings.push(`${ticker} 최신 종가 보강 실패${message}`);
+    }
+  }
+  const audit = data?.asset_freshness || {};
+  const freshnessStatus = String(audit.freshness_status || "").toLowerCase();
+  if (data?.strict_freshness_violation || freshnessStatus === "stale") {
+    warnings.push(`${ticker} 가격 신선도 ${freshnessStatus || "unknown"} · 최근 ${audit.latest_price_date || "unknown"} · 기대 ${data?.expected_latest_date || audit.expected_latest_date || "unknown"} · 지연 ${data?.market_calendar_lag_days ?? audit.market_calendar_lag_days ?? "-"}일`);
+  }
+  return warnings.join(" · ");
 }
 
 function filterPriceRowsByAssetOptions(rows, options) {
@@ -4859,6 +6401,9 @@ const MACRO_CATEGORY_LABELS = {
   commodities: "원자재",
   market: "시장",
 };
+
+const MACRO_DASHBOARD_TIMEOUT_MS = 20000;
+const MACRO_PANEL_TIMEOUT_MS = 30000;
 
 const MACRO_SCENARIO_PRESETS = {
   rates_up: {
@@ -5313,7 +6858,7 @@ async function loadMacroSeriesDetail(seriesId) {
   if (!id || !els.macroSeriesDetailSurface) return;
   els.macroSeriesDetailSurface.innerHTML = decisionEmpty(`${escapeHtml(id)} 상세 데이터를 불러오는 중입니다.`);
   try {
-    const data = await macroFetchJsonWithTimeout(API.macroSeriesDetail(id, 240), {}, 10000);
+    const data = await macroFetchJsonWithTimeout(API.macroSeriesDetail(id, 240), {}, MACRO_PANEL_TIMEOUT_MS);
     state.macroSeriesDetail = data;
     renderMacroSeriesDetail(data);
   } catch (err) {
@@ -5623,6 +7168,8 @@ function renderMacroDataQuality(data = {}, refreshStatus = {}) {
   if (!els.macroDataQualitySurface) return;
   const quality = data.data_quality || data;
   const rows = Array.isArray(data.series) ? data.series : [];
+  const coverage = data.coverage || {};
+  const statusCounts = coverage.status_counts || {};
   const scheduler = refreshStatus.scheduler || {};
   const lastResult = scheduler.last_result || {};
   const macroJob = lastResult.jobs?.macro_platform_data || {};
@@ -5631,9 +7178,11 @@ function renderMacroDataQuality(data = {}, refreshStatus = {}) {
   els.macroDataQualitySurface.innerHTML = `
     <div class="decision-status-row">
       <span class="decision-badge ${escapeHtml(decisionStatusClass(quality.status))}">${escapeHtml(quality.status || "unknown")}</span>
-      <span>공급자 ${escapeHtml(quality.provider || "mixed")} · 마지막 갱신 ${escapeHtml(quality.last_updated || "사용 불가")}</span>
+      <span>${escapeHtml(data.scope === "all" ? "전체 registry" : "핵심 지표")} · 공급자 ${escapeHtml(quality.provider || "mixed")} · 마지막 갱신 ${escapeHtml(quality.last_updated || "사용 불가")}</span>
     </div>
     <div class="macro-quality-grid">
+      ${decisionMetric("검증 시계열", _fmtNumber(coverage.evaluated_series || rows.length), "ok")}
+      ${decisionMetric("정상 시계열", _fmtNumber(statusCounts.ok || 0), (statusCounts.stale || statusCounts.partial || statusCounts.unavailable) ? "warn" : "ok")}
       ${decisionMetric("누락 시계열", _fmtNumber((quality.missing_series || []).length), (quality.missing_series || []).length ? "warn" : "ok")}
       ${decisionMetric("지연 시계열", _fmtNumber((quality.stale_series || []).length), (quality.stale_series || []).length ? "warn" : "ok")}
       ${decisionMetric("오류", _fmtNumber((quality.errors || []).length), (quality.errors || []).length ? "warn" : "ok")}
@@ -5646,13 +7195,14 @@ function renderMacroDataQuality(data = {}, refreshStatus = {}) {
     ${(quality.errors || []).length ? `<div class="macro-warning">${escapeHtml(quality.errors.slice(0, 6).join("; "))}</div>` : ""}
     <div class="decision-table-wrap">
       <table class="decision-table">
-        <thead><tr><th>시계열</th><th>상태</th><th>최근일</th><th>공급자</th><th>메모</th></tr></thead>
+        <thead><tr><th>시계열</th><th>상태</th><th>최근일</th><th>신선도 기준</th><th>공급자</th><th>메모</th></tr></thead>
         <tbody>
           ${rows.map((row) => `
             <tr>
-              <td>${escapeHtml(row.series_id || "")}</td>
+              <td>${escapeHtml(row.series_id || "")}<br><small>${escapeHtml(row.category || "")}</small></td>
               <td><span class="table-status ${escapeHtml(decisionStatusClass(row.status))}">${escapeHtml(row.status || "unknown")}</span></td>
               <td>${escapeHtml(row.latest_date || "사용 불가")}</td>
+              <td>${escapeHtml(row.frequency || "-")} · ${escapeHtml(_fmtNumber(row.stale_after_days || 0))}일</td>
               <td>${escapeHtml(row.provider || "unknown")}</td>
               <td>${escapeHtml([...(row.errors || []), ...(row.notes || [])].slice(0, 2).join("; "))}</td>
             </tr>
@@ -5750,7 +7300,7 @@ async function runMacroScenario(presetName) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-    }, 10000);
+    }, MACRO_PANEL_TIMEOUT_MS);
     state.macroScenario = data;
     renderMacroScenarioResult(data, startedAt);
   } catch (err) {
@@ -5787,7 +7337,7 @@ async function runMacroResearchPreview() {
   setButtonBusy(els.macroResearchPreviewRun, true, "조회 중");
   els.macroResearchPreviewResult.innerHTML = decisionEmpty(`${escapeHtml(ticker)} 매크로 리서치 컨텍스트를 불러오는 중입니다.`);
   try {
-    const data = await macroFetchJsonWithTimeout(API.macroResearchContext(ticker), {}, 10000);
+    const data = await macroFetchJsonWithTimeout(API.macroResearchContext(ticker), {}, MACRO_PANEL_TIMEOUT_MS);
     state.macroResearchContext = data;
     renderMacroResearchContext(data, startedAt);
   } catch (err) {
@@ -5835,7 +7385,7 @@ async function hydrateMacroCategoryPanels() {
   for (const [url, surface, label] of panels) {
     if (runId !== macroCategoryHydrationRun) return;
     try {
-      const data = await macroFetchJsonWithTimeout(url, {}, 9000);
+      const data = await macroFetchJsonWithTimeout(url, {}, MACRO_PANEL_TIMEOUT_MS);
       renderMacroCategory(surface, data);
     } catch (err) {
       renderMacroPanelFailure(surface, label, err);
@@ -5885,7 +7435,7 @@ async function loadMacroProgressive(force = false) {
   }
   try {
     macroCategoryHydrationRun += 1;
-    const dashboard = await macroFetchJsonWithTimeout(API.macroDashboard, {}, 9000);
+    const dashboard = await macroFetchJsonWithTimeout(API.macroDashboard, {}, MACRO_DASHBOARD_TIMEOUT_MS);
     const overview = dashboard.overview || {};
     const dashboardQuality = dashboard.data_quality || overview.data_quality || {};
     const dashboardRefresh = dashboard.refresh || {};
@@ -5897,20 +7447,18 @@ async function loadMacroProgressive(force = false) {
     renderMacroCharts(overview);
     renderMacroRegime(overview.regime || {}, overview.signals || []);
     renderMacroAssetImpact(overview.asset_impact_summary || dashboard.asset_impacts || []);
-    renderMacroDataQuality(dashboard.data_quality || dashboardQuality, dashboardRefresh);
+    renderMacroDataQuality(dashboard.quality_detail || dashboard.data_quality || dashboardQuality, dashboardRefresh);
     renderMacroComparePlaceholder([]);
     renderMacroActionPaneStarters();
     setMacroLoadStatus(dashboard, startedAt, "대시보드 집계 렌더링 완료", dashboard.status || dashboardQuality.status || "ok");
 
     const panelTasks = [
       ["seriesList", API.macroSeriesList],
-      ["dataQuality", API.macroDataQuality],
-      ["refreshStatus", API.macroRefreshStatus],
       ["providerHealth", API.macroProviderHealth],
       ["portfolioHints", API.macroPortfolioHints],
     ];
     const settled = await Promise.allSettled(
-      panelTasks.map(([name, url]) => macroFetchJsonWithTimeout(url, {}, 9000)
+      panelTasks.map(([name, url]) => macroFetchJsonWithTimeout(url, {}, MACRO_PANEL_TIMEOUT_MS)
         .then((data) => ({ name, data }))
         .catch((error) => Promise.reject({ name, error })))
     );
@@ -5948,19 +7496,9 @@ async function loadMacroProgressive(force = false) {
     } else {
       renderMacroPanelFailure(els.macroPortfolioHintsSurface, "포트폴리오 힌트 패널", failureByName.portfolioHints);
     }
-    state.macroDataQuality = results.dataQuality || dashboard.data_quality || dashboardQuality;
-    state.macroRefreshStatus = results.refreshStatus || dashboardRefresh;
-    if (failureByName.dataQuality) {
-      renderMacroPanelFailure(els.macroDataQualitySurface, "데이터 품질 패널", failureByName.dataQuality);
-    } else {
-      renderMacroDataQuality(state.macroDataQuality, state.macroRefreshStatus);
-      if (failureByName.refreshStatus && els.macroDataQualitySurface) {
-        els.macroDataQualitySurface.insertAdjacentHTML(
-          "afterbegin",
-          `<div class="macro-warning">갱신 상태 로드 실패: ${escapeHtml(failureByName.refreshStatus.message || String(failureByName.refreshStatus))}</div>`
-        );
-      }
-    }
+    state.macroDataQuality = dashboard.quality_detail || dashboard.data_quality || dashboardQuality;
+    state.macroRefreshStatus = dashboardRefresh;
+    renderMacroDataQuality(state.macroDataQuality, state.macroRefreshStatus);
     state.macroLoaded = true;
     const failureDetail = failures.length
       ? `부분 실패 ${failures.length}개 · ${failures.slice(0, 2).join(" / ")}`
@@ -6179,7 +7717,7 @@ function enableStrictFreshnessFromUi() {
   if (els.backtestSurface) {
     els.backtestSurface.insertAdjacentHTML(
       "afterbegin",
-      '<div class="decision-completion" role="status" aria-live="polite" data-action-complete="true"><strong>최신 가격 강제 옵션이 켜졌습니다.</strong><span>같은 조건으로 다시 실행하면 오래된 가격을 실패로 처리합니다.</span></div>'
+      '<div class="decision-completion" role="status" aria-live="polite" data-action-complete="true"><strong>최신 가격 강제 옵션이 켜졌습니다.</strong><span>다시 실행하면 공급자 갱신을 먼저 시도하고, 남은 stale 가격은 실패로 처리합니다.</span></div>'
     );
   }
 }
@@ -6237,9 +7775,24 @@ async function loadDataHealth(force = false) {
         `).join("") : '<div class="muted small">No quality checks recorded yet.</div>'}
       </div>
     `;
+    updateGlobalQualitySummary({
+      status,
+      asOf: latest.finished_at || latest.started_at || data.as_of || "",
+      updatedAt: latest.finished_at || latest.started_at || "",
+      source: latest.market ? `data mart · ${latest.market}` : "data mart",
+      observations: counts.prices_daily || counts.macro_observations || "",
+      missing: failedCount || staleCount ? `provider ${failedCount} · quality ${staleCount}` : "없음",
+      cache: latest.status || "",
+    });
     state.dataHealthLoaded = true;
   } catch (err) {
     els.homeDataHealth.innerHTML = decisionEmpty(`데이터 마트 상태 조회 실패: ${err.message || err}`);
+    updateGlobalQualitySummary({
+      status: "unknown",
+      source: "data mart",
+      missing: "확인 불가",
+      updatedAt: "",
+    });
   }
 }
 
@@ -6271,6 +7824,8 @@ async function loadAssetDetail() {
     }
     const scopedLatest = rows[rows.length - 1] || latest;
     const metrics = assetDetailMetrics(rows, scopedLatest);
+    const freshnessStatus = data.asset_freshness?.freshness_status || (data.strict_freshness_violation ? "stale" : "fresh");
+    const freshnessClass = freshnessStatus === "fresh" ? "ok" : decisionStatusClass(freshnessStatus);
     let benchmarkRows = [];
     let benchmarkWarning = "";
     if (options.compareBenchmark && options.benchmark && options.benchmark !== ticker) {
@@ -6288,7 +7843,7 @@ async function loadAssetDetail() {
     }
     els.assetDetailSurface.innerHTML = `
       <div class="decision-status-row">
-        <span class="decision-badge ok">정상</span>
+        <span class="decision-badge ${escapeHtml(freshnessClass)}">${escapeHtml(freshnessStatus === "fresh" ? "정상" : freshnessStatus)}</span>
         <span>선택 ${escapeHtml(_fmtNumber(rows.length))}/${escapeHtml(_fmtNumber(allRows.length))}행 · ${escapeHtml(rows[0]?.date || "-")} -> ${escapeHtml(scopedLatest.date || "-")} · ${escapeHtml(scopedLatest.source || latest.source || "소스 미확인")}</span>
       </div>
       <div class="decision-chip-row">
@@ -6297,6 +7852,7 @@ async function loadAssetDetail() {
         <span>시작 ${escapeHtml(options.startDate || "자동")}</span>
         <span>종료 ${escapeHtml(options.endDate || "최신")}</span>
         <span>최신 종가 보강 ${escapeHtml(priceQuery.startDate || "최근")} -> ${escapeHtml(priceQuery.endDate || "제공자 최신")}</span>
+        <span>신선도 ${escapeHtml(data.freshness_policy?.profile || priceQuery.freshnessProfile || "research_default")} · 기대 ${escapeHtml(data.expected_latest_date || "unknown")}</span>
         ${options.compareBenchmark ? `<span>벤치마크 ${escapeHtml(options.benchmark)}</span>` : ""}
       </div>
       ${refreshWarning ? `<div class="decision-warning">${escapeHtml(refreshWarning)}</div>` : ""}
@@ -6463,6 +8019,7 @@ function renderFreshnessAuditPanel(diagnostics) {
     <div class="decision-section-title">데이터 신선도 정책</div>
     <div class="decision-chip-row">
       <span>${escapeHtml(policy.policy_id || "daily_price_policy")}</span>
+      <span>profile ${escapeHtml(policy.profile || "research_default")}</span>
       <span>기준일 ${escapeHtml(diagnostics.expected_latest_date || policy.expected_latest_date || "알 수 없음")}</span>
       <span>허용 지연 ${escapeHtml(String(policy.max_market_calendar_lag_days ?? "-"))}일</span>
       <span>강제 최신 ${policy.require_fresh_prices ? "켜짐" : "꺼짐"}</span>
@@ -6492,6 +8049,22 @@ function renderFreshnessAuditPanel(diagnostics) {
       </div>
     ` : ""}
   `;
+}
+
+function renderSnapshotFreshnessBadge(snapshotFreshness = {}) {
+  const status = snapshotFreshness.status || "unknown";
+  const statusClass = status === "fresh" || status === "historical" ? "ok" : decisionStatusClass(status);
+  const expected = snapshotFreshness.current_expected_latest_date || snapshotFreshness.expected_latest_date || "unknown";
+  const stale = Array.isArray(snapshotFreshness.stale_assets) ? snapshotFreshness.stale_assets : [];
+  const missing = Array.isArray(snapshotFreshness.missing_assets) ? snapshotFreshness.missing_assets : [];
+  const detail = status === "historical"
+    ? `historical ${snapshotFreshness.historical_end_date || ""}`
+    : stale.length
+      ? `stale ${stale.slice(0, 3).join(",")}`
+      : missing.length
+        ? `missing ${missing.slice(0, 3).join(",")}`
+        : `expected ${expected}`;
+  return `<span class="table-status ${escapeHtml(statusClass)}">${escapeHtml(status)}</span><br><span class="muted small">${escapeHtml(detail)}</span>`;
 }
 
 function renderRebalanceSnapshots(weights) {
@@ -8281,7 +9854,7 @@ async function loadQuantRunHistory(force = false) {
       </div>
       <div class="decision-table-wrap">
         <table class="decision-table">
-          <thead><tr><th>Compare</th><th>Run</th><th>Template</th><th>Universe</th><th>Sharpe</th><th>MDD</th><th>Context</th><th>Lookahead</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Compare</th><th>Run</th><th>Template</th><th>Universe</th><th>Sharpe</th><th>MDD</th><th>Context</th><th>Data</th><th>Lookahead</th><th>Actions</th></tr></thead>
           <tbody>
             ${items.map((item) => {
               const metrics = item.metrics || {};
@@ -8297,6 +9870,7 @@ async function loadQuantRunHistory(force = false) {
                   <td>${escapeHtml(fmtDecimal(metrics.sharpe, 2))}</td>
                   <td>${escapeHtml(fmtMetricRatio(metrics.max_drawdown))}</td>
                   <td>${escapeHtml(policy.profile || "-")}${configHash ? ` · ${escapeHtml(configHash)}` : ""}</td>
+                  <td>${renderSnapshotFreshnessBadge(item.snapshot_freshness || item.data_snapshot?.snapshot_freshness || {})}</td>
                   <td><span class="table-status ${diagnostics.lookahead_safe ? "ok" : "fail"}">${diagnostics.lookahead_safe ? "safe" : "check"}</span></td>
                   <td>
                     <details class="row-action-menu">
@@ -8363,22 +9937,26 @@ async function runPortfolioOptimize() {
   const benchmark = normalizeTickerToken(els.portfolioBenchmark?.value || "SPY") || "SPY";
   const covarianceMethod = els.portfolioCovarianceMethod?.value || "sample";
   const shrinkageAlpha = numberInputValue(els.portfolioShrinkageAlpha, 0.1, { min: 0, max: 1 });
+  const freshnessOptions = selectedQuantFreshnessOptions();
   els.portfolioSurface.innerHTML = decisionEmpty(`${tickers.join(", ")} 포트폴리오 최적화를 실행 중입니다.`);
   try {
+    const payload = {
+      tickers,
+      method: els.portfolioMethod?.value || "equal_weight",
+      benchmark,
+      start_date: startDate,
+      end_date: endDate,
+      lookback_days: lookbackDays,
+      max_weight: maxWeight,
+      covariance_method: covarianceMethod,
+      shrinkage_alpha: shrinkageAlpha,
+      freshness_profile: freshnessOptions.freshnessProfile,
+    };
+    if (freshnessOptions.requireFreshPrices) payload.require_fresh_prices = true;
     const res = await fetch(API.portfolioOptimize, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        tickers,
-        method: els.portfolioMethod?.value || "equal_weight",
-        benchmark,
-        start_date: startDate,
-        end_date: endDate,
-        lookback_days: lookbackDays,
-        max_weight: maxWeight,
-        covariance_method: covarianceMethod,
-        shrinkage_alpha: shrinkageAlpha,
-      }),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
@@ -8400,6 +9978,7 @@ async function runPortfolioOptimize() {
       <div class="decision-summary ok">
         ${escapeHtml(tickers.join(", "))} · ${escapeHtml(startDate || "조회 기간")} -> ${escapeHtml(endDate || "최근")} · ${escapeHtml(String(lookbackDays))}일 가격 기준
       </div>
+      ${renderFreshnessAuditPanel(data)}
       ${renderPortfolioDecisionBrief({
         entries,
         portfolioMetrics,
@@ -9265,6 +10844,8 @@ const NEWS_CATEGORY_LABELS = {
   earnings: "실적",
   commodity: "원자재",
   crypto: "크립토",
+  company_news: "회사 뉴스",
+  topic_news: "주제 뉴스",
   market: "기타",
 };
 
@@ -9324,11 +10905,87 @@ function renderDashboardNews() {
   }).join("");
 }
 
+function newsSearchRequestFromControls() {
+  return {
+    ticker: normalizeTickerToken(els.homeNewsTicker?.value || ""),
+    topic: textInputValue(els.homeNewsTopic) || "",
+  };
+}
+
+function renderFocusedNews(items, meta = {}) {
+  if (!els.homeNewsFocusedList) return;
+  const clean = Array.isArray(items) ? items : [];
+  if (!clean.length) {
+    els.homeNewsFocusedList.innerHTML = '<div class="home-news-empty">입력한 티커/주제에 대한 뉴스가 없습니다. 검색어를 조금 넓혀서 다시 시도하세요.</div>';
+    return;
+  }
+  const focused = clean.filter((item) => ["company_news", "topic_news"].includes(item.category || ""));
+  const seen = new Set(focused.map((item) => item.url || item.title || JSON.stringify(item)));
+  const display = [
+    ...focused,
+    ...clean.filter((item) => !seen.has(item.url || item.title || JSON.stringify(item))),
+  ].slice(0, 10);
+  els.homeNewsFocusedList.innerHTML = `
+    <div class="focused-news-head">
+      <strong>${escapeHtml(meta.ticker || meta.topic || "맞춤 뉴스")}</strong>
+      <span>${escapeHtml(meta.selection_policy || "focused query")} · ${escapeHtml(fmtDate(meta.generated_at) || "")}</span>
+    </div>
+    ${display.map((item) => {
+      const date = item.published_at ? fmtDate(item.published_at) : (item.collected_at ? fmtDate(item.collected_at) : "");
+      const href = item.url ? `href="${escapeHtml(item.url)}" target="_blank" rel="noopener"` : "";
+      const categoryLabel = NEWS_CATEGORY_LABELS[item.category || "market"] || item.category || "기타";
+      const sourceTier = Number(item.source_tier);
+      const sourceClass = sourceTier === 0 ? "major" : (sourceTier >= 3 ? "low" : "");
+      return `
+        <article class="home-news-card focused">
+          <div class="home-news-meta">
+            <span>${escapeHtml(categoryLabel)}</span>
+            <span>${escapeHtml(item.symbol || "")}</span>
+            <span class="news-source ${sourceClass}">${escapeHtml(item.source || "")}</span>
+            <span>${escapeHtml(date)}</span>
+          </div>
+          <a ${href} class="home-news-title">${escapeHtml(item.title || "Untitled")}</a>
+          ${item.summary ? `<p class="home-news-summary">${escapeHtml(String(item.summary).slice(0, 180))}</p>` : ""}
+        </article>
+      `;
+    }).join("")}
+  `;
+}
+
+async function loadFocusedDashboardNews(force = false) {
+  if (!els.homeNewsFocusedList) return;
+  const request = newsSearchRequestFromControls();
+  if (!request.ticker && !request.topic) {
+    if (force) {
+      els.homeNewsFocusedList.innerHTML = '<div class="home-news-empty">티커나 주제를 입력하면 관련 회사/주제 뉴스가 현재 주요 뉴스 위에 추가됩니다.</div>';
+    }
+    return;
+  }
+  if (els.homeNewsSearchStatus) els.homeNewsSearchStatus.textContent = "맞춤 뉴스를 불러오는 중입니다.";
+  if (els.homeNewsSearchRun) els.homeNewsSearchRun.disabled = true;
+  els.homeNewsFocusedList.innerHTML = '<div class="home-news-empty">회사/주제 뉴스를 불러오는 중입니다.</div>';
+  try {
+    const res = await fetch(API.dashboardNews({ limit: 18, ticker: request.ticker, topic: request.topic, query: request.topic }));
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const items = Array.isArray(data.items) ? data.items : [];
+    state.focusedNewsItems = items;
+    renderFocusedNews(items, data);
+    if (els.homeNewsSearchStatus) els.homeNewsSearchStatus.textContent = `${_fmtNumber(items.length)}개 뉴스 · ${fmtDate(data.generated_at)}`;
+  } catch (err) {
+    state.focusedNewsItems = [];
+    els.homeNewsFocusedList.innerHTML = `<div class="home-news-empty">맞춤 뉴스 로드 실패: ${escapeHtml(err.message || err)}</div>`;
+    if (els.homeNewsSearchStatus) els.homeNewsSearchStatus.textContent = "맞춤 뉴스 로드 실패";
+  } finally {
+    if (els.homeNewsSearchRun) els.homeNewsSearchRun.disabled = false;
+  }
+}
+
 async function loadDashboardNews(force = false) {
   if (!els.homeNewsList || (state.dashboardLoaded && !force)) return;
   els.homeNewsList.innerHTML = '<div class="home-news-empty">뉴스를 불러오는 중입니다.</div>';
   try {
-    const res = await fetch(API.dashboardNews);
+    const res = await fetch(API.dashboardNews({ limit: 20 }));
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const items = Array.isArray(data.items) ? data.items : [];
@@ -9355,6 +11012,7 @@ function loadMarketDashboard(force = false) {
     loadDashboardMarket(force),
     loadDataHealth(force),
     loadDashboardNews(force),
+    loadCrossAssetAnalysis(force),
   ]).then(() => loadDashboardMarketOverview(true));
 }
 
@@ -10458,10 +12116,621 @@ function renderForecastRegimePerformance(items) {
   `;
 }
 
+function quantamentalUi() {
+  return window.FinGPTQuantamentalUi || {};
+}
+
+function quantamentalRequestFromControls() {
+  const ticker = normalizeTickerToken(els.quantamentalTicker?.value || "");
+  return {
+    ticker,
+    market: els.quantamentalMarket?.value || "US",
+    period: els.quantamentalPeriod?.value || "annual",
+    years: Number(els.quantamentalYears?.value || 5),
+    lookback: els.quantamentalLookback?.value || "252",
+    style: els.quantamentalStyle?.value || "balanced",
+    output_language: selectedOutputLanguage(),
+  };
+}
+
+function renderQuantamentalStarter() {
+  const ui = quantamentalUi();
+  const starter = ui.starter ? ui.starter() : decisionEmpty("Quantamental module is loading.");
+  const q = UI_LANGUAGE_COPY[selectedOutputLanguage()]?.quantamental || UI_LANGUAGE_COPY.en.quantamental;
+  if (els.quantamentalCompanySurface) els.quantamentalCompanySurface.innerHTML = starter;
+  if (els.quantamentalSignalSurface) els.quantamentalSignalSurface.innerHTML = starter;
+  if (els.quantamentalScoreSurface) els.quantamentalScoreSurface.innerHTML = starter;
+  if (els.quantamentalFactorSurface) els.quantamentalFactorSurface.innerHTML = starter;
+  if (els.quantamentalMainSurface) els.quantamentalMainSurface.innerHTML = starter;
+  if (els.quantamentalDataQualitySurface) els.quantamentalDataQualitySurface.innerHTML = starter;
+  if (els.quantamentalStatus) els.quantamentalStatus.textContent = q.messages.status;
+  if (els.quantamentalCompareSurface) els.quantamentalCompareSurface.innerHTML = decisionEmpty(q.messages.compareEmpty);
+  if (els.quantamentalScreenSurface) els.quantamentalScreenSurface.innerHTML = decisionEmpty(q.messages.topEmpty);
+  if (els.quantamentalScreenStatus) els.quantamentalScreenStatus.textContent = q.messages.topStatus;
+  if (els.quantamentalScoreScreenSurface) els.quantamentalScoreScreenSurface.innerHTML = decisionEmpty(q.messages.scoreEmpty);
+  if (els.quantamentalScoreScreenStatus) els.quantamentalScoreScreenStatus.textContent = q.messages.scoreStatus;
+}
+
+function setQuantamentalLoading(isLoading, message = "Quantamental analysis를 계산하는 중입니다.") {
+  state.quantamentalLoading = isLoading;
+  const q = UI_LANGUAGE_COPY[selectedOutputLanguage()]?.quantamental || UI_LANGUAGE_COPY.en.quantamental;
+  setButtonBusy(
+    els.quantamentalAnalyze,
+    isLoading,
+    selectedOutputLanguage() === "en" ? "Analyzing" : "분석 중",
+    q.buttons.analyze,
+  );
+  const ui = quantamentalUi();
+  const content = ui.loading ? ui.loading(message) : decisionEmpty(message);
+  if (!isLoading) return;
+  if (els.quantamentalCompanySurface) els.quantamentalCompanySurface.innerHTML = content;
+  if (els.quantamentalSignalSurface) els.quantamentalSignalSurface.innerHTML = content;
+  if (els.quantamentalScoreSurface) els.quantamentalScoreSurface.innerHTML = content;
+  if (els.quantamentalFactorSurface) els.quantamentalFactorSurface.innerHTML = content;
+  if (els.quantamentalMainSurface) els.quantamentalMainSurface.innerHTML = content;
+  if (els.quantamentalDataQualitySurface) els.quantamentalDataQualitySurface.innerHTML = content;
+}
+
+function renderQuantamentalAnalysis(data) {
+  const ui = quantamentalUi();
+  if (!ui.companyHeader) {
+    renderQuantamentalStarter();
+    return;
+  }
+  if (els.quantamentalCompanySurface) els.quantamentalCompanySurface.innerHTML = ui.companyHeader(data);
+  if (els.quantamentalSignalSurface) els.quantamentalSignalSurface.innerHTML = ui.signalCard(data);
+  if (els.quantamentalScoreSurface) els.quantamentalScoreSurface.innerHTML = ui.scoreDashboard(data);
+  if (els.quantamentalFactorSurface) els.quantamentalFactorSurface.innerHTML = ui.factorGrid(data);
+  if (els.quantamentalMainSurface) els.quantamentalMainSurface.innerHTML = ui.mainPanel(data, state.quantamentalActiveTab || "overview");
+  if (els.quantamentalDataQualitySurface) els.quantamentalDataQualitySurface.innerHTML = ui.dataQuality(data);
+  const quality = data?.data_quality || {};
+  const freshness = quality.freshness || {};
+  const usedData = data?.ai_report?.data_snapshot || data?.ai_report?.report?.used_data || {};
+  updateGlobalQualitySummary({
+    status: quality.quality_level || freshness.status || data?.status || "unknown",
+    asOf: usedData.data_basis_date || freshness.as_of || data?.generated_at || "",
+    updatedAt: usedData.ai_snapshot_at || data?.generated_at || "",
+    source: usedData.data_source || "quantamental engine",
+    observations: usedData.observation_count || quality.observation_count || data?.quant?.observation_count || "",
+    missing: (usedData.missing_data || (quality.missing_sections || []).length)
+      ? (usedData.missing_data || (quality.missing_sections || []).join(", "))
+      : "없음",
+    aiSnapshotAt: usedData.ai_snapshot_at || data?.generated_at || "",
+  });
+  if (els.quantamentalStatus) {
+    const quality = data?.data_quality?.quality_level || "unknown";
+    const signal = data?.signal?.signal_label || "Insufficient Data";
+    const isEnglish = selectedOutputLanguage() === "en";
+    els.quantamentalStatus.textContent = isEnglish
+      ? `${data?.ticker || ""} · ${signal} · data quality ${quality}`
+      : `${data?.ticker || ""} · ${signal} · 데이터 품질 ${quality}`;
+    els.quantamentalStatus.className = `form-notice ${["ok", "success"].includes(data?.status) ? "success" : "info"}`;
+  }
+}
+
+function renderQuantamentalScreen(data) {
+  const ui = quantamentalUi();
+  if (els.quantamentalScreenSurface) {
+    els.quantamentalScreenSurface.innerHTML = ui.topSignals ? ui.topSignals(data) : `<pre>${escapeHtml(JSON.stringify(data, null, 2))}</pre>`;
+  }
+  if (els.quantamentalScreenStatus) {
+    const summary = data?.freshness_summary || {};
+    const isEnglish = selectedOutputLanguage() === "en";
+    els.quantamentalScreenStatus.textContent = isEnglish
+      ? `${data?.scored_count ?? 0}/${data?.requested_count ?? 0} scored · freshness ${summary.status || "unknown"} · ${data?.style || "balanced"}`
+      : `${data?.scored_count ?? 0}/${data?.requested_count ?? 0}개 산출 · 신선도 ${summary.status || "unknown"} · ${data?.style || "balanced"}`;
+    els.quantamentalScreenStatus.className = `form-notice ${data?.status === "ok" ? "success" : "info"}`;
+  }
+}
+
+function quantamentalScoreScreenThreshold() {
+  const raw = Number(els.quantamentalScoreThreshold?.value || 70);
+  const threshold = Number.isFinite(raw) ? Math.max(0, Math.min(100, raw)) : 70;
+  if (els.quantamentalScoreThreshold) els.quantamentalScoreThreshold.value = String(threshold);
+  return threshold;
+}
+
+function quantamentalScoreScreenLimit() {
+  const raw = Number(els.quantamentalScoreScreenLimit?.value || 20);
+  return Number.isFinite(raw) ? Math.max(1, Math.min(50, raw)) : 20;
+}
+
+function quantamentalScoreScreenMetric() {
+  const raw = String(els.quantamentalScoreMetric?.value || "composite");
+  return ["composite", "value", "quality", "growth", "momentum", "low_volatility", "liquidity"].includes(raw) ? raw : "composite";
+}
+
+function quantamentalScoreMetricLabel(scoreKey) {
+  const q = UI_LANGUAGE_COPY[selectedOutputLanguage()]?.quantamental || UI_LANGUAGE_COPY.en.quantamental;
+  return q.scoreMetricLabels?.[scoreKey] || scoreKey || "composite";
+}
+
+function renderQuantamentalScoreScreen(data) {
+  const ui = quantamentalUi();
+  if (els.quantamentalScoreScreenSurface) {
+    els.quantamentalScoreScreenSurface.innerHTML = ui.scoreScreen ? ui.scoreScreen(data) : `<pre>${escapeHtml(JSON.stringify(data, null, 2))}</pre>`;
+  }
+  if (els.quantamentalScoreScreenStatus) {
+    const summary = data?.freshness_summary || {};
+    const isEnglish = selectedOutputLanguage() === "en";
+    const scoreLabel = quantamentalScoreMetricLabel(data?.score_key || quantamentalScoreScreenMetric());
+    els.quantamentalScoreScreenStatus.textContent = isEnglish
+      ? `${data?.returned_count ?? 0}/${data?.matched_count ?? 0} returned · ${scoreLabel} >= ${fmtDecimal(data?.min_score, 1)} · freshness ${summary.status || "unknown"}`
+      : `${data?.returned_count ?? 0}/${data?.matched_count ?? 0}개 반환 · ${scoreLabel} >= ${fmtDecimal(data?.min_score, 1)} · 신선도 ${summary.status || "unknown"}`;
+    els.quantamentalScoreScreenStatus.className = `form-notice ${data?.status === "ok" ? "success" : "info"}`;
+  }
+}
+
+async function loadQuantamentalScreen(force = false) {
+  if (!els.quantamentalScreenSurface || state.quantamentalScreenLoading) return;
+  if (state.quantamentalScreenLoaded && !force) {
+    renderQuantamentalScreen(state.quantamentalScreen);
+    return;
+  }
+  const request = quantamentalRequestFromControls();
+  state.quantamentalScreenLoading = true;
+  const q = UI_LANGUAGE_COPY[selectedOutputLanguage()]?.quantamental || UI_LANGUAGE_COPY.en.quantamental;
+  setButtonBusy(
+    els.quantamentalScreenRun,
+    true,
+    selectedOutputLanguage() === "en" ? "Screening" : "스크리닝",
+    q.buttons.refresh,
+  );
+  if (els.quantamentalScreenSurface) {
+    els.quantamentalScreenSurface.innerHTML = quantamentalUi().loading ? quantamentalUi().loading(q.messages.screenLoading) : decisionEmpty(q.messages.screenLoading);
+  }
+  try {
+    const data = await quantamentalFetchJson(API.quantamentalTopSignals({
+      market: request.market,
+      period: request.period,
+      years: request.years,
+      lookback: request.lookback,
+      style: request.style,
+      limit: 5,
+      refreshStale: true,
+      // Force reloads bypass the UI cache; stale-aware server refresh keeps Top 5 fast.
+      forceRefresh: false,
+      outputLanguage: request.output_language,
+    }));
+    state.quantamentalScreen = data;
+    state.quantamentalScreenLoaded = true;
+    renderQuantamentalScreen(data);
+  } catch (err) {
+    const message = err.message || String(err);
+    if (els.quantamentalScreenSurface) {
+      els.quantamentalScreenSurface.innerHTML = quantamentalUi().error ? quantamentalUi().error(message) : decisionEmpty(message);
+    }
+    if (els.quantamentalScreenStatus) {
+      els.quantamentalScreenStatus.textContent = message;
+      els.quantamentalScreenStatus.className = "form-notice error";
+    }
+  } finally {
+    state.quantamentalScreenLoading = false;
+    setButtonBusy(els.quantamentalScreenRun, false);
+    if (els.quantamentalScreenRun) els.quantamentalScreenRun.textContent = q.buttons.refresh;
+  }
+}
+
+async function runQuantamentalScoreScreen() {
+  if (!els.quantamentalScoreScreenSurface || state.quantamentalScoreScreenLoading) return;
+  const request = quantamentalRequestFromControls();
+  const scoreKey = quantamentalScoreScreenMetric();
+  const threshold = quantamentalScoreScreenThreshold();
+  const limit = quantamentalScoreScreenLimit();
+  const q = UI_LANGUAGE_COPY[selectedOutputLanguage()]?.quantamental || UI_LANGUAGE_COPY.en.quantamental;
+  state.quantamentalScoreScreenLoading = true;
+  setButtonBusy(
+    els.quantamentalScoreScreenRun,
+    true,
+    selectedOutputLanguage() === "en" ? "Screening" : "스크리닝",
+    q.buttons.screen,
+  );
+  if (els.quantamentalScoreScreenSurface) {
+    els.quantamentalScoreScreenSurface.innerHTML = quantamentalUi().loading ? quantamentalUi().loading(q.messages.scoreScreenLoading) : decisionEmpty(q.messages.scoreScreenLoading);
+  }
+  try {
+    const data = await quantamentalFetchJson(API.quantamentalScoreScreen({
+      market: request.market,
+      period: request.period,
+      years: request.years,
+      lookback: request.lookback,
+      style: request.style,
+      scoreKey,
+      minScore: threshold,
+      limit,
+      refreshStale: true,
+      forceRefresh: true,
+      outputLanguage: request.output_language,
+    }));
+    state.quantamentalScoreScreen = data;
+    renderQuantamentalScoreScreen(data);
+  } catch (err) {
+    const message = err.message || String(err);
+    if (els.quantamentalScoreScreenSurface) {
+      els.quantamentalScoreScreenSurface.innerHTML = quantamentalUi().error ? quantamentalUi().error(message) : decisionEmpty(message);
+    }
+    if (els.quantamentalScoreScreenStatus) {
+      els.quantamentalScoreScreenStatus.textContent = message;
+      els.quantamentalScoreScreenStatus.className = "form-notice error";
+    }
+  } finally {
+    state.quantamentalScoreScreenLoading = false;
+    setButtonBusy(els.quantamentalScoreScreenRun, false);
+    if (els.quantamentalScoreScreenRun) els.quantamentalScoreScreenRun.textContent = q.buttons.screen;
+  }
+}
+
+async function quantamentalFetchJson(url, options = {}) {
+  const res = await fetch(url, options);
+  const text = await res.text();
+  let data = {};
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch (_) {
+      data = { detail: text };
+    }
+  }
+  if (!res.ok) {
+    const detail = data.detail?.message || data.detail || data.error || `HTTP ${res.status}`;
+    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+  }
+  return data;
+}
+
+async function runQuantamentalAnalysis() {
+  const request = quantamentalRequestFromControls();
+  const q = UI_LANGUAGE_COPY[selectedOutputLanguage()]?.quantamental || UI_LANGUAGE_COPY.en.quantamental;
+  if (!request.ticker) {
+    if (els.quantamentalStatus) {
+      els.quantamentalStatus.textContent = q.messages.tickerRequired;
+      els.quantamentalStatus.className = "form-notice error";
+    }
+    if (els.quantamentalCompanySurface) els.quantamentalCompanySurface.innerHTML = quantamentalUi().error ? quantamentalUi().error(q.messages.tickerRequired) : decisionEmpty(q.messages.tickerRequired);
+    return;
+  }
+  if (els.quantamentalTicker) els.quantamentalTicker.value = request.ticker;
+  setQuantamentalLoading(true, selectedOutputLanguage() === "en" ? "Quantamental analysis is calculating." : "Quantamental 분석을 계산하는 중입니다.");
+  try {
+    const data = await quantamentalFetchJson(API.quantamentalAnalysis(request.ticker, {
+      market: request.market,
+      period: request.period,
+      years: request.years,
+      lookback: request.lookback,
+      style: request.style,
+      includeAi: true,
+      useLlm: false,
+      outputLanguage: request.output_language,
+    }));
+    const previousSnapshotId = quantamentalSnapshotId(state.quantamentalAnalysis);
+    if (previousSnapshotId && previousSnapshotId !== data?.snapshot?.snapshot_id) {
+      state.quantamentalLastSnapshotId = previousSnapshotId;
+    }
+    state.quantamentalAnalysis = data;
+    state.quantamentalLoaded = true;
+    renderQuantamentalAnalysis(data);
+  } catch (err) {
+    const message = err.message || String(err);
+    const content = quantamentalUi().error ? quantamentalUi().error(message) : decisionEmpty(message);
+    if (els.quantamentalCompanySurface) els.quantamentalCompanySurface.innerHTML = content;
+    if (els.quantamentalSignalSurface) els.quantamentalSignalSurface.innerHTML = content;
+    if (els.quantamentalStatus) {
+      els.quantamentalStatus.textContent = message;
+      els.quantamentalStatus.className = "form-notice error";
+    }
+  } finally {
+    setQuantamentalLoading(false);
+  }
+}
+
+async function refreshQuantamentalAiReport() {
+  if (!state.quantamentalAnalysis) {
+    await runQuantamentalAnalysis();
+    return;
+  }
+  const q = UI_LANGUAGE_COPY[selectedOutputLanguage()]?.quantamental || UI_LANGUAGE_COPY.en.quantamental;
+  setButtonBusy(els.quantamentalAiRefresh, true, "AI", q.buttons.aiReport);
+  try {
+    const aiOptions = quantamentalAiRequestOptions();
+    const report = await quantamentalFetchJson(API.quantamentalAiReport, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        context: state.quantamentalAnalysis,
+        use_llm: aiOptions.use_llm,
+        model: aiOptions.model,
+        output_language: selectedOutputLanguage(),
+      }),
+    });
+    state.quantamentalAnalysis = { ...state.quantamentalAnalysis, ai_report: report };
+    state.quantamentalActiveTab = "ai";
+    renderQuantamentalAnalysis(state.quantamentalAnalysis);
+  } catch (err) {
+    if (els.quantamentalMainSurface) els.quantamentalMainSurface.insertAdjacentHTML("afterbegin", `<div class="decision-warning">AI report failed: ${escapeHtml(err.message || err)}</div>`);
+  } finally {
+    setButtonBusy(els.quantamentalAiRefresh, false);
+    if (els.quantamentalAiRefresh) els.quantamentalAiRefresh.textContent = q.buttons.aiReport;
+  }
+}
+
+async function askQuantamentalQuestion() {
+  const questionEl = document.getElementById("quantamentalQuestion");
+  const surface = document.getElementById("quantamentalQaSurface");
+  const question = String(questionEl?.value || "").trim();
+  const q = UI_LANGUAGE_COPY[selectedOutputLanguage()]?.quantamental || UI_LANGUAGE_COPY.en.quantamental;
+  if (!question) {
+    if (surface) surface.innerHTML = quantamentalUi().error ? quantamentalUi().error(q.messages.questionRequired) : decisionEmpty(q.messages.questionRequired);
+    return;
+  }
+  if (!state.quantamentalAnalysis) {
+    if (surface) surface.innerHTML = quantamentalUi().error ? quantamentalUi().error(q.messages.runFirst) : decisionEmpty(q.messages.runFirst);
+    return;
+  }
+  const button = document.getElementById("quantamentalAsk");
+  setButtonBusy(button, true, selectedOutputLanguage() === "en" ? "Asking" : "질문 중", q.buttons.ask || "Ask");
+  if (surface) surface.innerHTML = quantamentalUi().loading ? quantamentalUi().loading(q.messages.qaLoading) : decisionEmpty(q.messages.qaLoading);
+  try {
+    const aiOptions = quantamentalAiRequestOptions();
+    const answer = await quantamentalFetchJson(API.quantamentalAiQa, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        question,
+        context: state.quantamentalAnalysis,
+        use_llm: aiOptions.use_llm,
+        model: aiOptions.model,
+        output_language: selectedOutputLanguage(),
+      }),
+    });
+    if (surface) surface.innerHTML = quantamentalUi().qaAnswer ? quantamentalUi().qaAnswer(answer) : `<pre>${escapeHtml(JSON.stringify(answer, null, 2))}</pre>`;
+  } catch (err) {
+    if (surface) surface.innerHTML = quantamentalUi().error ? quantamentalUi().error(err.message || String(err)) : decisionEmpty(err.message || String(err));
+  } finally {
+    setButtonBusy(button, false);
+  }
+}
+
+function quantamentalCompareTickersFromControl() {
+  return String(els.quantamentalCompareTickers?.value || "")
+    .split(/[\s,]+/)
+    .map((item) => normalizeTickerToken(item))
+    .filter(Boolean)
+    .filter((item, idx, arr) => arr.indexOf(item) === idx)
+    .slice(0, 20);
+}
+
+function quantamentalPeerLimitFromControl() {
+  const value = Number(els.quantamentalPeerLimit?.value || 8);
+  return Number.isFinite(value) ? Math.max(2, Math.min(20, value)) : 8;
+}
+
+async function loadQuantamentalCompareWatchlists() {
+  let loadedFromServer = false;
+  try {
+    const payload = await quantamentalFetchJson(API.quantamentalCompareWatchlists);
+    const items = Array.isArray(payload.items) ? payload.items : [];
+    state.quantamentalCompareWatchlists = items
+      .filter((item) => item && item.name && Array.isArray(item.tickers))
+      .slice(0, 48);
+    loadedFromServer = true;
+  } catch (_) {
+    loadedFromServer = false;
+  }
+  if (loadedFromServer) {
+    renderQuantamentalCompareWatchlists();
+    return;
+  }
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STORAGE.quantamentalCompareWatchlists) || "[]");
+    state.quantamentalCompareWatchlists = Array.isArray(parsed) ? parsed.filter((item) => item && item.name && Array.isArray(item.tickers)).slice(0, 20) : [];
+  } catch (_) {
+    state.quantamentalCompareWatchlists = [];
+  }
+  renderQuantamentalCompareWatchlists();
+}
+
+function persistQuantamentalCompareWatchlists() {
+  localStorage.setItem(STORAGE.quantamentalCompareWatchlists, JSON.stringify(state.quantamentalCompareWatchlists || []));
+  renderQuantamentalCompareWatchlists();
+}
+
+function renderQuantamentalCompareWatchlists() {
+  if (!els.quantamentalWatchlistSelect) return;
+  const items = Array.isArray(state.quantamentalCompareWatchlists) ? state.quantamentalCompareWatchlists : [];
+  const q = UI_LANGUAGE_COPY[selectedOutputLanguage()]?.quantamental || UI_LANGUAGE_COPY.en.quantamental;
+  els.quantamentalWatchlistSelect.innerHTML = items.length
+    ? items.map((item, idx) => `<option value="${idx}">${escapeHtml(item.name)} (${escapeHtml(String((item.tickers || []).length))})</option>`).join("")
+    : `<option value="">${escapeHtml(q.messages.noSavedSets)}</option>`;
+}
+
+async function saveQuantamentalCompareWatchlist() {
+  const tickers = quantamentalCompareTickersFromControl();
+  if (tickers.length < 2) {
+    if (els.quantamentalCompareSurface) els.quantamentalCompareSurface.innerHTML = quantamentalUi().error ? quantamentalUi().error("At least two tickers are required to save a comparison set.") : decisionEmpty("At least two tickers are required to save a comparison set.");
+    return;
+  }
+  const name = String(els.quantamentalWatchlistName?.value || tickers.slice(0, 4).join(" ")).trim().slice(0, 40) || "Quantamental Set";
+  const request = quantamentalRequestFromControls();
+  const payload = {
+    name,
+    tickers,
+    market: request.market,
+    style: request.style,
+    expand_peer_universe: !!els.quantamentalExpandPeers?.checked,
+    peer_limit: quantamentalPeerLimitFromControl(),
+  };
+  try {
+    const saved = await quantamentalFetchJson(API.quantamentalCompareWatchlists, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const item = saved.item || payload;
+    const next = (state.quantamentalCompareWatchlists || []).filter((entry) => entry.id !== item.id && entry.name !== item.name);
+    next.unshift(item);
+    state.quantamentalCompareWatchlists = next.slice(0, 48);
+    renderQuantamentalCompareWatchlists();
+  } catch (_) {
+    const next = (state.quantamentalCompareWatchlists || []).filter((item) => item.name !== name);
+    next.unshift({ ...payload, saved_at: new Date().toISOString(), storage: "localStorage_fallback" });
+    state.quantamentalCompareWatchlists = next.slice(0, 20);
+    persistQuantamentalCompareWatchlists();
+  }
+}
+
+function loadQuantamentalCompareWatchlist() {
+  const idx = Number(els.quantamentalWatchlistSelect?.value || 0);
+  const item = (state.quantamentalCompareWatchlists || [])[idx];
+  if (!item || !Array.isArray(item.tickers)) return;
+  if (els.quantamentalCompareTickers) els.quantamentalCompareTickers.value = item.tickers.join(" ");
+  if (els.quantamentalWatchlistName) els.quantamentalWatchlistName.value = item.name || "";
+  if (els.quantamentalMarket && item.market) els.quantamentalMarket.value = item.market;
+  if (els.quantamentalStyle && item.style) els.quantamentalStyle.value = item.style;
+  if (els.quantamentalExpandPeers) els.quantamentalExpandPeers.checked = !!item.expand_peer_universe;
+  if (els.quantamentalPeerLimit && item.peer_limit) els.quantamentalPeerLimit.value = String(item.peer_limit);
+}
+
+function quantamentalComparisonCsv(data) {
+  const rows = Array.isArray(data?.rows) ? data.rows : [];
+  const headers = ["ticker", "signal_label", "final_score", "peer_strength", "peer_rank", "peer_group", "quality_level", "sector", "industry"];
+  const lines = [headers.join(",")];
+  rows.forEach((row) => {
+    lines.push([
+      row.ticker,
+      row.signal_label,
+      row.final_score,
+      row.peer_relative?.relative_strength_score,
+      row.peer_relative?.rank,
+      row.peer_relative?.group_key,
+      row.quality_level,
+      row.sector,
+      row.industry,
+    ].map(csvCell).join(","));
+  });
+  return lines.join("\n");
+}
+
+function csvCell(value) {
+  const text = String(value ?? "");
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function exportQuantamentalCompareCsv() {
+  if (!state.quantamentalComparison) {
+    if (els.quantamentalCompareSurface) els.quantamentalCompareSurface.innerHTML = quantamentalUi().error ? quantamentalUi().error("Run comparison before exporting CSV.") : decisionEmpty("Run comparison before exporting CSV.");
+    return;
+  }
+  const ticker = (state.quantamentalComparison.rows || [])[0]?.ticker || "comparison";
+  downloadBlob(`quantamental_compare_${ticker}_${Date.now()}.csv`, quantamentalComparisonCsv(state.quantamentalComparison), "text/csv");
+}
+
+function quantamentalSnapshotId(data = state.quantamentalAnalysis) {
+  return data?.snapshot?.snapshot_id || "";
+}
+
+async function exportQuantamentalSnapshot(format = "json") {
+  const snapshotId = quantamentalSnapshotId();
+  if (!snapshotId) {
+    if (els.quantamentalMainSurface) els.quantamentalMainSurface.insertAdjacentHTML("afterbegin", `<div class="decision-warning">Snapshot is not available yet.</div>`);
+    return;
+  }
+  const res = await fetch(API.quantamentalSnapshotExport(snapshotId, format));
+  const text = await res.text();
+  if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
+  downloadBlob(`quantamental_${snapshotId}.${format}`, text, format === "csv" ? "text/csv" : "application/json");
+}
+
+async function diffQuantamentalSnapshot() {
+  const snapshotId = quantamentalSnapshotId();
+  const previous = state.quantamentalLastSnapshotId;
+  if (!snapshotId || !previous || previous === snapshotId) {
+    if (els.quantamentalMainSurface) els.quantamentalMainSurface.insertAdjacentHTML("afterbegin", `<div class="decision-warning">Run another analysis snapshot before diffing.</div>`);
+    return;
+  }
+  const diff = await quantamentalFetchJson(API.quantamentalSnapshotDiff(previous, snapshotId));
+  if (els.quantamentalMainSurface) {
+    els.quantamentalMainSurface.insertAdjacentHTML("afterbegin", quantamentalUi().snapshotDiff ? quantamentalUi().snapshotDiff(diff) : `<pre>${escapeHtml(JSON.stringify(diff, null, 2))}</pre>`);
+  }
+}
+
+async function previewQuantamentalSnapshotRetention() {
+  const ticker = state.quantamentalAnalysis?.ticker || "";
+  const preview = await quantamentalFetchJson(API.quantamentalSnapshotRetention({ ticker, keepLast: 5, dryRun: true }), { method: "POST" });
+  if (els.quantamentalMainSurface) {
+    els.quantamentalMainSurface.insertAdjacentHTML("afterbegin", quantamentalUi().snapshotRetention ? quantamentalUi().snapshotRetention(preview) : `<pre>${escapeHtml(JSON.stringify(preview, null, 2))}</pre>`);
+  }
+}
+
+async function runQuantamentalCompare() {
+  const tickers = quantamentalCompareTickersFromControl();
+  const request = quantamentalRequestFromControls();
+  if (tickers.length < 2) {
+    if (els.quantamentalCompareSurface) {
+      els.quantamentalCompareSurface.innerHTML = quantamentalUi().error ? quantamentalUi().error("At least two tickers are required.") : decisionEmpty("At least two tickers are required.");
+    }
+    return;
+  }
+  const q = UI_LANGUAGE_COPY[selectedOutputLanguage()]?.quantamental || UI_LANGUAGE_COPY.en.quantamental;
+  setButtonBusy(
+    els.quantamentalCompareRun,
+    true,
+    selectedOutputLanguage() === "en" ? "Comparing" : "비교 중",
+    q.buttons.compare,
+  );
+  if (els.quantamentalCompareSurface) {
+    els.quantamentalCompareSurface.innerHTML = quantamentalUi().loading ? quantamentalUi().loading(q.messages.compareLoading) : decisionEmpty(q.messages.compareLoading);
+  }
+  try {
+    const data = await quantamentalFetchJson(API.quantamentalCompare, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tickers,
+        market: request.market,
+        period: request.period,
+        years: request.years,
+        lookback: request.lookback,
+        style: request.style,
+        include_ai: false,
+        use_llm: false,
+        expand_peer_universe: !!els.quantamentalExpandPeers?.checked,
+        peer_limit: quantamentalPeerLimitFromControl(),
+        output_language: request.output_language,
+      }),
+    });
+    state.quantamentalComparison = data;
+    if (els.quantamentalCompareSurface) {
+      els.quantamentalCompareSurface.innerHTML = quantamentalUi().comparisonTable ? quantamentalUi().comparisonTable(data) : `<pre>${escapeHtml(JSON.stringify(data, null, 2))}</pre>`;
+    }
+  } catch (err) {
+    if (els.quantamentalCompareSurface) {
+      els.quantamentalCompareSurface.innerHTML = quantamentalUi().error ? quantamentalUi().error(err.message || String(err)) : decisionEmpty(err.message || String(err));
+    }
+  } finally {
+    setButtonBusy(els.quantamentalCompareRun, false);
+    if (els.quantamentalCompareRun) els.quantamentalCompareRun.textContent = q.buttons.compare;
+  }
+}
+
+function loadQuantamental(force = false) {
+  if (!els.quantamentalMainSurface) return;
+  if (!state.quantamentalLoaded || force) {
+    renderQuantamentalStarter();
+  } else {
+    renderQuantamentalAnalysis(state.quantamentalAnalysis);
+  }
+  loadQuantamentalScreen(force);
+}
+
 function loadActiveDashboardResources(force = false) {
+  loadDashboardDecisionCards(force);
   if (state.activeDashboardTab === "quant") {
     loadQuantRunHistory(force);
     loadQuantStrategies(force);
+    return;
+  }
+  if (state.activeDashboardTab === "quantamental") {
+    loadQuantamental(force);
     return;
   }
   if (state.activeDashboardTab === "forecast") {
@@ -11010,7 +13279,7 @@ async function runStreamAnalysis(url, payload, renderRequest) {
     throw new Error(streamError);
   }
   if (!finalData) {
-    throw new Error("스트림이 결과 이벤트 없이 종료되었습니다.");
+    throw new Error(formMessage("streamNoResult"));
   }
 
   if (finalData.mode === "multi_ticker") {
@@ -11034,22 +13303,22 @@ async function runAnalysis(e) {
   const requiresTicker = payload.compare || payload.mode_hint === "ticker";
   if (requiresTicker && !payload.ticker) {
     els.ticker.focus();
-    setFormNotice("종목 모드는 ticker가 필요합니다. ticker 없이 질문하려면 자동 또는 주제 모드를 선택하세요.", "warning");
+    setFormNotice(formMessage("tickerRequired"), "warning");
     return;
   }
   if (!payload.question) {
     els.question.focus();
-    setFormNotice("질문을 입력해야 분석을 실행할 수 있습니다.", "warning");
+    setFormNotice(formMessage("questionRequired"), "warning");
     return;
   }
   if (payload.sources.length === 0) {
-    setFormNotice("최소 한 개의 소스를 선택해야 합니다.", "warning");
+    setFormNotice(formMessage("sourceRequired"), "warning");
     return;
   }
 
   if (payload.compare) {
     if (payload.tickers.length < 2) {
-      setFormNotice("Compare mode는 2개 이상의 ticker가 필요합니다. 쉼표 또는 공백으로 구분하세요.", "warning");
+      setFormNotice(formMessage("compareRequired"), "warning");
       els.ticker.focus();
       return;
     }
@@ -11106,6 +13375,7 @@ async function runCompare(payload) {
       lookback_days: payload.lookback_days,
       top_k: payload.top_k,
       model: payload.model,
+      output_language: payload.output_language,
       concurrency: 2,
     };
     const res = await fetch(API.compare, {
@@ -13358,6 +15628,27 @@ function bindInputs() {
     });
   });
   if (els.tickerSearchOpen) els.tickerSearchOpen.addEventListener("click", () => openSymbolPicker("research"));
+  if (els.crossAssetSymbolOpen) els.crossAssetSymbolOpen.addEventListener("click", () => openSymbolPicker("crossAssetSymbols"));
+  if (els.crossAssetRun) els.crossAssetRun.addEventListener("click", () => loadCrossAssetAnalysis(true));
+  [els.crossAssetSymbols, els.crossAssetTopic].forEach((input) => {
+    if (!input) return;
+    input.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      loadCrossAssetAnalysis(true);
+    });
+  });
+  if (els.crossAssetHorizon) els.crossAssetHorizon.addEventListener("change", () => loadCrossAssetAnalysis(true));
+  if (els.homeNewsTickerOpen) els.homeNewsTickerOpen.addEventListener("click", () => openSymbolPicker("homeNewsTicker"));
+  if (els.homeNewsSearchRun) els.homeNewsSearchRun.addEventListener("click", () => loadFocusedDashboardNews(true));
+  [els.homeNewsTicker, els.homeNewsTopic].forEach((input) => {
+    if (!input) return;
+    input.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      loadFocusedDashboardNews(true);
+    });
+  });
   if (els.compareMode) {
     els.compareMode.addEventListener("change", () => {
       updateCompareModeUI();
@@ -13405,6 +15696,9 @@ function bindInputs() {
   if (els.quantLabTab) {
     els.quantLabTab.addEventListener("click", () => setDashboardTab("quant", { updateUrl: true }));
   }
+  if (els.quantamentalTab) {
+    els.quantamentalTab.addEventListener("click", () => setDashboardTab("quantamental", { updateUrl: true }));
+  }
   if (els.mlForecastTab) {
     els.mlForecastTab.addEventListener("click", () => setDashboardTab("forecast", { updateUrl: true }));
   }
@@ -13431,12 +15725,30 @@ function bindInputs() {
       setDashboardPanelView(nextView);
     });
   }
+  if (els.dashboardRangeSelect) {
+    els.dashboardRangeSelect.addEventListener("change", () => {
+      setGlobalRange(els.dashboardRangeSelect.value, { persist: true, updateUrl: true, reload: true });
+    });
+  }
+  [els.dashboardRangeStart, els.dashboardRangeEnd].forEach((input) => {
+    if (!input) return;
+    input.addEventListener("change", () => {
+      setGlobalRange("custom", {
+        startDate: els.dashboardRangeStart?.value || "",
+        endDate: els.dashboardRangeEnd?.value || "",
+        persist: true,
+        updateUrl: true,
+        reload: true,
+      });
+    });
+  });
   window.addEventListener("hashchange", () => {
     const requestedTab = dashboardTabFromLocation();
     if (requestedTab) setDashboardTab(requestedTab);
   });
   if (els.homeNewsRefresh) els.homeNewsRefresh.addEventListener("click", () => {
     loadMarketDashboard(true);
+    loadFocusedDashboardNews(true);
   });
   document.addEventListener("click", (event) => {
     const rawTarget = event.target;
@@ -13610,6 +15922,79 @@ function bindInputs() {
         updateForecastModelStatus(target.dataset.action, target.dataset.modelId);
       } else if (target.dataset.action === "forecast-verify-artifact") {
         verifyForecastModelArtifact(target.dataset.modelId);
+      }
+    });
+  }
+  if (els.quantamentalAnalyze) els.quantamentalAnalyze.addEventListener("click", runQuantamentalAnalysis);
+  if (els.quantamentalTicker) {
+    els.quantamentalTicker.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        runQuantamentalAnalysis();
+      }
+    });
+    els.quantamentalTicker.addEventListener("input", () => {
+      els.quantamentalTicker.value = String(els.quantamentalTicker.value || "").toUpperCase();
+    });
+  }
+  if (els.quantamentalTickerOpen) els.quantamentalTickerOpen.addEventListener("click", () => openSymbolPicker("quantamentalTicker"));
+  if (els.quantamentalAiRefresh) els.quantamentalAiRefresh.addEventListener("click", refreshQuantamentalAiReport);
+  if (els.quantamentalAiModel) els.quantamentalAiModel.addEventListener("change", updateQuantamentalAiModelStatus);
+  if (els.quantamentalCompareRun) els.quantamentalCompareRun.addEventListener("click", runQuantamentalCompare);
+  if (els.quantamentalScreenRun) els.quantamentalScreenRun.addEventListener("click", () => loadQuantamentalScreen(true));
+  if (els.quantamentalScoreScreenRun) els.quantamentalScoreScreenRun.addEventListener("click", runQuantamentalScoreScreen);
+  if (els.quantamentalScoreThreshold) {
+    els.quantamentalScoreThreshold.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        runQuantamentalScoreScreen();
+      }
+    });
+    els.quantamentalScoreThreshold.addEventListener("change", quantamentalScoreScreenThreshold);
+  }
+  if (els.quantamentalWatchlistSave) els.quantamentalWatchlistSave.addEventListener("click", () => saveQuantamentalCompareWatchlist().catch((err) => {
+    if (els.quantamentalCompareSurface) els.quantamentalCompareSurface.innerHTML = quantamentalUi().error ? quantamentalUi().error(err.message || String(err)) : decisionEmpty(err.message || String(err));
+  }));
+  if (els.quantamentalWatchlistLoad) els.quantamentalWatchlistLoad.addEventListener("click", loadQuantamentalCompareWatchlist);
+  if (els.quantamentalCompareCsv) els.quantamentalCompareCsv.addEventListener("click", exportQuantamentalCompareCsv);
+  if (els.quantamentalCompareTickers) {
+    els.quantamentalCompareTickers.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        runQuantamentalCompare();
+      }
+    });
+  }
+  [els.quantamentalMarket, els.quantamentalPeriod, els.quantamentalYears, els.quantamentalLookback, els.quantamentalStyle, els.quantamentalScoreMetric, els.quantamentalScoreScreenLimit].forEach((control) => {
+    if (!control) return;
+    control.addEventListener("change", () => {
+      state.quantamentalScreenLoaded = false;
+      state.quantamentalScoreScreen = null;
+    });
+  });
+  if (els.quantamentalMainSurface) {
+    els.quantamentalMainSurface.addEventListener("click", (event) => {
+      const rawTarget = event.target;
+      const tabTarget = rawTarget?.closest ? rawTarget.closest("[data-quantamental-tab]") : null;
+      if (tabTarget?.dataset?.quantamentalTab) {
+        event.preventDefault();
+        state.quantamentalActiveTab = tabTarget.dataset.quantamentalTab;
+        if (state.quantamentalAnalysis) renderQuantamentalAnalysis(state.quantamentalAnalysis);
+        return;
+      }
+      const askTarget = rawTarget?.closest ? rawTarget.closest("#quantamentalAsk") : null;
+      if (askTarget) {
+        event.preventDefault();
+        askQuantamentalQuestion();
+      }
+      const actionTarget = rawTarget?.closest ? rawTarget.closest("[data-quantamental-action]") : null;
+      if (actionTarget?.dataset?.quantamentalAction) {
+        event.preventDefault();
+        const action = actionTarget.dataset.quantamentalAction;
+        if (action === "export-snapshot-json") exportQuantamentalSnapshot("json").catch((err) => alert(`Snapshot export failed: ${err.message || err}`));
+        if (action === "export-snapshot-csv") exportQuantamentalSnapshot("csv").catch((err) => alert(`Snapshot export failed: ${err.message || err}`));
+        if (action === "diff-snapshot") diffQuantamentalSnapshot().catch((err) => alert(`Snapshot diff failed: ${err.message || err}`));
+        if (action === "retention-preview") previewQuantamentalSnapshotRetention().catch((err) => alert(`Retention preview failed: ${err.message || err}`));
       }
     });
   }
@@ -13842,6 +16227,12 @@ function bindInputs() {
       else closeQualityPanel();
     });
   }
+  if (els.globalQualitySummary) {
+    els.globalQualitySummary.addEventListener("click", () => {
+      if (els.qualityPanel.classList.contains("hidden")) openQualityPanel();
+      else closeQualityPanel();
+    });
+  }
   if (els.qualityClose) els.qualityClose.addEventListener("click", closeQualityPanel);
   if (els.qualityRefresh) els.qualityRefresh.addEventListener("click", loadQualityDashboard);
   document.addEventListener("keydown", (e) => {
@@ -13860,21 +16251,26 @@ function bindInputs() {
 // ---------- Init ----------
 (async function init() {
   bindThemeToggle();
+  bindLanguageToggle();
   normalizeStaticLabels();
-  await loadConfig();
   bindTabs();
   bindDownloads();
   bindInputs();
+  await loadConfig();
   bindCommandPanelToggle();
   bindTvChartControls();
   initChartTooltips();
   restoreForm();
+  syncDashboardRangeControls();
+  applyGlobalRangeToControls();
+  renderGlobalQualitySummary();
   syncAiPortfolioUniverseMode();
   renderBacktestUniverseChips();
   renderSymbolTargetChips("portfolio");
   renderSymbolTargetChips("aiPortfolioCustomUniverse");
   populateBacktestStrategyRegistry();
   renderHistory();
+  loadQuantamentalCompareWatchlists().catch(() => {});
   renderWatchlist({ force: true });
   loadActiveDashboardResources(false);
   if (els.watchlistAddBtn) {
