@@ -129,6 +129,60 @@ class DashboardApiTests(unittest.TestCase):
         self.assertEqual(body["items"][0]["category"], "rates_credit")
         self.assertEqual(body["items"][0]["symbol"], "TLT")
 
+    def test_dashboard_news_supports_company_and_topic_query(self):
+        client = TestClient(api_server.app)
+
+        def fake_collect(symbol: str, *args, **kwargs):
+            if symbol == "NVDA":
+                return symbol, [{
+                    "title": "Nvidia earnings guidance update",
+                    "source": "Example",
+                    "url": "https://example.com/nvda",
+                    "published_at": "2026-04-24T00:00:00+00:00",
+                    "text": "company summary",
+                }]
+            if symbol == "TOPIC":
+                return symbol, [{
+                    "title": "AI chip export controls move semiconductor shares",
+                    "source": "Example",
+                    "url": "https://example.com/topic",
+                    "published_at": "2026-04-24T00:00:00+00:00",
+                    "text": "topic summary",
+                }]
+            return symbol, []
+
+        with patch.object(dashboard_router, "collect_news_from_google_rss", side_effect=fake_collect):
+            resp = client.get("/api/v1/dashboard/news?limit=6&ticker=NVDA&topic=AI%20chips")
+
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertEqual(body["selection_policy"], "focused_query_plus_market_coverage")
+        categories = {item["category"] for item in body["items"]}
+        self.assertIn("company_news", categories)
+        self.assertIn("topic_news", categories)
+        self.assertEqual(body["ticker"], "NVDA")
+        self.assertEqual(body["topic"], "AI chips")
+
+    def test_dashboard_cross_asset_analyze_returns_user_controlled_summary(self):
+        fake_yf = types.SimpleNamespace(Ticker=lambda symbol: _FakeTicker(symbol))
+        client = TestClient(api_server.app)
+
+        with patch.dict(sys.modules, {"yfinance": fake_yf}):
+            resp = client.get("/api/v1/dashboard/cross-asset/analyze?symbols=SPY,TLT,HYG&horizon=1m&topic=rates")
+
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertEqual(body["provider"], "yfinance")
+        self.assertEqual(body["analysis_engine"], "deterministic_cross_asset_v1")
+        self.assertTrue(body["advisory_only"])
+        self.assertEqual(body["horizon"], "1m")
+        self.assertEqual(body["topic"], "rates")
+        self.assertEqual(len(body["items"]), 3)
+        self.assertGreaterEqual(body["decision_usable_count"], 3)
+        self.assertIn(body["summary"]["state"], {"risk_on", "risk_off", "mixed"})
+        self.assertIn("current_state", body["summary"])
+        self.assertIn("forward_bias", body["summary"])
+
     def test_dashboard_market_returns_as_of_quant_snapshot(self):
         fake_yf = types.SimpleNamespace(Ticker=lambda symbol: _FakeTicker(symbol))
         client = TestClient(api_server.app)
@@ -158,7 +212,7 @@ class DashboardApiTests(unittest.TestCase):
         client = TestClient(api_server.app)
 
         with patch.dict(sys.modules, {"yfinance": fake_yf}):
-            resp = client.get("/api/v1/dashboard/market/intraday/SPY?interval=15m&limit=2")
+            resp = client.get("/api/v1/dashboard/market/intraday/SPY?interval=15m&limit=2&force=true")
 
         self.assertEqual(resp.status_code, 200)
         body = resp.json()
@@ -260,6 +314,35 @@ class DashboardApiTests(unittest.TestCase):
         self.assertIn("rates_pressure", signal_ids)
         self.assertIn("credit_tone", signal_ids)
         self.assertIn("cross_asset_confirmation", signal_ids)
+
+    def test_dashboard_decision_cards_returns_common_contract(self):
+        client = TestClient(api_server.app)
+
+        resp = client.get("/api/v1/dashboard/decision-cards")
+        forecast_resp = client.get("/api/v1/dashboard/decision-cards?tab=forecast")
+
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertEqual(body["status"], "ok")
+        self.assertEqual(body["contract_version"], "dashboard_decision_cards_v1")
+        self.assertIn("no synthetic scores", body["scope"])
+        items = body["items"]
+        tabs = {item["tab"] for item in items}
+        self.assertEqual(tabs, {"market", "macro", "quant", "quantamental", "forecast", "ai-portfolio"})
+        for item in items:
+            self.assertIn("decision_question", item)
+            self.assertIn("primary_output", item)
+            self.assertIn("next_action", item)
+            self.assertGreaterEqual(len(item.get("chips") or []), 4)
+            self.assertTrue(item.get("source_endpoints"))
+            self.assertTrue(item.get("guardrails"))
+        market = next(item for item in items if item["tab"] == "market")
+        self.assertIn("evidence", market)
+        self.assertIn("snapshot_status", market["evidence"])
+        self.assertEqual(forecast_resp.status_code, 200)
+        forecast_items = forecast_resp.json()["items"]
+        self.assertEqual(len(forecast_items), 1)
+        self.assertEqual(forecast_items[0]["tab"], "forecast")
 
     def test_dashboard_market_reuses_persisted_snapshot_after_memory_clear(self):
         fake_yf = types.SimpleNamespace(Ticker=lambda symbol: _FakeTicker(symbol))

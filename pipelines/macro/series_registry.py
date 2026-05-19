@@ -114,7 +114,7 @@ for item in [
 for item in [
     ("HOUST", "Housing Starts", "housing", "monthly", "y/y percent", "yoy_percent", 95, "Residential construction cycle."),
     ("PERMIT", "Building Permits", "housing", "monthly", "y/y percent", "yoy_percent", 95, "Forward-looking housing construction signal."),
-    ("CSUSHPISA", "Case-Shiller Home Price Index", "housing", "monthly", "y/y percent", "yoy_percent", 95, "Home-price inflation and household wealth."),
+    ("CSUSHPISA", "Case-Shiller Home Price Index", "housing", "monthly", "y/y percent", "yoy_percent", 140, "Home-price inflation and household wealth."),
     ("MSPUS", "Median Sales Price of Houses Sold", "housing", "quarterly", "USD", "level", 140, "Housing price level and affordability pressure."),
     ("PCEC96", "Real Personal Consumption Expenditures", "consumer", "monthly", "y/y percent", "yoy_percent", 95, "Real household consumption trend."),
     ("DSPIC96", "Real Disposable Personal Income", "consumer", "monthly", "y/y percent", "yoy_percent", 95, "Real income support for consumption."),
@@ -156,7 +156,7 @@ for item in [
     ("NFCI", "Chicago Fed National Financial Conditions Index", "financial_conditions", "weekly", "index", "level", 21, "Broad financial conditions stress."),
     ("STLFSI4", "St. Louis Fed Financial Stress Index", "financial_conditions", "weekly", "index", "level", 21, "Market-based financial stress."),
     ("DRTSCILM", "C&I Loan Standards Tightening", "bank_lending", "quarterly", "net percent", "level", 140, "Bank-lending standards for medium and large firms."),
-    ("BUSLOANS", "Commercial and Industrial Loans", "bank_lending", "weekly", "y/y percent", "yoy_percent", 21, "Bank credit growth to businesses."),
+    ("BUSLOANS", "Commercial and Industrial Loans", "bank_lending", "monthly", "y/y percent", "yoy_percent", 95, "Bank credit growth to businesses."),
 ]:
     _add(_definition(item[0], item[1], "financial_conditions", subcategory=item[2], frequency=item[3], unit=item[4], transform=item[5], stale_after_days=item[6], interpretation_hint=item[7], importance="medium"))
 

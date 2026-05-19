@@ -746,17 +746,23 @@ def price_availability(
         where.append("date <= ?")
         params.append(str(end_date))
     # WHERE fragments are fixed templates and values are parameterized.
-    query = f"""
-        SELECT
-            ticker,
-            COUNT(DISTINCT date) AS row_count,
-            MIN(date) AS first_date,
-            MAX(date) AS latest_date,
-            GROUP_CONCAT(DISTINCT source) AS sources
-        FROM prices_daily
-        WHERE {' AND '.join(where)}
-        GROUP BY ticker
-    """
+    query = "\n".join(
+        [
+            """
+            SELECT
+                ticker,
+                COUNT(DISTINCT date) AS row_count,
+                MIN(date) AS first_date,
+                MAX(date) AS latest_date,
+                GROUP_CONCAT(DISTINCT source) AS sources
+            FROM prices_daily
+            WHERE """,
+            " AND ".join(where),
+            """
+            GROUP BY ticker
+            """,
+        ]
+    )
 
     with _conn(db_path) as conn:
         rows = {str(row["ticker"]).upper(): dict(row) for row in conn.execute(query, params).fetchall()}
@@ -855,6 +861,41 @@ def latest_macro(series_id: str, *, db_path: str | Path | None = None) -> dict[s
     return dict(row) if row else None
 
 
+def latest_macros(series_ids: Iterable[str], *, db_path: str | Path | None = None) -> dict[str, dict[str, Any]]:
+    ids = sorted({str(series_id or "").upper().strip() for series_id in series_ids if str(series_id or "").strip()})
+    if not ids:
+        return {}
+    placeholders = ",".join("?" for _ in ids)
+    with _conn(db_path) as conn:
+        rows = conn.execute(
+            f"""
+            WITH ranked AS (
+                SELECT
+                    o.series_id,
+                    o.date,
+                    o.value,
+                    o.source,
+                    o.collected_at,
+                    s.title,
+                    s.units,
+                    s.frequency,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY o.series_id
+                        ORDER BY o.date DESC, o.collected_at DESC, o.source DESC
+                    ) AS rn
+                FROM macro_observations o
+                LEFT JOIN macro_series s ON s.series_id = o.series_id
+                WHERE o.series_id IN ({placeholders})
+            )
+            SELECT series_id, date, value, source, collected_at, title, units, frequency
+            FROM ranked
+            WHERE rn=1
+            """,
+            tuple(ids),
+        ).fetchall()
+    return {str(row["series_id"]).upper(): dict(row) for row in rows}
+
+
 def get_macro_observations(
     series_id: str,
     *,
@@ -881,6 +922,28 @@ def get_macro_observations(
     with _conn(db_path) as conn:
         rows = conn.execute(query, params).fetchall()
     return [dict(row) for row in rows]
+
+
+def recent_macro_observations(
+    series_id: str,
+    *,
+    limit: int = 300,
+    db_path: str | Path | None = None,
+) -> list[dict[str, Any]]:
+    bounded_limit = min(5000, max(1, int(limit or 1)))
+    with _conn(db_path) as conn:
+        rows = conn.execute(
+            """
+            SELECT o.series_id, o.date, o.value, o.source, o.collected_at, s.title, s.units, s.frequency
+            FROM macro_observations o
+            LEFT JOIN macro_series s ON s.series_id = o.series_id
+            WHERE o.series_id=?
+            ORDER BY o.date DESC, o.collected_at DESC
+            LIMIT ?
+            """,
+            (series_id.upper().strip(), bounded_limit),
+        ).fetchall()
+    return [dict(row) for row in reversed(rows)]
 
 
 def upsert_news_articles(articles: Iterable[NewsArticle], *, db_path: str | Path | None = None) -> dict[str, int]:
@@ -1140,15 +1203,19 @@ def fundamentals_availability(
         return {}
     placeholders = ",".join("?" for _ in clean)
     with _conn(db_path) as conn:
-        rows = conn.execute(
-            f"""
-            SELECT ticker, MAX(as_of) AS latest_as_of, COUNT(*) AS snapshot_count
-            FROM fundamentals_snapshots
-            WHERE ticker IN ({placeholders})
-            GROUP BY ticker
-            """,
-            clean,
-        ).fetchall()
+        query = "\n".join(
+            [
+                """
+                SELECT ticker, MAX(as_of) AS latest_as_of, COUNT(*) AS snapshot_count
+                FROM fundamentals_snapshots
+                WHERE ticker IN (""",
+                placeholders,
+                """)
+                GROUP BY ticker
+                """,
+            ]
+        )
+        rows = conn.execute(query, clean).fetchall()
     by_ticker = {str(row["ticker"]).upper(): dict(row) for row in rows}
     out: dict[str, dict[str, Any]] = {}
     for ticker in clean:
@@ -1220,6 +1287,82 @@ def latest_sec_financial_facts(
     return [dict(row) for row in rows]
 
 
+def peer_universe_candidates(
+    tickers: Iterable[str],
+    *,
+    market: str = "US",
+    sector: str = "",
+    industry: str = "",
+    limit: int = 12,
+    db_path: str | Path | None = None,
+) -> list[dict[str, Any]]:
+    excluded: list[str] = []
+    seen: set[str] = set()
+    for raw in tickers:
+        ticker = str(raw or "").upper().strip()
+        if ticker and ticker not in seen:
+            seen.add(ticker)
+            excluded.append(ticker)
+    clean_sector = str(sector or "").strip()
+    clean_industry = str(industry or "").strip()
+    if not clean_sector and not clean_industry:
+        return []
+
+    where = ["active=1"]
+    where_params: list[Any] = []
+    if excluded:
+        placeholders = ",".join("?" for _ in excluded)
+        where.append(f"ticker NOT IN ({placeholders})")
+        where_params.extend(excluded)
+    if clean_industry and clean_sector:
+        where.append("(industry=? OR sector=?)")
+        where_params.extend([clean_industry, clean_sector])
+    elif clean_industry:
+        where.append("industry=?")
+        where_params.append(clean_industry)
+    else:
+        where.append("sector=?")
+        where_params.append(clean_sector)
+
+    clean_market = str(market or "US").upper().strip()
+    if clean_market == "US":
+        where.append("(currency IN ('', 'USD') OR country IN ('', 'US'))")
+        where.append("ticker NOT LIKE '%.KS' AND ticker NOT LIKE '%.KQ'")
+    elif clean_market == "KR":
+        where.append("(currency='KRW' OR country='KR' OR ticker LIKE '%.KS' OR ticker LIKE '%.KQ')")
+
+    params = [
+        clean_industry,
+        clean_industry,
+        clean_sector,
+        clean_sector,
+        *where_params,
+        max(1, min(50, int(limit or 12))),
+    ]
+    query = "\n".join(
+        [
+            """
+            SELECT ticker, name, sector, industry, market, currency, exchange, source, updated_at,
+                   CASE
+                     WHEN ? != '' AND industry = ? THEN 3
+                     WHEN ? != '' AND sector = ? THEN 2
+                     ELSE 1
+                   END AS peer_match_score
+            FROM asset_metadata
+            WHERE """,
+            " AND ".join(where),
+            """
+              AND (quote_type IN ('', 'EQUITY') OR asset_class LIKE '%equity%')
+            ORDER BY peer_match_score DESC, updated_at DESC, ticker ASC
+            LIMIT ?
+            """,
+        ]
+    )
+    with _conn(db_path) as conn:
+        rows = conn.execute(query, params).fetchall()
+    return [dict(row) for row in rows]
+
+
 def sec_data_availability(
     tickers: Iterable[str],
     *,
@@ -1236,24 +1379,32 @@ def sec_data_availability(
         return {}
     placeholders = ",".join("?" for _ in clean)
     with _conn(db_path) as conn:
-        filings = conn.execute(
-            f"""
-            SELECT ticker, MAX(filed_at) AS latest_filing_at, COUNT(*) AS filing_count
-            FROM filings
-            WHERE ticker IN ({placeholders}) AND form_type IN ('10-K', '10-Q', '8-K')
-            GROUP BY ticker
-            """,
-            clean,
-        ).fetchall()
-        facts = conn.execute(
-            f"""
-            SELECT ticker, MAX(filed_at) AS latest_fact_filed_at, COUNT(*) AS fact_count
-            FROM sec_financial_facts
-            WHERE ticker IN ({placeholders})
-            GROUP BY ticker
-            """,
-            clean,
-        ).fetchall()
+        filings_query = "\n".join(
+            [
+                """
+                SELECT ticker, MAX(filed_at) AS latest_filing_at, COUNT(*) AS filing_count
+                FROM filings
+                WHERE ticker IN (""",
+                placeholders,
+                """) AND form_type IN ('10-K', '10-Q', '8-K')
+                GROUP BY ticker
+                """,
+            ]
+        )
+        facts_query = "\n".join(
+            [
+                """
+                SELECT ticker, MAX(filed_at) AS latest_fact_filed_at, COUNT(*) AS fact_count
+                FROM sec_financial_facts
+                WHERE ticker IN (""",
+                placeholders,
+                """)
+                GROUP BY ticker
+                """,
+            ]
+        )
+        filings = conn.execute(filings_query, clean).fetchall()
+        facts = conn.execute(facts_query, clean).fetchall()
     filing_by_ticker = {str(row["ticker"]).upper(): dict(row) for row in filings}
     fact_by_ticker = {str(row["ticker"]).upper(): dict(row) for row in facts}
     out: dict[str, dict[str, Any]] = {}
@@ -1593,32 +1744,32 @@ def clear_dashboard_refresh_locks(
 
 def data_health(*, db_path: str | Path | None = None) -> dict[str, Any]:
     with _conn(db_path) as conn:
-        table_counts = {
-            name: int(conn.execute(f"SELECT COUNT(*) AS c FROM {name}").fetchone()["c"])
-            for name in (
-                "assets",
-                "asset_metadata",
-                "asset_identity",
-                "asset_classification",
-                "etf_exposure",
-                "kr_equity_profile",
-                "crypto_profile",
-                "prices_daily",
-                "macro_observations",
-                "news_articles",
-                "filings",
-                "sec_company_registry",
-                "sec_financial_facts",
-                "fundamentals_snapshots",
-                "valuation_metrics",
-                "financial_statements",
-                "data_update_runs",
-                "provider_status",
-                "data_quality_checks",
-                "dashboard_snapshots",
-                "dashboard_refresh_locks",
-            )
-        }
+        table_counts: dict[str, int] = {}
+        for name in (
+            "assets",
+            "asset_metadata",
+            "asset_identity",
+            "asset_classification",
+            "etf_exposure",
+            "kr_equity_profile",
+            "crypto_profile",
+            "prices_daily",
+            "macro_observations",
+            "news_articles",
+            "filings",
+            "sec_company_registry",
+            "sec_financial_facts",
+            "fundamentals_snapshots",
+            "valuation_metrics",
+            "financial_statements",
+            "data_update_runs",
+            "provider_status",
+            "data_quality_checks",
+            "dashboard_snapshots",
+            "dashboard_refresh_locks",
+        ):
+            query = " ".join(["SELECT COUNT(*) AS c", "FROM", name])
+            table_counts[name] = int(conn.execute(query).fetchone()["c"])
         latest_fundamental = conn.execute(
             """
             SELECT ticker, as_of, source, collected_at

@@ -77,6 +77,8 @@ def _run_playwright_flow(
             page.goto(_macro_page_url(base_url), wait_until="domcontentloaded", timeout=timeout_ms)
             page.locator('#macroDashboardTab[aria-selected="true"]').wait_for(state="visible", timeout=timeout_ms)
             _mark(checked, "macro tab selected")
+            page.locator('[data-panel-view="all"]').click()
+            _mark(checked, "all macro panels selected")
 
             page.locator("#macroLoadStatus .decision-completion").wait_for(state="visible", timeout=timeout_ms)
             page.locator("#macroOverviewSurface .decision-status-row").wait_for(state="visible", timeout=timeout_ms)
@@ -188,11 +190,8 @@ def _start_server(port: int) -> subprocess.Popen[str]:
         ],
         cwd=str(PROJECT_ROOT),
         env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
 

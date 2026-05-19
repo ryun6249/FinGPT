@@ -124,9 +124,9 @@ async def get_category(
     observation_limit: int = Query(default=0, ge=0, le=1000),
 ) -> dict[str, Any]:
     try:
-        payload = await _run_blocking(service.get_macro_category, category)
         if compact:
-            return await _run_blocking(service.compact_macro_payload, payload, observation_limit=observation_limit)
+            return await _run_blocking(service.get_macro_category_summary, category, observation_limit=observation_limit)
+        payload = await _run_blocking(service.get_macro_category, category)
         return payload
     except KeyError:
         raise _not_found("macro_category", category)
@@ -137,9 +137,9 @@ async def get_interest_rates(
     compact: bool = False,
     observation_limit: int = Query(default=0, ge=0, le=1000),
 ) -> dict[str, Any]:
-    payload = await _run_blocking(service.get_interest_rates)
     if compact:
-        return await _run_blocking(service.compact_macro_payload, payload, observation_limit=observation_limit)
+        return await _run_blocking(service.get_macro_category_summary, "interest_rates", observation_limit=observation_limit)
+    payload = await _run_blocking(service.get_interest_rates)
     return payload
 
 
@@ -148,9 +148,9 @@ async def get_inflation(
     compact: bool = False,
     observation_limit: int = Query(default=0, ge=0, le=1000),
 ) -> dict[str, Any]:
-    payload = await _run_blocking(service.get_inflation)
     if compact:
-        return await _run_blocking(service.compact_macro_payload, payload, observation_limit=observation_limit)
+        return await _run_blocking(service.get_macro_category_summary, "inflation", observation_limit=observation_limit)
+    payload = await _run_blocking(service.get_inflation)
     return payload
 
 
@@ -159,9 +159,9 @@ async def get_growth_labor(
     compact: bool = False,
     observation_limit: int = Query(default=0, ge=0, le=1000),
 ) -> dict[str, Any]:
-    payload = await _run_blocking(service.get_growth_labor)
     if compact:
-        return await _run_blocking(service.compact_macro_payload, payload, observation_limit=observation_limit)
+        return await _run_blocking(service.get_growth_labor_summary, observation_limit=observation_limit)
+    payload = await _run_blocking(service.get_growth_labor)
     return payload
 
 
@@ -170,9 +170,9 @@ async def get_housing_consumer(
     compact: bool = False,
     observation_limit: int = Query(default=0, ge=0, le=1000),
 ) -> dict[str, Any]:
-    payload = await _run_blocking(service.get_housing_consumer)
     if compact:
-        return await _run_blocking(service.compact_macro_payload, payload, observation_limit=observation_limit)
+        return await _run_blocking(service.get_macro_category_summary, "housing_consumer", observation_limit=observation_limit)
+    payload = await _run_blocking(service.get_housing_consumer)
     return payload
 
 
@@ -181,9 +181,9 @@ async def get_yield_curve(
     compact: bool = False,
     observation_limit: int = Query(default=0, ge=0, le=1000),
 ) -> dict[str, Any]:
-    payload = await _run_blocking(service.get_yield_curve)
     if compact:
-        return await _run_blocking(service.compact_macro_payload, payload, observation_limit=observation_limit)
+        return await _run_blocking(service.get_yield_curve_summary, observation_limit=observation_limit)
+    payload = await _run_blocking(service.get_yield_curve)
     return payload
 
 
@@ -192,9 +192,9 @@ async def get_liquidity_credit(
     compact: bool = False,
     observation_limit: int = Query(default=0, ge=0, le=1000),
 ) -> dict[str, Any]:
-    payload = await _run_blocking(service.get_macro_category, "liquidity_credit")
     if compact:
-        return await _run_blocking(service.compact_macro_payload, payload, observation_limit=observation_limit)
+        return await _run_blocking(service.get_macro_category_summary, "liquidity_credit", observation_limit=observation_limit)
+    payload = await _run_blocking(service.get_macro_category, "liquidity_credit")
     return payload
 
 
@@ -203,9 +203,9 @@ async def get_financial_conditions(
     compact: bool = False,
     observation_limit: int = Query(default=0, ge=0, le=1000),
 ) -> dict[str, Any]:
-    payload = await _run_blocking(service.get_financial_conditions)
     if compact:
-        return await _run_blocking(service.compact_macro_payload, payload, observation_limit=observation_limit)
+        return await _run_blocking(service.get_macro_category_summary, "financial_conditions", observation_limit=observation_limit)
+    payload = await _run_blocking(service.get_financial_conditions)
     return payload
 
 
@@ -214,9 +214,9 @@ async def get_fx_dollar(
     compact: bool = False,
     observation_limit: int = Query(default=0, ge=0, le=1000),
 ) -> dict[str, Any]:
-    payload = await _run_blocking(service.get_fx_dollar)
     if compact:
-        return await _run_blocking(service.compact_macro_payload, payload, observation_limit=observation_limit)
+        return await _run_blocking(service.get_macro_category_summary, "fx_dollar", observation_limit=observation_limit)
+    payload = await _run_blocking(service.get_fx_dollar)
     return payload
 
 
@@ -225,9 +225,9 @@ async def get_commodities(
     compact: bool = False,
     observation_limit: int = Query(default=0, ge=0, le=1000),
 ) -> dict[str, Any]:
-    payload = await _run_blocking(service.get_commodities)
     if compact:
-        return await _run_blocking(service.compact_macro_payload, payload, observation_limit=observation_limit)
+        return await _run_blocking(service.get_macro_category_summary, "commodities", observation_limit=observation_limit)
+    payload = await _run_blocking(service.get_commodities)
     return payload
 
 
@@ -273,8 +273,11 @@ async def get_report() -> dict[str, Any]:
 
 
 @router.get("/data-quality")
-async def get_data_quality() -> dict[str, Any]:
-    return await _run_blocking(service.get_data_quality)
+async def get_data_quality(
+    scope: str = Query(default="all", pattern="^(all|overview)$"),
+    include_disabled: bool = False,
+) -> dict[str, Any]:
+    return await _run_blocking(service.get_data_quality, scope=scope, include_disabled=include_disabled)
 
 
 @router.get("/providers")

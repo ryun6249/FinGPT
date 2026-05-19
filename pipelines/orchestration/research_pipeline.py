@@ -5,7 +5,7 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 
-from core.schemas.request import AnalysisRequest, DEFAULT_COLLECTION_SOURCES, KNOWN_COLLECTION_SOURCES, PRIMARY_COLLECTION_SOURCES
+from core.schemas.request import AnalysisRequest, DEFAULT_COLLECTION_SOURCES, KNOWN_COLLECTION_SOURCES, PRIMARY_COLLECTION_SOURCES, _coerce_output_language
 from core.schemas.retrieval import RetrievalItem
 from core.schemas.response import AnalysisResponse, CatalystTimeline, ExecutionMeta, KeyMetric
 from core.config.settings import load_settings
@@ -62,6 +62,11 @@ def _emit(sink: EventSink, event_type: str, **fields: Any) -> None:
         pass
 
 logger = get_logger("pipelines.orchestration")
+
+
+def _request_output_language(request: Any, settings: Any | None = None) -> str:
+    default = getattr(settings, "output_language", "ko") if settings is not None else "ko"
+    return _coerce_output_language(getattr(request, "output_language", None) or default)
 
 
 def _merge_error_metadata(existing: str | None, addition: str | None) -> str | None:
@@ -352,7 +357,8 @@ async def _finalize_response(
 
     logger.info("Generating report...")
     settings = load_settings()
-    language = getattr(settings, "output_language", "ko")
+    language = _request_output_language(request, settings)
+    response.execution_meta.extras["output_language"] = language
     simulation_override = getattr(request, "scenario_simulation_enabled", None)
     simulation_enabled = bool(simulation_override) if simulation_override is not None else bool(getattr(settings, "scenario_simulation_enabled", False))
     if simulation_enabled:
@@ -1715,7 +1721,7 @@ def _build_no_context_response(
     horizon: str,
     fundamentals=None,
 ) -> AnalysisResponse:
-    language = getattr(load_settings(), "output_language", "ko")
+    language = _request_output_language(request, load_settings())
     if language == "ko":
         summary = "요청한 출처에서 신뢰할 만한 최신 근거가 충분히 수집되지 않아 확신 있게 답변할 수 없습니다."
         uncertainty = "요청한 티커와 질문에 대해 사용할 수 있는 근거 문맥이 수집되지 않았습니다."
@@ -2183,6 +2189,7 @@ async def run_pipeline_async(
                     task_type=task_type,
                     horizon=horizon,
                     fundamentals=fundamentals_card,
+                    output_language=_request_output_language(request, load_settings()),
                 ),
                 timeout=_inference_timeout_s()
             )
@@ -2271,7 +2278,7 @@ async def run_pipeline_async(
             raise
 
         settings = load_settings()
-        language = getattr(settings, "output_language", "ko")
+        language = _request_output_language(request, settings)
 
         # Build metrics before thesis construction so deterministic technical
         # indicators can repair non-Korean or repetitive model text.
@@ -2387,6 +2394,7 @@ async def run_pipeline_async(
                 "macro_context_error": macro_context_error,
                 "data_mart_freshness": structured_context.get("freshness") if isinstance(structured_context, dict) else {},
                 "data_quality_summary": structured_context.get("data_quality_summary") if isinstance(structured_context, dict) else {},
+                "output_language": language,
                 "error_type": _classify_error_type(error_metadata, status),
             },
         )

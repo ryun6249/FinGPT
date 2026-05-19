@@ -22,8 +22,8 @@ from typing import Any
 
 from core.preflight import run_preflight
 from core.schemas.request import AnalysisRequest, UniversalRequest
-from core.schemas.response import AnalysisResponse, CompareResponse
-from core.schemas.topic import TopicRequest, TopicResponse
+from core.schemas.response import CompareResponse
+from core.schemas.topic import TopicRequest
 from core.utils.validation_metrics import (
     as_payload_dict,
     claim_evidence_date_coverage,
@@ -39,7 +39,6 @@ from core.utils.validation_metrics import (
     partial_reason_is_actionable,
     quant_snapshot_present,
     topic_bucket_coverage,
-    topic_fast_gate,
     topic_final_gate,
 )
 from pipelines.orchestration.dispatch import dispatch_async

@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 
 from core.config.settings import load_settings
+from core.schemas.request import _coerce_output_language
 from core.schemas.retrieval import RetrievalItem
 from core.utils.logger import get_logger
 from core.utils.validation_metrics import topic_fast_gate, topic_final_gate
@@ -1502,10 +1503,11 @@ def run_topic_fast_inference(
     model_name: str,
     related_tickers: list[str] | None = None,
     quant_snapshot: dict[str, Any] | None = None,
+    output_language: str | None = None,
 ) -> TopicInferencePhaseResult:
     settings = load_settings()
     resolved = resolve_model_name(model_name, settings)
-    language = getattr(settings, "output_language", "ko")
+    language = _coerce_output_language(output_language or getattr(settings, "output_language", "ko"))
     related = related_tickers or []
     topic_plan = build_topic_plan(question, theme, related, context)
     evidence_pack = build_evidence_pack(question, theme, context, related, topic_plan)
@@ -1583,10 +1585,11 @@ def run_topic_deep_inference(
     topic_plan: TopicPlan | None = None,
     deep_reason: str = "",
     quant_snapshot: dict[str, Any] | None = None,
+    output_language: str | None = None,
 ) -> TopicInferencePhaseResult:
     settings = load_settings()
     resolved = resolve_model_name(model_name, settings)
-    language = getattr(settings, "output_language", "ko")
+    language = _coerce_output_language(output_language or getattr(settings, "output_language", "ko"))
     related = related_tickers or []
     topic_plan = topic_plan or build_topic_plan(question, theme, related, context)
     evidence_pack = build_evidence_pack(question, theme, context, related, topic_plan)

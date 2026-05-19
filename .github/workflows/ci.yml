@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then python -m pip install -r requirements.txt; fi
+          if [ -f requirements-dev.txt ]; then python -m pip install -r requirements-dev.txt; fi
+          python -m pip install ruff
+
+      - name: Validate .env.example
+        run: |
+          python scripts/check_env_example.py
+
+      - name: Ruff active scope
+        run: |
+          python -m ruff check app core pipelines scripts tests setup.py quality_review.py
+
+      - name: Python compile
+        run: |
+          python -m compileall app core pipelines scripts tests
+
+      - name: Pytest
+        run: |
+          python -m pytest -q
+
+      - name: UI contract smoke
+        run: |
+          python scripts/check_ui_contract.py
+
+      - name: Docker compose config
+        run: |
+          cp .env.example .env
+          trap 'rm -f .env' EXIT
+          docker compose config --quiet

@@ -163,6 +163,8 @@ data/forecast_lab/model_registry.json
 data/forecast_lab/model_registry.sqlite3*
 data/forecast_lab/jobs.sqlite3*
 data/forecast_lab/.artifact_signing_key.json
+data/quantamental/*.sqlite3*
+data/quantamental/compare_watchlists.json
 reports/
 test-results/
 .playwright-cli/

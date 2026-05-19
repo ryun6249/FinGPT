@@ -54,15 +54,19 @@ class DataMartMacroProvider(MacroDataProvider):
             where = " AND ".join(clauses)
             with connect(self.db_path) as conn:
                 # WHERE clauses are fixed templates with bound values.
-                rows = conn.execute(
-                    f"""
-                    SELECT o.date, o.value, o.source, o.collected_at
-                    FROM macro_observations o
-                    WHERE {where}
-                    ORDER BY o.date ASC
-                    """,
-                    tuple(params),
-                ).fetchall()
+                query = "\n".join(
+                    [
+                        """
+                        SELECT o.date, o.value, o.source, o.collected_at
+                        FROM macro_observations o
+                        WHERE """,
+                        where,
+                        """
+                        ORDER BY o.date ASC
+                        """,
+                    ]
+                )
+                rows = conn.execute(query, tuple(params)).fetchall()
         except Exception as exc:  # noqa: BLE001
             return MacroProviderResult(
                 provider=self.provider_name,

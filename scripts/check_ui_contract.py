@@ -1,7 +1,8 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -14,20 +15,44 @@ if __package__ in (None, ""):
 from app.api import server as api_server
 
 
+HTML_MOJIBAKE_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\ufffd]")
+HTML_PLACEHOLDER_RE = re.compile(r"\?{2,}")
+
 REQUIRED_UI_MARKERS: dict[str, str] = {
     "analysis form": 'id="analysisForm"',
     "ticker input": 'id="ticker"',
     "ticker search picker": 'id="tickerSearchOpen"',
     "question textarea": 'id="question"',
+    "language toggle": 'id="languageToggle"',
+    "language toggle korean": 'data-language="ko"',
+    "language toggle english": 'data-language="en"',
     "result view": 'id="resultView"',
     "home dashboard": 'id="emptyState"',
     "dashboard tabs": 'id="homeDashboardTabs"',
+    "dashboard decision context strip": 'id="dashboardContextStrip"',
+    "global quality summary": 'id="globalQualitySummary"',
+    "global quality observations": 'data-summary-field="observations"',
+    "global quality missing": 'data-summary-field="missing"',
+    "global quality ai snapshot": 'data-summary-field="ai-snapshot"',
+    "global quality context": 'id="qualityContextSummary"',
+    "global quality context source": 'data-quality-detail="source"',
+    "global quality context cache": 'data-quality-detail="cache"',
+    "global quality context range support": 'data-quality-detail="range-support"',
+    "global dashboard range controls": 'id="dashboardRangeControls"',
+    "global dashboard range select": 'id="dashboardRangeSelect"',
+    "global dashboard range start": 'id="dashboardRangeStart"',
+    "global dashboard range end": 'id="dashboardRangeEnd"',
+    "quantamental ai model selector": 'id="quantamentalAiModel"',
+    "quantamental ai model status": 'id="quantamentalAiModelStatus"',
+    "quantamental ai model contract": 'data-testid="quantamental-ai-model-control"',
     "market dashboard tab": 'id="marketDashboardTab"',
     "market dashboard tab testid": 'data-testid="market-dashboard-tab"',
     "macro dashboard tab": 'id="macroDashboardTab"',
     "macro dashboard tab testid": 'data-testid="macro-dashboard-tab"',
     "quant lab tab": 'id="quantLabTab"',
     "quant lab tab testid": 'data-testid="quant-lab-tab"',
+    "quantamental tab": 'id="quantamentalTab"',
+    "quantamental tab testid": 'data-testid="quantamental-tab"',
     "ml forecast tab": 'id="mlForecastTab"',
     "ml forecast tab testid": 'data-testid="ml-forecast-tab"',
     "ai portfolio tab": 'id="aiPortfolioTab"',
@@ -37,7 +62,12 @@ REQUIRED_UI_MARKERS: dict[str, str] = {
     "market overview meta": 'id="marketOverviewMeta"',
     "market tape": 'id="marketTapeSurface"',
     "market signals": 'id="marketSignalSurface"',
+    "cross asset symbols": 'id="crossAssetSymbols"',
+    "cross asset analysis": 'id="crossAssetAnalysisSurface"',
+    "cross asset run": 'data-testid="cross-asset-run"',
     "home news": 'id="homeNewsList"',
+    "focused news": 'id="homeNewsFocusedList"',
+    "news search run": 'data-testid="market-news-search-run"',
     "tradingview chart": 'id="tvOverviewWidget"',
     "market chart source": 'id="tvChartSource"',
     "tradingview chart symbol": 'id="tvChartSymbol"',
@@ -130,6 +160,7 @@ REQUIRED_UI_MARKERS: dict[str, str] = {
     "backtest universe picker": 'id="backtestUniverseOpen"',
     "backtest universe chips": 'id="backtestUniverseChips"',
     "backtest strategy registry": 'id="backtestStrategyRegistry"',
+    "backtest risk adjusted momentum option": 'value="risk_adjusted_momentum"',
     "backtest benchmark": 'id="backtestBenchmark"',
     "backtest benchmark picker": 'id="backtestBenchmarkOpen"',
     "backtest benchmark compare": 'id="backtestBenchmarkCompare"',
@@ -149,6 +180,24 @@ REQUIRED_UI_MARKERS: dict[str, str] = {
     "quant export storage report testid": 'data-testid="quant-export-storage-report"',
     "quant cross-run cleanup preview": 'id="quantCrossRunCleanupPreview"',
     "quant cross-run cleanup preview testid": 'data-testid="quant-cross-run-cleanup-preview"',
+    "quantamental surface": 'id="quantamentalSurface"',
+    "quantamental ticker": 'id="quantamentalTicker"',
+    "quantamental ticker picker": 'id="quantamentalTickerOpen"',
+    "quantamental market": 'id="quantamentalMarket"',
+    "quantamental period": 'id="quantamentalPeriod"',
+    "quantamental years": 'id="quantamentalYears"',
+    "quantamental lookback": 'id="quantamentalLookback"',
+    "quantamental style": 'id="quantamentalStyle"',
+    "quantamental analyze": 'id="quantamentalAnalyze"',
+    "quantamental analyze testid": 'data-testid="quantamental-analyze"',
+    "quantamental company": 'id="quantamentalCompanySurface"',
+    "quantamental signal": 'id="quantamentalSignalSurface"',
+    "quantamental score": 'id="quantamentalScoreSurface"',
+    "quantamental factors": 'id="quantamentalFactorSurface"',
+    "quantamental main": 'id="quantamentalMainSurface"',
+    "quantamental ai report": 'id="quantamentalAiRefresh"',
+    "quantamental ai report testid": 'data-testid="quantamental-ai-report"',
+    "quantamental data quality": 'id="quantamentalDataQualitySurface"',
     "ml forecast surface": 'id="mlForecastSurface"',
     "ml forecast ticker": 'id="forecastTicker"',
     "ml forecast ticker picker": 'id="forecastTickerOpen"',
@@ -208,11 +257,39 @@ REQUIRED_UI_MARKERS: dict[str, str] = {
     "ai portfolio universe status": 'id="aiPortfolioUniverseStatus"',
     "ai portfolio ops": 'id="aiPortfolioOpsSurface"',
     "ai portfolio ops refresh": 'id="aiPortfolioOpsRefresh"',
+    "quantamental composite": 'id="quantamentalScoreSurface"',
+    "quantamental factor": 'id="quantamentalFactorSurface"',
+    "quantamental ai action": 'id="quantamentalAiRefresh"',
+    "quantamental ai testid": 'data-testid="quantamental-ai-report"',
+    "quantamental quality": 'id="quantamentalDataQualitySurface"',
+    "quantamental compare tickers": 'id="quantamentalCompareTickers"',
+    "quantamental compare action": 'id="quantamentalCompareRun"',
+    "quantamental compare testid": 'data-testid="quantamental-compare-run"',
+    "quantamental compare surface": 'id="quantamentalCompareSurface"',
+    "quantamental expand peers": 'id="quantamentalExpandPeers"',
+    "quantamental peer limit": 'id="quantamentalPeerLimit"',
+    "quantamental compare watchlist name": 'id="quantamentalWatchlistName"',
+    "quantamental compare watchlist select": 'id="quantamentalWatchlistSelect"',
+    "quantamental compare watchlist save": 'data-testid="quantamental-watchlist-save"',
+    "quantamental compare watchlist load": 'data-testid="quantamental-watchlist-load"',
+    "quantamental compare csv": 'data-testid="quantamental-compare-csv"',
+    "quantamental screen action": 'id="quantamentalScreenRun"',
+    "quantamental screen action testid": 'data-testid="quantamental-screen-run"',
+    "quantamental screen status": 'id="quantamentalScreenStatus"',
+    "quantamental screen surface": 'id="quantamentalScreenSurface"',
+    "quantamental score screen threshold": 'id="quantamentalScoreThreshold"',
+    "quantamental score screen metric": 'id="quantamentalScoreMetric"',
+    "quantamental score screen limit": 'id="quantamentalScoreScreenLimit"',
+    "quantamental score screen action": 'id="quantamentalScoreScreenRun"',
+    "quantamental score screen action testid": 'data-testid="quantamental-score-screen-run"',
+    "quantamental score screen status": 'id="quantamentalScoreScreenStatus"',
+    "quantamental score screen surface": 'id="quantamentalScoreScreenSurface"',
     "market ui module": 'modules/market-ui.js?v=20260514-domain-modules',
     "macro ui module": 'modules/macro-ui.js?v=20260514-domain-modules',
     "forecast ui module": 'modules/forecast-ui.js?v=20260514-domain-modules',
     "quant ui module": 'modules/quant-ui.js?v=20260514-domain-modules',
     "ai portfolio ui module": 'modules/ai-portfolio-ui.js?v=20260514-domain-modules',
+    "quantamental ui module": 'modules/quantamental-ui.js?v=20260519-quantamental-v13',
     "ai portfolio operation hydrate": 'id="aiPortfolioHydrateData"',
     "ai portfolio operation retry": 'id="aiPortfolioRetryMissing"',
     "ai portfolio snapshot job": 'id="aiPortfolioSnapshotJob"',
@@ -232,6 +309,20 @@ REQUIRED_UI_MARKERS: dict[str, str] = {
 }
 
 REQUIRED_APP_JS_MARKERS: dict[str, str] = {
+    "all default panel views": "DEFAULT_DASHBOARD_PANEL_VIEWS",
+    "all default panel version": "DASHBOARD_PANEL_LAYOUT_VERSION",
+    "global range storage": "fingpt.dashboardRange.v1",
+    "global range setter": "function setGlobalRange",
+    "global range date order guard": "function normalizeCustomGlobalDateOrder",
+    "global range validation copy": "function globalRangeValidationMessage",
+    "global range support summary": "function globalRangeSupportSummary",
+    "global quality summary": "function updateGlobalQualitySummary",
+    "global quality range pending": "function markGlobalQualityRangePending",
+    "global quality context summary": "function renderGlobalQualityContextSummary",
+    "global quality missing summary": "function displayMissingSummary",
+    "global quality ai basis label": "AI 기준:",
+    "dashboard decision cards api": "dashboardDecisionCards",
+    "dashboard decision cards loader": "function loadDashboardDecisionCards",
     "dashboard intraday chart api": "dashboardIntraday",
     "internal chart payload loader": "function fetchInternalChartPayload",
     "internal chart intraday intervals": "TV_INTERNAL_INTRADAY_INTERVALS",
@@ -244,7 +335,7 @@ REQUIRED_APP_JS_MARKERS: dict[str, str] = {
     "macro load status renderer": "function renderMacroLoadStatus",
     "macro panel failure renderer": "function renderMacroPanelFailure",
     "macro action pane starter renderer": "function renderMacroActionPaneStarters",
-    "macro refresh preserves dashboard": "기존 대시보드 화면을 유지",
+    "macro refresh preserves dashboard": "\uae30\uc874 \ub300\uc2dc\ubcf4\ub4dc \ud654\uba74\uc744 \uc720\uc9c0",
     "macro provider health renderer": "function renderMacroProviderHealth",
     "macro scenario runner": "function runMacroScenario",
     "macro research preview runner": "function runMacroResearchPreview",
@@ -254,28 +345,92 @@ REQUIRED_APP_JS_MARKERS: dict[str, str] = {
     "forecast ui module bridge": "window.FinGPTForecastUi",
     "quant ui module bridge": "window.FinGPTQuantUi",
     "ai portfolio ui module bridge": "window.FinGPTAiPortfolioUi",
+    "quantamental ui module bridge": "window.FinGPTQuantamentalUi",
+    "quantamental api": "quantamentalAnalysis",
+    "quantamental ai model options": "function renderQuantamentalAiModelOptions",
+    "quantamental ai request options": "function quantamentalAiRequestOptions",
+    "quantamental compare api": "quantamentalCompare",
+    "quantamental top signal screen api": "quantamentalTopSignals",
+    "quantamental score screen api": "quantamentalScoreScreen",
+    "quantamental score screen score key": "score_key",
+    "quantamental compare server watchlist api": "quantamentalCompareWatchlists",
+    "quantamental snapshot export api": "quantamentalSnapshotExport",
+    "quantamental snapshot diff api": "quantamentalSnapshotDiff",
+    "quantamental snapshot retention api": "quantamentalSnapshotRetention",
+    "output language storage": "fingpt.outputLanguage.v1",
+    "output language request field": "output_language: selectedOutputLanguage()",
+    "ui language applier": "function applyUiLanguage",
+    "ui language binder": "function bindLanguageToggle",
+    "quantamental loader": "function loadQuantamental",
+    "quantamental runner": "function runQuantamentalAnalysis",
+    "quantamental compare runner": "function runQuantamentalCompare",
+    "quantamental compare watchlist persistence": "function saveQuantamentalCompareWatchlist",
+    "quantamental compare watchlist loader": "function loadQuantamentalCompareWatchlists",
+    "quantamental compare csv exporter": "function exportQuantamentalCompareCsv",
+    "quantamental screen loader": "function loadQuantamentalScreen",
+    "quantamental score screen runner": "function runQuantamentalScoreScreen",
+    "quantamental snapshot action exporter": "function exportQuantamentalSnapshot",
 }
+
+
+REQUIRED_QUANTAMENTAL_MODULE_MARKERS: dict[str, str] = {
+    "quantamental quant algorithm summary": "quantamental-quant-algorithm",
+    "quantamental quality adjusted momentum algorithm": "quality_adjusted_momentum_v1",
+}
+
+
+def _matching_lines(text: str, pattern: re.Pattern[str]) -> list[dict[str, Any]]:
+    return [
+        {"line": line_no, "text": line.strip()[:240]}
+        for line_no, line in enumerate(text.splitlines(), start=1)
+        if pattern.search(line)
+    ]
 
 
 def run_check() -> dict[str, Any]:
     with TestClient(api_server.app) as client:
         ui_response = client.get("/ui/")
+        ui_quantamental_response = client.get("/ui/quantamental")
+        ui_missing_asset_response = client.get("/ui/not-found-bundle.js")
         health_response = client.get("/api/v1/health")
 
     html = ui_response.text
     app_js_path = Path(__file__).resolve().parents[1] / "app" / "web" / "app.js"
     app_js = app_js_path.read_text(encoding="utf-8")
+    quantamental_js_path = Path(__file__).resolve().parents[1] / "app" / "web" / "modules" / "quantamental-ui.js"
+    quantamental_js = quantamental_js_path.read_text(encoding="utf-8")
     missing = [name for name, marker in REQUIRED_UI_MARKERS.items() if marker not in html]
     missing_js = [name for name, marker in REQUIRED_APP_JS_MARKERS.items() if marker not in app_js]
-    passed = ui_response.status_code == 200 and health_response.status_code == 200 and not missing and not missing_js
+    missing_quantamental_js = [
+        name for name, marker in REQUIRED_QUANTAMENTAL_MODULE_MARKERS.items() if marker not in quantamental_js
+    ]
+    mojibake_lines = _matching_lines(html, HTML_MOJIBAKE_RE)
+    placeholder_lines = _matching_lines(html, HTML_PLACEHOLDER_RE)
+    passed = (
+        ui_response.status_code == 200
+        and ui_quantamental_response.status_code == 200
+        and ui_missing_asset_response.status_code == 404
+        and health_response.status_code == 200
+        and not missing
+        and not missing_js
+        and not missing_quantamental_js
+        and not mojibake_lines
+        and not placeholder_lines
+    )
     return {
         "status": "passed" if passed else "failed",
         "ui_status": ui_response.status_code,
+        "ui_quantamental_route_status": ui_quantamental_response.status_code,
+        "ui_missing_asset_status": ui_missing_asset_response.status_code,
         "health_status": health_response.status_code,
         "missing_markers": missing,
         "missing_js_markers": missing_js,
+        "missing_quantamental_js_markers": missing_quantamental_js,
+        "mojibake_lines": mojibake_lines,
+        "placeholder_lines": placeholder_lines,
         "checked_markers": sorted(REQUIRED_UI_MARKERS),
         "checked_js_markers": sorted(REQUIRED_APP_JS_MARKERS),
+        "checked_quantamental_js_markers": sorted(REQUIRED_QUANTAMENTAL_MODULE_MARKERS),
         "html_bytes": len(html.encode("utf-8", errors="ignore")),
     }
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date, timedelta
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
@@ -35,8 +36,10 @@ from pipelines.orchestration.quant_lab_pipeline import (
     verify_backtest_export,
 )
 from pipelines.adapters.qlib_adapter import qlib_export_preview, qlib_status
+from pipelines.backtest.validation import validate_backtest_inputs
 from pipelines.data_mart.jobs.ensure_price_history import ensure_price_history
-from pipelines.data_mart.storage.repository import price_availability
+from pipelines.data_mart.jobs.update_prices_daily import update_prices_daily
+from pipelines.data_mart.storage.repository import get_prices, price_availability
 from pipelines.strategies.generator import generate_strategy_from_prompt
 from pipelines.strategies.registry import get_strategy, list_strategies
 from pipelines.strategies.storage import delete_strategy, load_strategy, migrate_strategy, save_strategy, validate_strategy
@@ -49,6 +52,10 @@ class QuantUniverseResolveRequest(BaseModel):
     tickers: list[str] = Field(default_factory=list)
     start_date: str | None = None
     end_date: str | None = None
+    freshness_profile: str = "research_default"
+    require_fresh_prices: bool = False
+    max_market_calendar_lag_days: int = Field(default=3, ge=0, le=30)
+    refresh_stale: bool = False
     min_rows: int = Field(default=2, ge=1, le=5000)
     hydrate_missing: bool = False
     max_hydrate_assets: int = Field(default=750, ge=0, le=1000)
@@ -58,6 +65,12 @@ class QuantUniverseResolveRequest(BaseModel):
     @classmethod
     def _clean_tickers(cls, value: Any) -> list[str]:
         return clean_ticker_list(value)
+
+    @field_validator("freshness_profile", mode="before")
+    @classmethod
+    def _clean_freshness_profile(cls, value: Any) -> str:
+        clean = str(value or "research_default").strip().lower()
+        return clean if clean in {"research_default", "decision_review", "historical_lab"} else "research_default"
 
     @field_validator("start_date", "end_date", mode="before")
     @classmethod
@@ -129,9 +142,15 @@ async def post_quant_backtest(request: QuantBacktestRequest) -> QuantBacktestRes
 
 @router.post("/universe/resolve")
 async def post_quant_universe_resolve(request: QuantUniverseResolveRequest) -> dict[str, Any]:
+    freshness_policy_request = _resolve_universe_freshness_policy(request)
     hydration: dict[str, Any] = {
         "enabled": False,
         "attempted": False,
+        "refresh_stale_enabled": bool(request.refresh_stale),
+        "stale_refresh_attempted": False,
+        "stale_candidates": [],
+        "stale_refreshed": [],
+        "stale_run_ids": [],
         "hydrated": [],
         "hydrated_count": 0,
         "still_unavailable": [],
@@ -149,6 +168,11 @@ async def post_quant_universe_resolve(request: QuantUniverseResolveRequest) -> d
         )
         availability = resolved["availability"]
         hydration = dict(resolved.get("hydration") or hydration)
+        hydration.setdefault("refresh_stale_enabled", bool(request.refresh_stale))
+        hydration.setdefault("stale_refresh_attempted", False)
+        hydration.setdefault("stale_candidates", [])
+        hydration.setdefault("stale_refreshed", [])
+        hydration.setdefault("stale_run_ids", [])
     else:
         availability = price_availability(
             request.tickers,
@@ -156,10 +180,42 @@ async def post_quant_universe_resolve(request: QuantUniverseResolveRequest) -> d
             end_date=request.end_date,
             min_rows=request.min_rows,
         )
+    freshness_validation = _validate_universe_freshness(request, freshness_policy_request)
+    stale_assets = list(freshness_validation.get("stale_assets") or [])
+    stale_refresh_result = _refresh_stale_universe_prices(
+        request,
+        stale_assets=stale_assets,
+        freshness_validation=freshness_validation,
+    )
+    if stale_refresh_result.get("attempted"):
+        hydration["refresh_stale_enabled"] = True
+        hydration["stale_refresh_attempted"] = True
+        hydration["stale_candidates"] = list(stale_refresh_result.get("candidates") or [])
+        hydration["stale_run_ids"] = list(stale_refresh_result.get("run_ids") or [])
+        hydration["rows_inserted"] = int(hydration.get("rows_inserted") or 0) + int(stale_refresh_result.get("rows_inserted") or 0)
+        hydration["rows_updated"] = int(hydration.get("rows_updated") or 0) + int(stale_refresh_result.get("rows_updated") or 0)
+        hydration["failed_tickers"] = {
+            **(hydration.get("failed_tickers") if isinstance(hydration.get("failed_tickers"), dict) else {}),
+            **(stale_refresh_result.get("failed_tickers") if isinstance(stale_refresh_result.get("failed_tickers"), dict) else {}),
+        }
+        availability = price_availability(
+            request.tickers,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            min_rows=request.min_rows,
+        )
+        freshness_validation = _validate_universe_freshness(request, freshness_policy_request)
+        refreshed_stale = [
+            ticker
+            for ticker in stale_assets
+            if (freshness_validation.get("asset_freshness") or {}).get(ticker, {}).get("freshness_status") == "fresh"
+        ]
+        hydration["stale_refreshed"] = refreshed_stale
     items = [availability[ticker] for ticker in request.tickers if ticker in availability]
     available = [item["ticker"] for item in items if item.get("available")]
     unavailable = [item["ticker"] for item in items if not item.get("available")]
-    status = "success" if available and not unavailable else ("partial" if available else "empty")
+    strict_violation = bool(freshness_validation.get("strict_freshness_violation"))
+    status = "success" if available and not unavailable and not strict_violation else ("partial" if available else "empty")
     return {
         "status": status,
         "requested_count": len(request.tickers),
@@ -173,6 +229,12 @@ async def post_quant_universe_resolve(request: QuantUniverseResolveRequest) -> d
         "date_range": {"start": request.start_date, "end": request.end_date},
         "min_rows": request.min_rows,
         "hydration": hydration,
+        "freshness_policy": dict(freshness_validation.get("freshness_policy") or {}),
+        "asset_freshness": dict(freshness_validation.get("asset_freshness") or {}),
+        "stale_assets": list(freshness_validation.get("stale_assets") or []),
+        "strict_freshness_violation": strict_violation,
+        "expected_latest_date": str(freshness_validation.get("expected_latest_date") or "unknown"),
+        "market_calendar_lag_days": dict(freshness_validation.get("market_calendar_lag_days") or {}),
     }
 
 
@@ -489,3 +551,100 @@ def _replay_reports_or_empty(run_id: str) -> dict[str, Any]:
         return list_replay_reports(run_id, limit=10)
     except FileNotFoundError:
         return {"status": "success", "run_id": run_id, "count": 0, "latest": {}, "items": []}
+
+
+def _resolve_universe_freshness_policy(request: QuantUniverseResolveRequest) -> dict[str, Any]:
+    profiles = quant_config().get("freshness_profiles") or {}
+    profile = request.freshness_profile if request.freshness_profile in profiles else "research_default"
+    defaults = profiles.get(profile) or {}
+    fields_set = set(getattr(request, "model_fields_set", set()))
+    require_fresh_prices = bool(defaults.get("require_fresh_prices", False))
+    max_lag = int(defaults.get("max_market_calendar_lag_days", request.max_market_calendar_lag_days))
+    if "require_fresh_prices" in fields_set:
+        require_fresh_prices = bool(request.require_fresh_prices)
+    if "max_market_calendar_lag_days" in fields_set:
+        max_lag = int(request.max_market_calendar_lag_days)
+    return {
+        "freshness_profile": profile,
+        "require_fresh_prices": require_fresh_prices,
+        "max_market_calendar_lag_days": max_lag,
+    }
+
+
+def _validate_universe_freshness(
+    request: QuantUniverseResolveRequest,
+    freshness_policy_request: dict[str, Any],
+) -> dict[str, Any]:
+    prices_by_asset = {
+        ticker: _filter_price_rows(get_prices(ticker, limit=5000), start_date=request.start_date, end_date=request.end_date)
+        for ticker in request.tickers
+    }
+    return validate_backtest_inputs(prices_by_asset, **freshness_policy_request)
+
+
+def _filter_price_rows(
+    rows: list[dict[str, Any]],
+    *,
+    start_date: str | None,
+    end_date: str | None,
+) -> list[dict[str, Any]]:
+    filtered = []
+    for row in rows:
+        row_date = str(row.get("date") or "")
+        if start_date and row_date < start_date:
+            continue
+        if end_date and row_date > end_date:
+            continue
+        filtered.append(row)
+    return filtered
+
+
+def _refresh_stale_universe_prices(
+    request: QuantUniverseResolveRequest,
+    *,
+    stale_assets: list[str],
+    freshness_validation: dict[str, Any],
+) -> dict[str, Any]:
+    if not request.refresh_stale or not stale_assets:
+        return {"attempted": False}
+    policy = freshness_validation.get("freshness_policy") or {}
+    expected_latest_date = str(policy.get("expected_latest_date") or "")
+    if request.end_date and expected_latest_date and str(request.end_date) < expected_latest_date:
+        return {"attempted": False, "skipped_reason": "historical_end_date"}
+    latest_dates = dict(freshness_validation.get("latest_dates") or {})
+    fetch_start = _stale_refresh_start_date([latest_dates.get(ticker) for ticker in stale_assets], request.start_date)
+    result = update_prices_daily(
+        stale_assets,
+        market="mixed",
+        start_date=fetch_start,
+        end_date=request.end_date,
+    )
+    failed_tickers: dict[str, str] = {}
+    for provider in result.providers:
+        failed = provider.detail.get("failed_tickers") if isinstance(provider.detail, dict) else None
+        if isinstance(failed, dict):
+            failed_tickers.update({str(key).upper(): str(value) for key, value in failed.items()})
+    return {
+        "attempted": True,
+        "candidates": stale_assets,
+        "run_ids": [result.run_id],
+        "rows_inserted": int(result.rows_inserted or 0),
+        "rows_updated": int(result.rows_updated or 0),
+        "failed_tickers": failed_tickers,
+        "status": result.status,
+        "error": result.error_message,
+        "start_date": fetch_start,
+        "end_date": request.end_date,
+    }
+
+
+def _stale_refresh_start_date(values: list[Any], request_start_date: str | None) -> str | None:
+    parsed: list[date] = []
+    for value in values:
+        try:
+            parsed.append(date.fromisoformat(str(value or "")[:10]))
+        except ValueError:
+            continue
+    if parsed:
+        return (min(parsed) - timedelta(days=7)).isoformat()
+    return request_start_date

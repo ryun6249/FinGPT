@@ -67,6 +67,24 @@ class ApiRoutingContractTests(unittest.TestCase):
         )
         self.assertEqual(fingpt.get("default_behavior"), "disabled_fail_open")
 
+    def test_config_model_options_expose_runtime_checked_model_names(self):
+        client = TestClient(api_server.app)
+        resp = client.get("/api/v1/config")
+
+        self.assertEqual(resp.status_code, 200)
+        models = resp.json().get("models")
+        self.assertIsInstance(models, list)
+        self.assertTrue(models)
+        qwen = next((item for item in models if item.get("id") == "qwen"), None)
+        self.assertIsNotNone(qwen)
+        self.assertEqual(qwen.get("availability"), "runtime_checked")
+        self.assertTrue(qwen.get("model"))
+        self.assertIn("availability_note", qwen)
+        for item in models:
+            if "gemma" in str(item.get("id", "")).lower():
+                self.assertEqual(item.get("availability"), "runtime_checked")
+                self.assertTrue(item.get("model"))
+
     def test_direct_analyze_rejects_missing_ticker_before_pipeline(self):
         client = TestClient(api_server.app)
         with patch.object(research_router, "run_pipeline_async", new=AsyncMock()) as run_pipeline:

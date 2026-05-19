@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from datetime import date, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
@@ -11,6 +12,8 @@ from app.api.server import app
 from pipelines.data_mart.models import PriceBar
 from pipelines.data_mart.storage import repository
 from pipelines.data_mart.storage.db import init_db
+from pipelines.backtest import artifact_exports
+from pipelines.backtest.validation import _current_expected_market_date
 from pipelines.orchestration import quant_lab_pipeline
 
 
@@ -40,8 +43,11 @@ def test_quant_config_and_feature_preview_endpoint(tmp_path, monkeypatch) -> Non
 
     assert config.status_code == 200
     assert any(item["factor_id"] == "momentum_63d" for item in config.json()["factors"])
+    assert any(item["factor_id"] == "risk_adjusted_momentum_63d" for item in config.json()["factors"])
+    assert "risk_adjusted_momentum" in config.json()["signal_templates"]
     assert preview.status_code == 200
     assert preview.json()["status"] == "success"
+    assert preview.json()["rows"][0]["features"]["risk_adjusted_momentum_63d"] is not None
     assert preview.json()["diagnostics"]["freshness_policy"]["policy_id"] == "daily_price_t_plus_3_market_days"
 
 
@@ -103,6 +109,52 @@ def test_quant_universe_resolve_can_hydrate_missing_price_history(tmp_path, monk
     assert body["unavailable"] == []
     assert body["hydration"]["hydrated"] == ["AVGO"]
     assert body["price_counts"]["AVGO"] == 5
+
+
+def test_quant_universe_resolve_refreshes_stale_price_history(tmp_path, monkeypatch) -> None:
+    db_path = tmp_path / "research_mart.db"
+    _seed_prices(db_path)
+    monkeypatch.setenv("DATA_MART_DB_PATH", str(db_path))
+    expected = _current_expected_market_date().isoformat()
+
+    def fake_update_prices_daily(tickers, **kwargs):
+        rows = [
+            PriceBar(ticker=ticker, date=expected, close=200, adjusted_close=200, source="test")
+            for ticker in tickers
+        ]
+        counts = repository.upsert_prices(rows, db_path=db_path)
+        return SimpleNamespace(
+            run_id="stale-refresh-run",
+            status="success",
+            rows_inserted=counts["inserted"],
+            rows_updated=counts["updated"],
+            error_message=None,
+            providers=[SimpleNamespace(detail={"failed_tickers": {}})],
+        )
+
+    monkeypatch.setattr(quant_lab_router, "update_prices_daily", fake_update_prices_daily)
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/v1/quant/universe/resolve",
+        json={
+            "tickers": ["SPY", "QQQ"],
+            "min_rows": 2,
+            "freshness_profile": "decision_review",
+            "refresh_stale": True,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "success"
+    assert body["strict_freshness_violation"] is False
+    assert body["stale_assets"] == []
+    assert body["asset_freshness"]["SPY"]["freshness_status"] == "fresh"
+    assert body["asset_freshness"]["QQQ"]["latest_price_date"] == expected
+    assert body["hydration"]["stale_refresh_attempted"] is True
+    assert body["hydration"]["stale_candidates"] == ["SPY", "QQQ"]
+    assert body["hydration"]["stale_refreshed"] == ["SPY", "QQQ"]
 
 
 def test_quant_backtest_excludes_unavailable_assets_without_missing_assets(tmp_path, monkeypatch) -> None:
@@ -356,6 +408,24 @@ def test_export_cleanup_preview_and_apply_endpoint(tmp_path, monkeypatch) -> Non
     exports_after = client.get(f"/api/v1/quant/backtest/{run_id}/exports")
     assert exports_after.status_code == 200
     assert exports_after.json()["count"] == 1
+
+
+def test_export_retention_rejects_current_export_outside_exports_root(tmp_path) -> None:
+    exports_root = tmp_path / "run" / "exports"
+    exports_root.mkdir(parents=True)
+    current_export = tmp_path / "outside" / "20260515T000000_jsonl"
+    current_export.mkdir(parents=True)
+
+    try:
+        artifact_exports._apply_export_retention(
+            exports_root=exports_root,
+            current_export_dir=current_export,
+            keep_last_exports=1,
+        )
+    except ValueError as exc:
+        assert "current export directory must stay within its run exports directory" in str(exc)
+    else:  # pragma: no cover - defensive assertion path
+        raise AssertionError("retention should reject export directories outside exports_root")
 
 
 def test_strategy_dry_run_validates_no_lookahead_policy() -> None:

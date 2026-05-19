@@ -39,8 +39,8 @@ class CollectionSidecarOutputTests(unittest.TestCase):
             request.output_dir = tmp_dir
             save_outputs(request, response, "md", "html", collection_outcome=outcome)
 
-            sidecar_path = f"{tmp_dir}\\latest_collection.json"
-            with open(sidecar_path, "r", encoding="utf-8") as handle:
+            sidecar_path = Path(tmp_dir) / "latest_collection.json"
+            with sidecar_path.open("r", encoding="utf-8") as handle:
                 data = json.load(handle)
 
         self.assertEqual(data["ticker"], "MSFT")

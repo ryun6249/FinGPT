@@ -81,6 +81,7 @@ async def _run_compare_async(request: CompareRequest) -> CompareResponse:
                         lookback_days=request.lookback_days,
                         top_k=request.top_k,
                         model=request.model,
+                        output_language=request.output_language,
                         scenario_simulation_enabled=request.scenario_simulation_enabled,
                     )
                 )
@@ -162,6 +163,7 @@ async def dispatch_async(
                 top_k=universal.top_k,
                 model=universal.model,
                 output_dir=universal.output_dir,
+                output_language=universal.output_language,
                 scenario_simulation_enabled=universal.scenario_simulation_enabled,
             ),
             event_sink=event_sink,
@@ -176,6 +178,7 @@ async def dispatch_async(
                 lookback_days=universal.lookback_days,
                 top_k=universal.top_k,
                 model=universal.model,
+                output_language=universal.output_language,
                 scenario_simulation_enabled=universal.scenario_simulation_enabled,
             )
         )
@@ -203,6 +206,7 @@ async def dispatch_async(
             top_k=universal.top_k or getattr(settings, "topic_retrieval_top_k", 12),
             model=universal.model,
             output_dir=universal.output_dir,
+            output_language=universal.output_language,
             scenario_simulation_enabled=universal.scenario_simulation_enabled,
         ),
         mode="sector_macro" if routed_mode == "sector_macro" else "concept",

@@ -28,6 +28,28 @@ def doc_id_to_point_id(doc_id: str) -> str:
     import uuid
     return str(uuid.uuid5(uuid.NAMESPACE_URL, str(doc_id)))
 
+
+def _qdrant_add(client: Any, **kwargs: Any) -> list[Any]:
+    """Call Qdrant's high-level add API while this repo supports qdrant-client 1.8+."""
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=r"`add` method has been deprecated.*",
+            category=UserWarning,
+        )
+        return list(client.add(**kwargs))
+
+
+def _qdrant_query(client: Any, **kwargs: Any) -> list[Any]:
+    """Call Qdrant's high-level query API while this repo supports qdrant-client 1.8+."""
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=r"`query` method has been deprecated.*",
+            category=UserWarning,
+        )
+        return list(client.query(**kwargs))
+
 def ensure_collection(client: Any, collection_name: str, vector_size: int | None = None):
     """
     Creates the collection if it doesn't already exist.
@@ -246,7 +268,8 @@ def add_documents_to_qdrant(client: Any, collection_name: str, documents: List[s
     try:
         if collection_has_sparse_vectors(client, collection_name) is False:
             client = _dense_only_client()
-        inserted = client.add(
+        inserted = _qdrant_add(
+            client,
             collection_name=collection_name,
             documents=documents,
             metadata=metadata,
@@ -264,7 +287,8 @@ def add_documents_to_qdrant(client: Any, collection_name: str, documents: List[s
             )
             try:
                 dense_client = _dense_only_client()
-                inserted = dense_client.add(
+                inserted = _qdrant_add(
+                    dense_client,
                     collection_name=collection_name,
                     documents=documents,
                     metadata=metadata,
@@ -323,7 +347,8 @@ def search_documents(client: Any, collection_name: str, symbol: str | None, quer
     try:
         if collection_has_sparse_vectors(client, collection_name) is False:
             dense_client = _dense_only_client()
-            results = dense_client.query(
+            results = _qdrant_query(
+                dense_client,
                 collection_name=collection_name,
                 query_text=query_text,
                 query_filter=filter_obj,
@@ -331,7 +356,8 @@ def search_documents(client: Any, collection_name: str, symbol: str | None, quer
             )
             return [normalize_search_hit(hit) for hit in results]
         # high-level query() handles embedding and filtering
-        results = client.query(
+        results = _qdrant_query(
+            client,
             collection_name=collection_name,
             query_text=query_text,
             query_filter=filter_obj,
@@ -344,7 +370,8 @@ def search_documents(client: Any, collection_name: str, symbol: str | None, quer
             logger.warning("Hybrid Qdrant query failed against collection %s; retrying dense-only: %s", collection_name, e)
             try:
                 dense_client = _dense_only_client()
-                results = dense_client.query(
+                results = _qdrant_query(
+                    dense_client,
                     collection_name=collection_name,
                     query_text=query_text,
                     query_filter=filter_obj,
@@ -466,7 +493,7 @@ def _new_qdrant_client(
         with warnings.catch_warnings():
             warnings.filterwarnings(
                 "ignore",
-                message="Api key is used with unsecure connection.*",
+                message=r"Api key is used with (?:an )?(?:insecure|unsecure) connection.*",
                 category=UserWarning,
             )
             return QdrantClient(url=qdrant_url, api_key=normalized_key)

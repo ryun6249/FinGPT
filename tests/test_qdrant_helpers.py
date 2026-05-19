@@ -62,17 +62,41 @@ class QdrantHelperTests(unittest.TestCase):
     def test_loopback_qdrant_api_key_warning_is_suppressed(self):
         import warnings
 
-        def _warn_and_return(**_kwargs):
-            warnings.warn("Api key is used with unsecure connection.", UserWarning)
-            return SimpleNamespace()
+        for message in (
+            "Api key is used with unsecure connection.",
+            "Api key is used with an insecure connection.",
+        ):
+            with self.subTest(message=message):
+                def _warn_and_return(**_kwargs):
+                    warnings.warn(message, UserWarning)
+                    return SimpleNamespace()
 
-        with patch("qdrant_client.QdrantClient", side_effect=_warn_and_return):
-            with warnings.catch_warnings(record=True) as caught:
-                warnings.simplefilter("always")
-                qdrant_helpers._new_qdrant_client(
-                    qdrant_url="http://127.0.0.1:6333",
-                    api_key="local-dev-key",
-                )
+                with patch("qdrant_client.QdrantClient", side_effect=_warn_and_return):
+                    with warnings.catch_warnings(record=True) as caught:
+                        warnings.simplefilter("always")
+                        qdrant_helpers._new_qdrant_client(
+                            qdrant_url="http://127.0.0.1:6333",
+                            api_key="local-dev-key",
+                        )
+
+                self.assertEqual([], caught)
+
+    def test_qdrant_high_level_deprecation_warnings_are_suppressed(self):
+        import warnings
+
+        class Client:
+            def add(self, **_kwargs):
+                warnings.warn("`add` method has been deprecated and will be removed in 1.17.", UserWarning)
+                return ["point-1"]
+
+            def query(self, **_kwargs):
+                warnings.warn("`query` method has been deprecated and will be removed in 1.17.", UserWarning)
+                return ["hit-1"]
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            self.assertEqual(["point-1"], qdrant_helpers._qdrant_add(Client()))
+            self.assertEqual(["hit-1"], qdrant_helpers._qdrant_query(Client()))
 
         self.assertEqual([], caught)
 

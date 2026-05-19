@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 from fastapi.testclient import TestClient
 
 from app.api.routers import data as data_router
 from app.api.server import app
+from pipelines.backtest.validation import _current_expected_market_date
 from pipelines.data_mart.models import Filing, PriceBar, UpdateRunResult
 from pipelines.data_mart.storage import repository
 from pipelines.data_mart.storage.db import init_db
@@ -79,6 +82,29 @@ def test_data_prices_refreshes_before_returning_rows(tmp_path, monkeypatch) -> N
     assert body["refresh"]["attempted"] is True
     assert body["refresh"]["status"] == "success"
     assert body["refresh"]["rows_inserted"] == 1
+
+
+def test_data_prices_returns_quant_freshness_audit(tmp_path, monkeypatch) -> None:
+    db_path = tmp_path / "research_mart.db"
+    monkeypatch.setenv("DATA_MART_DB_PATH", str(db_path))
+    init_db(db_path)
+    repository.upsert_prices(
+        [
+            PriceBar(ticker="SPY", date="2026-01-02", close=100, adjusted_close=100, source="test"),
+            PriceBar(ticker="SPY", date="2026-01-03", close=101, adjusted_close=101, source="test"),
+        ],
+        db_path=db_path,
+    )
+
+    client = TestClient(app)
+    response = client.get("/api/v1/data/prices/SPY?limit=10&freshness_profile=decision_review")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["freshness_policy"]["profile"] == "decision_review"
+    assert body["freshness_policy"]["require_fresh_prices"] is True
+    assert body["asset_freshness"]["freshness_status"] == "stale"
+    assert body["strict_freshness_violation"] is True
 
 
 def test_data_health_marks_optional_empty_provider_rows_as_covered(tmp_path, monkeypatch) -> None:
@@ -301,3 +327,38 @@ def test_portfolio_optimize_endpoint_supports_advanced_methods() -> None:
     body = resp.json()
     assert body["status"] == "success"
     assert body["weights"]["UP"] > body["weights"]["FLAT"]
+
+
+def test_portfolio_optimize_endpoint_fails_closed_on_strict_stale_prices(tmp_path, monkeypatch) -> None:
+    db_path = tmp_path / "research_mart.db"
+    monkeypatch.setenv("DATA_MART_DB_PATH", str(db_path))
+    init_db(db_path)
+    rows = []
+    for idx in range(5):
+        day = (date(2026, 1, 2) + timedelta(days=idx)).isoformat()
+        rows.extend(
+            [
+                PriceBar(ticker="SPY", date=day, close=100 + idx, adjusted_close=100 + idx, source="test"),
+                PriceBar(ticker="TLT", date=day, close=90 + idx, adjusted_close=90 + idx, source="test"),
+            ]
+        )
+    repository.upsert_prices(rows, db_path=db_path)
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/v1/portfolio/optimize",
+        json={
+            "tickers": ["SPY", "TLT"],
+            "benchmark": "SPY",
+            "lookback_days": 5,
+            "freshness_profile": "decision_review",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "failed"
+    assert body["data_status"] == "freshness_failed"
+    assert body["strict_freshness_violation"] is True
+    assert set(body["stale_assets"]) == {"SPY", "TLT"}
+    assert body["freshness_policy"]["expected_latest_date"] == _current_expected_market_date().isoformat()

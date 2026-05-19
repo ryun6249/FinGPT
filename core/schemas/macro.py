@@ -229,6 +229,7 @@ class MacroDashboardResponse(BaseModel):
     overview: dict[str, Any] = Field(default_factory=dict)
     coverage: MacroDashboardCoverage
     data_quality: MacroDataQuality
+    quality_detail: dict[str, Any] = Field(default_factory=dict)
     refresh: dict[str, Any] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
 

@@ -24,6 +24,7 @@ SupportedInferenceRoute = Literal[
     "gemma",
     "gemma-experimental",
 ]
+SupportedOutputLanguage = Literal["ko", "en"]
 
 class AnalysisRequest(BaseModel):
     ticker: Optional[str] = Field(default=None, description="The stock ticker symbol to analyze.")
@@ -43,6 +44,10 @@ class AnalysisRequest(BaseModel):
         ),
     )
     output_dir: Optional[str] = Field(default=None, description="Path to save outputs.")
+    output_language: SupportedOutputLanguage = Field(
+        default="ko",
+        description="Per-request output language for generated analysis and reports.",
+    )
     scenario_simulation_enabled: Optional[bool] = Field(
         default=None,
         description="Optional per-request override for the default-off scenario simulation layer.",
@@ -66,6 +71,11 @@ class AnalysisRequest(BaseModel):
     def _clean_sources(cls, value: Any) -> list[str]:
         return _coerce_sources(value)
 
+    @field_validator("output_language", mode="before")
+    @classmethod
+    def _clean_output_language(cls, value: Any) -> str:
+        return _coerce_output_language(value)
+
 
 class UniversalRequest(BaseModel):
     question: str = Field(..., description="User question to route to ticker, compare, or topic analysis.")
@@ -76,6 +86,10 @@ class UniversalRequest(BaseModel):
     top_k: int = Field(default=15, ge=1, le=20)
     model: SupportedInferenceRoute = Field(default="qwen")
     output_dir: Optional[str] = Field(default=None)
+    output_language: SupportedOutputLanguage = Field(
+        default="ko",
+        description="Per-request output language for generated analysis and reports.",
+    )
     scenario_simulation_enabled: Optional[bool] = Field(
         default=None,
         description="Optional per-request override for the default-off scenario simulation layer.",
@@ -105,6 +119,11 @@ class UniversalRequest(BaseModel):
         value = str(value or "auto").strip().lower()
         return value if value in {"auto", "ticker", "topic"} else "auto"
 
+    @field_validator("output_language", mode="before")
+    @classmethod
+    def _clean_output_language(cls, value: Any) -> str:
+        return _coerce_output_language(value)
+
 
 # Hard cap on fan-out keeps local Ollama/Qdrant/FMP from getting hammered and
 # matches the project's "single-workstation" posture. Raise only after
@@ -130,6 +149,10 @@ class CompareRequest(BaseModel):
     lookback_days: int = Field(default=90)
     top_k: int = Field(default=15, ge=1, le=20)
     model: SupportedInferenceRoute = Field(default="qwen")
+    output_language: SupportedOutputLanguage = Field(
+        default="ko",
+        description="Per-request output language applied to each ticker analysis.",
+    )
     concurrency: int = Field(
         default=2,
         ge=1,
@@ -170,6 +193,11 @@ class CompareRequest(BaseModel):
     def _clean_sources(cls, value: Any) -> list[str]:
         return _coerce_sources(value)
 
+    @field_validator("output_language", mode="before")
+    @classmethod
+    def _clean_output_language(cls, value: Any) -> str:
+        return _coerce_output_language(value)
+
 
 def _coerce_sources(value: Any) -> list[str]:
     if value is None:
@@ -191,3 +219,12 @@ def _coerce_sources(value: Any) -> list[str]:
         seen.add(source)
         cleaned.append(source)
     return cleaned or list(DEFAULT_COLLECTION_SOURCES)
+
+
+def _coerce_output_language(value: Any) -> str:
+    clean = str(value or "ko").strip().lower()
+    if clean in {"en", "eng", "english"}:
+        return "en"
+    if clean in {"ko", "kor", "korean", "kr", "한국어"}:
+        return "ko"
+    return "ko"

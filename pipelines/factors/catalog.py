@@ -10,6 +10,7 @@ from pipelines.factors.core import (
     moving_average_ratio,
     realized_volatility,
     relative_strength,
+    risk_adjusted_momentum,
     rolling_beta,
     rolling_correlation,
     simple_returns,
@@ -35,6 +36,12 @@ _FACTOR_DEFINITIONS: dict[str, FactorDefinition] = {
     "momentum_21d": FactorDefinition("momentum_21d", "21D Momentum", "One-month price momentum.", {"lookback": 21}),
     "momentum_63d": FactorDefinition("momentum_63d", "63D Momentum", "Quarterly price momentum.", {"lookback": 63}),
     "momentum_126d": FactorDefinition("momentum_126d", "126D Momentum", "Half-year price momentum.", {"lookback": 126}),
+    "risk_adjusted_momentum_63d": FactorDefinition(
+        "risk_adjusted_momentum_63d",
+        "Risk-Adjusted Momentum 63D",
+        "Quarterly momentum divided by realized volatility with a current-drawdown penalty.",
+        {"lookback": 63, "volatility_lookback": 21, "volatility_floor": 0.05},
+    ),
     "realized_vol_21d": FactorDefinition("realized_vol_21d", "21D Realized Vol", "Annualized realized volatility.", {"lookback": 21}),
     "drawdown_current": FactorDefinition("drawdown_current", "Current Drawdown", "Drawdown from the trailing peak."),
     "ma_ratio_20_50": FactorDefinition("ma_ratio_20_50", "MA 20/50 Ratio", "20-day average versus 50-day average.", {"short_window": 20, "long_window": 50}),
@@ -89,6 +96,13 @@ def compute_factor_latest(
     fid = definition.factor_id
     if fid.startswith("return_") or fid.startswith("momentum_"):
         return momentum_return(prices, lookback=int(resolved.get("lookback") or 1))
+    if fid == "risk_adjusted_momentum_63d":
+        return risk_adjusted_momentum(
+            prices,
+            lookback=int(resolved.get("lookback") or 63),
+            volatility_lookback=int(resolved.get("volatility_lookback") or 21),
+            volatility_floor=float(resolved.get("volatility_floor") or 0.05),
+        )
     if fid == "realized_vol_21d":
         return realized_volatility(prices, lookback=int(resolved.get("lookback") or 21))
     if fid == "drawdown_current":

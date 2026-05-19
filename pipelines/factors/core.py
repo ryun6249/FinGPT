@@ -204,6 +204,22 @@ def relative_strength(
     return asset - benchmark
 
 
+def risk_adjusted_momentum(
+    prices: Iterable[float | int | None],
+    lookback: int = 63,
+    volatility_lookback: int = 21,
+    volatility_floor: float = 0.05,
+) -> float | None:
+    momentum = momentum_return(prices, lookback=lookback)
+    vol = realized_volatility(prices, lookback=volatility_lookback)
+    drawdown = current_drawdown(prices)
+    if momentum is None or vol is None:
+        return None
+    denominator = max(abs(float(vol)), float(volatility_floor or 0.05))
+    drawdown_penalty = max(0.0, 1.0 + float(drawdown or 0.0))
+    return (float(momentum) / denominator) * drawdown_penalty
+
+
 def _correlation(left: list[float], right: list[float]) -> float:
     n = min(len(left), len(right))
     if n < 2:

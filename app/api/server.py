@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.openbb_agent import router as openbb_agent_router
 from app.api.routers.backtest import router as backtest_router
@@ -14,6 +15,7 @@ from app.api.routers.data import router as data_router
 from app.api.routers.forecast import router as forecast_router
 from app.api.routers.macro import router as macro_router
 from app.api.routers.portfolio import router as portfolio_router
+from app.api.routers.quantamental import router as quantamental_router
 from app.api.routers.quant_lab import router as quant_lab_router
 from app.api.routers.research import router as research_router
 from app.api.routers.system import router as system_router
@@ -29,6 +31,18 @@ _settings = load_settings()
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 WEB_DIR = PROJECT_ROOT / "app" / "web"
+
+
+class UiStaticFiles(StaticFiles):
+    """Serve the static UI while allowing direct links to client-side routes."""
+
+    async def get_response(self, path: str, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code != 404 or Path(path).suffix:
+                raise
+            return await super().get_response("index.html", scope)
 
 
 async def _start_watchlist_scheduler() -> None:
@@ -116,9 +130,11 @@ app.include_router(macro_router, prefix="/api/macro")
 app.include_router(quant_lab_router)
 app.include_router(forecast_router, prefix="/api/v1/forecast")
 app.include_router(forecast_router, prefix="/api/forecast")
+app.include_router(quantamental_router, prefix="/api/v1/quantamental")
+app.include_router(quantamental_router, prefix="/api/quantamental")
 
 if WEB_DIR.exists():
-    app.mount("/ui", StaticFiles(directory=str(WEB_DIR), html=True), name="web")
+    app.mount("/ui", UiStaticFiles(directory=str(WEB_DIR), html=True), name="web")
 
     @app.get("/", include_in_schema=False)
     async def root_redirect():

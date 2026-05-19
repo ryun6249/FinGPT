@@ -1,6 +1,11 @@
-from pathlib import Path
+﻿from pathlib import Path
+import importlib.util
 import re
 import unittest
+
+from fastapi.testclient import TestClient
+
+from app.api import server as api_server
 
 
 APP_JS = Path(__file__).resolve().parents[1] / "app" / "web" / "app.js"
@@ -11,6 +16,8 @@ MARKET_UI_JS = Path(__file__).resolve().parents[1] / "app" / "web" / "modules" /
 MACRO_UI_JS = Path(__file__).resolve().parents[1] / "app" / "web" / "modules" / "macro-ui.js"
 FORECAST_UI_JS = Path(__file__).resolve().parents[1] / "app" / "web" / "modules" / "forecast-ui.js"
 QUANT_UI_JS = Path(__file__).resolve().parents[1] / "app" / "web" / "modules" / "quant-ui.js"
+QUANTAMENTAL_UI_JS = Path(__file__).resolve().parents[1] / "app" / "web" / "modules" / "quantamental-ui.js"
+AI_PORTFOLIO_UI_SMOKE = Path(__file__).resolve().parents[1] / "scripts" / "ai_portfolio_ui_smoke.py"
 
 
 class UiRoutingContractTests(unittest.TestCase):
@@ -31,15 +38,15 @@ class UiRoutingContractTests(unittest.TestCase):
         self.assertIn('id="fingptStatus"', html)
         self.assertIn("function renderFinGPTStatus", self.source)
         self.assertIn("renderFinGPTStatus(state.config)", self.source)
-        self.assertIn("FinGPT 보조 기능 비활성 · 기본 분석 경로에는 영향 없음", self.source)
-        self.assertIn("FinGPT 보조 기능 활성:", self.source)
+        self.assertIn("FinGPT \ubcf4\uc870 \uae30\ub2a5 \ube44\ud65c\uc131 \u00b7 \uae30\ubcf8 \ubd84\uc11d \uacbd\ub85c\uc5d0\ub294 \uc601\ud5a5 \uc5c6\uc74c", self.source)
+        self.assertIn("FinGPT \ubcf4\uc870 \uae30\ub2a5 \ud65c\uc131:", self.source)
         self.assertIn("is-enabled", self.source)
 
     def test_intent_normalizer_preserves_tickerless_topic_path(self):
         self.assertIn("function normalizeResearchIntent", self.source)
         self.assertIn("auto_topic", self.source)
         self.assertIn("extracted_ticker", self.source)
-        self.assertIn("ticker 없이 질의 가능", self.source)
+        self.assertIn("ticker \uc5c6\uc774 \uc9c8\uc758 \uac00\ub2a5", self.source)
 
     def test_question_ticker_inference_supports_explicit_universe_fallback(self):
         self.assertIn("function matchExplicitTickerPrefix", self.source)
@@ -58,6 +65,27 @@ class UiRoutingContractTests(unittest.TestCase):
         dom_stages = set(re.findall(r'data-stage="([^"]+)"', html))
         self.assertTrue(stages)
         self.assertEqual(set(stages), dom_stages)
+
+    def test_ui_static_server_falls_back_for_client_routes_only(self):
+        with TestClient(api_server.app) as client:
+            quantamental_route = client.get("/ui/quantamental")
+            missing_asset = client.get("/ui/not-found-bundle.js")
+        self.assertEqual(200, quantamental_route.status_code)
+        self.assertIn("FinGPT Local Research Assistant", quantamental_route.text)
+        self.assertIn('id="quantamentalTab"', quantamental_route.text)
+        self.assertEqual(404, missing_asset.status_code)
+
+    def test_static_html_korean_copy_is_not_mojibake(self):
+        html = INDEX_HTML.read_text(encoding="utf-8")
+        self.assertIn("로컬 리서치 어시스턴트", html)
+        self.assertIn("수집 -> 적재 -> 검색 -> 추론 -> 분석 -> 보고", html)
+        self.assertIn("펀더멘털 + 가격 + 리스크 + AI 해석", html)
+        self.assertIn("Quantamental 분석은 리서치 전용이며 투자 자문이 아닙니다.", html)
+        cjk_or_mojibake = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\ufffd]")
+        self.assertIsNone(cjk_or_mojibake.search(html))
+        self.assertNotIn("??", html)
+        for bad in ["鍮", "怨", "諛", "吏", "由", "遺", "媛", "쨌", "濡"]:
+            self.assertNotIn(bad, html)
 
     def test_progress_stage_helpers_are_null_safe(self):
         self.assertIn("function progressNode(stage)", self.source)
@@ -103,7 +131,12 @@ class UiRoutingContractTests(unittest.TestCase):
         self.assertIn('src="modules/forecast-ui.js?v=20260514-domain-modules"', html)
         self.assertIn('src="modules/quant-ui.js?v=20260514-domain-modules"', html)
         self.assertIn('src="modules/ai-portfolio-ui.js?v=20260514-domain-modules"', html)
-        self.assertIn('src="app.js?v=20260514-domain-modules"', html)
+        self.assertIn('src="modules/quantamental-ui.js?v=20260519-quantamental-v13"', html)
+        self.assertIn('href="styles.css?v=20260519-continuous-enhancement-v3"', html)
+        self.assertIn('src="app.js?v=20260519-continuous-enhancement-v3"', html)
+        self.assertIn('id="dashboardContextStrip"', html)
+        self.assertIn("dashboardDecisionCards", self.source)
+        self.assertIn("function loadDashboardDecisionCards", self.source)
         self.assertIn("global.FinGPTAiPortfolioUi", module_source)
         self.assertIn("dashboardMeta", module_source)
         self.assertIn("operationList", module_source)
@@ -113,8 +146,117 @@ class UiRoutingContractTests(unittest.TestCase):
         self.assertIn("window.FinGPTMacroUi", self.source)
         self.assertIn("window.FinGPTForecastUi", self.source)
         self.assertIn("window.FinGPTQuantUi", self.source)
+        self.assertIn("window.FinGPTQuantamentalUi", self.source)
         self.assertIn(".ai-dashboard-meta", css)
         self.assertIn(".ai-operation-item", css)
+
+    def test_cross_dashboard_smoke_tracks_current_bundle_and_quantamental(self):
+        smoke_source = AI_PORTFOLIO_UI_SMOKE.read_text(encoding="utf-8")
+        self.assertIn('DOMAIN_BUNDLE_VERSION = "20260514-domain-modules"', smoke_source)
+        self.assertIn('QUANTAMENTAL_BUNDLE_VERSION = "20260519-quantamental-v13"', smoke_source)
+        self.assertIn('APP_BUNDLE_VERSION = "20260519-continuous-enhancement-v3"', smoke_source)
+        self.assertIn("def _normalize_base_url", smoke_source)
+        self.assertIn("modules/quantamental-ui.js", smoke_source)
+        self.assertIn("FinGPTQuantamentalUi?.topSignals", smoke_source)
+        self.assertIn("quantamental-score-screen-run", smoke_source)
+        self.assertIn('"quantamental-tab"', smoke_source)
+        self.assertIn('"#quantamental"', smoke_source)
+        self.assertIn("quantamental-screen-run", smoke_source)
+        self.assertIn('data-language="en"', smoke_source)
+        self.assertIn('data-language="ko"', smoke_source)
+        self.assertIn('env["PYTHONUTF8"] = "1"', smoke_source)
+        self.assertIn("stdout=subprocess.DEVNULL", smoke_source)
+        self.assertIn("stderr=subprocess.DEVNULL", smoke_source)
+
+    def test_cross_dashboard_smoke_accepts_ui_base_url(self):
+        spec = importlib.util.spec_from_file_location("ai_portfolio_ui_smoke", AI_PORTFOLIO_UI_SMOKE)
+        self.assertIsNotNone(spec)
+        module = importlib.util.module_from_spec(spec)
+        self.assertIsNotNone(spec.loader)
+        spec.loader.exec_module(module)
+
+        self.assertEqual(module._normalize_base_url("http://127.0.0.1:8273/ui/"), "http://127.0.0.1:8273")
+        self.assertEqual(module._normalize_base_url("http://127.0.0.1:8273"), "http://127.0.0.1:8273")
+
+    def test_language_toggle_drives_request_output_language(self):
+        html = INDEX_HTML.read_text(encoding="utf-8")
+        self.assertIn('id="languageToggle"', html)
+        self.assertIn('data-language="ko"', html)
+        self.assertIn('data-language="en"', html)
+        self.assertIn("fingpt.outputLanguage.v1", self.source)
+        self.assertIn("function applyUiLanguage", self.source)
+        self.assertIn("function bindLanguageToggle", self.source)
+        self.assertIn("output_language: selectedOutputLanguage()", self.source)
+        self.assertIn("output_language: payload.output_language", self.source)
+        self.assertIn("output_language: request.output_language", self.source)
+        self.assertIn("applyQuantamentalUiLanguage", self.source)
+        self.assertIn("Request language: English", self.source)
+        self.assertIn("dashboardHero", self.source)
+        self.assertIn("function updateDashboardHero", self.source)
+        self.assertIn("function setLeadingText", self.source)
+        self.assertIn('state.activeDashboardTab === "market"', self.source)
+        self.assertIn('normalizeTvChartSettings(state.tvChartSettings).source === "tradingview"', self.source)
+
+    def test_market_chart_defaults_to_internal_data_but_keeps_tradingview_option(self):
+        html = INDEX_HTML.read_text(encoding="utf-8")
+        self.assertIn('const TV_CHART_DEFAULTS = { source: "internal"', self.source)
+        self.assertIn('raw.source === "tradingview" ? "tradingview"', self.source)
+        self.assertIn('<option value="internal">Internal data</option>', html)
+        self.assertIn('<option value="tradingview">TradingView</option>', html)
+
+    def test_quantamental_static_contract(self):
+        html = INDEX_HTML.read_text(encoding="utf-8")
+        css = STYLES_CSS.read_text(encoding="utf-8")
+        module_source = QUANTAMENTAL_UI_JS.read_text(encoding="utf-8")
+        for marker in [
+            'id="quantamentalTab"',
+            'data-testid="quantamental-tab"',
+            'id="quantamentalTicker"',
+            'id="quantamentalTickerOpen"',
+            'id="quantamentalMarket"',
+            'id="quantamentalPeriod"',
+            'id="quantamentalYears"',
+            'id="quantamentalLookback"',
+            'id="quantamentalStyle"',
+            'id="quantamentalAnalyze"',
+            'data-testid="quantamental-analyze"',
+            'id="quantamentalSignalSurface"',
+            'id="quantamentalScoreSurface"',
+            'id="quantamentalFactorSurface"',
+            'id="quantamentalMainSurface"',
+            'id="quantamentalAiRefresh"',
+            'id="quantamentalDataQualitySurface"',
+            'id="quantamentalExpandPeers"',
+            'id="quantamentalPeerLimit"',
+            'id="quantamentalWatchlistName"',
+            'id="quantamentalWatchlistSelect"',
+            'data-testid="quantamental-watchlist-save"',
+            'data-testid="quantamental-watchlist-load"',
+            'data-testid="quantamental-compare-csv"',
+        ]:
+            self.assertIn(marker, html)
+        for marker in [
+            "quantamentalAnalysis",
+            "quantamentalCompareWatchlists",
+            "function loadQuantamental",
+            "function runQuantamentalAnalysis",
+            "function askQuantamentalQuestion",
+            "function loadQuantamentalCompareWatchlists",
+            "function saveQuantamentalCompareWatchlist",
+            "function exportQuantamentalCompareCsv",
+            "function exportQuantamentalSnapshot",
+            'tab === "quantamental"',
+            'window.location.hash === "#quantamental"',
+        ]:
+            self.assertIn(marker, self.source)
+        self.assertIn("global.FinGPTQuantamentalUi", module_source)
+        self.assertIn("signalCard", module_source)
+        self.assertIn("mainPanel", module_source)
+        self.assertIn("qaAnswer", module_source)
+        self.assertIn("snapshotDiff", module_source)
+        self.assertIn("snapshotRetention", module_source)
+        self.assertIn(".quantamental-signal-card", css)
+        self.assertIn(".quantamental-factor-grid", css)
 
     def test_domain_ui_modules_are_connected(self):
         modules = {
@@ -175,7 +317,7 @@ class UiRoutingContractTests(unittest.TestCase):
             "function renderAssetReturnLineChart",
             "function renderAssetBenchmarkComparison",
             "function renderAssetDetailSections",
-            'renderDecisionLineChart(curve, "return", "수익률 곡선"',
+            'renderDecisionLineChart(curve, "return", "\uc218\uc775\ub960 \uace1\uc120"',
             "renderNormalizedComparisonChart",
         ]:
             self.assertIn(marker, self.source)
@@ -217,7 +359,8 @@ class UiRoutingContractTests(unittest.TestCase):
         self.assertIn('id="homeHeatmapRefresh"', html)
         self.assertIn("HEATMAP_DISPLAY_MAX", self.source)
         self.assertIn("loadDashboardEquityHeatmap(true)", self.source)
-        self.assertIn("표시 ${escapeHtml(_fmtNumber(displayItems.length))}", self.source)
+        self.assertIn("\ud45c\uc2dc ${escapeHtml(_fmtNumber(displayItems.length))}", self.source)
+        self.assertIn(".home-stock-heatmap.finviz-treemap", STYLES_CSS.read_text(encoding="utf-8"))
 
     def test_market_dashboard_overview_contract(self):
         html = INDEX_HTML.read_text(encoding="utf-8")
@@ -225,16 +368,31 @@ class UiRoutingContractTests(unittest.TestCase):
             'id="marketOverviewMeta"',
             'id="marketTapeSurface"',
             'id="marketSignalSurface"',
+            'id="crossAssetSymbols"',
+            'id="crossAssetAnalysisSurface"',
+            'data-testid="cross-asset-run"',
+            'id="homeNewsFocusedList"',
+            'data-testid="market-news-search-run"',
         ]:
             self.assertIn(marker, html)
         for marker in [
             "dashboardMarketOverview",
+            "dashboardCrossAssetAnalyze",
             "function renderMarketTape",
             "function renderMarketSignals",
+            "function renderCrossAssetAnalysis",
+            "function loadFocusedDashboardNews",
             "function loadDashboardMarketOverview",
             "loadDashboardMarketOverview(force)",
         ]:
             self.assertIn(marker, self.source)
+
+    def test_internal_market_chart_has_horizontal_scroll_contract(self):
+        css = STYLES_CSS.read_text(encoding="utf-8")
+        self.assertIn("internal-chart-scroll", self.source)
+        self.assertIn("scrollInternalChartToLatest", self.source)
+        self.assertIn("primaryRows.length * 8 + 150", self.source)
+        self.assertIn(".internal-chart-scroll", css)
 
     def _symbol_list_count(self, const_name: str) -> int:
         match = re.search(rf"const {const_name} = symbolList\(`(?P<body>.*?)`\);", self.source, re.S)
@@ -248,6 +406,7 @@ class UiRoutingContractTests(unittest.TestCase):
         self.assertEqual(self._symbol_list_count("KOSPI200_SYMBOLS"), 200)
         self.assertEqual(self._symbol_list_count("KOSDAQ100_SYMBOLS"), 100)
         self.assertIn('const CRYPTO_SYMBOLS = ["BTC-USD", "ETH-USD"];', self.source)
+        self.assertIn("const GLOBAL_EQUITY_SYMBOLS = [", self.source)
         self.assertIn('id="symbolPickerSummary"', html)
         self.assertIn('id="symbolPickerAddFiltered"', html)
         self.assertIn('id="symbolPickerRemoveFiltered"', html)
@@ -255,11 +414,16 @@ class UiRoutingContractTests(unittest.TestCase):
         self.assertIn("data-symbol-scope", self.source)
         self.assertIn('value="kr_kospi200"', html)
         self.assertIn('value="kr_kosdaq100"', html)
+        self.assertIn('value="global_equity"', html)
         self.assertIn('maxlength="12000"', html)
-        self.assertIn("삼성전자 (005930 · KOSPI 200)", self.source)
-        self.assertIn("에코프로비엠 (247540 · KOSDAQ 100)", self.source)
+        self.assertIn("\uc0bc\uc131\uc804\uc790 (005930 \u00b7 KOSPI 200)", self.source)
+        self.assertIn("\uc5d0\ucf54\ud504\ub85c\ube44\uc5e0 (247540 \u00b7 KOSDAQ 100)", self.source)
         self.assertIn("Microsoft Corporation", self.source)
         self.assertIn("iShares MSCI ACWI ETF", self.source)
+        self.assertIn("ASML Holding N.V. (Euronext Amsterdam)", self.source)
+        self.assertIn("Siemens AG (Xetra)", self.source)
+        self.assertIn("LVMH (Euronext Paris)", self.source)
+        self.assertIn("Nintendo Co., Ltd. (Tokyo)", self.source)
 
     def test_symbol_picker_selection_does_not_filter_by_price_availability(self):
         match = re.search(
@@ -285,6 +449,7 @@ class UiRoutingContractTests(unittest.TestCase):
             'id="portfolioBenchmarkOpen"',
             'id="forecastTickerOpen"',
             'id="forecastBenchmarkOpen"',
+            'id="quantamentalTickerOpen"',
             'id="aiPortfolioCustomUniverseOpen"',
             'id="aiPortfolioCustomUniverseChips"',
             'id="aiPortfolioBenchmarkOpen"',
@@ -300,6 +465,7 @@ class UiRoutingContractTests(unittest.TestCase):
             'openSymbolPicker("backtestBenchmark")',
             'openSymbolPicker("portfolio")',
             'openSymbolPicker("forecastTicker")',
+            'openSymbolPicker("quantamentalTicker")',
             'openSymbolPicker("aiPortfolioCustomUniverse")',
             'renderSymbolTargetChips("portfolio")',
             'renderSymbolTargetChips("aiPortfolioCustomUniverse")',
@@ -308,8 +474,8 @@ class UiRoutingContractTests(unittest.TestCase):
 
     def test_quant_universe_resolve_hydrates_missing_prices_before_execution(self):
         self.assertIn("hydrate_missing", self.source)
-        self.assertIn("가격 이력 ${_fmtNumber(hydratedCount)}개 자동 보강", self.source)
-        self.assertIn("누락된 가격 이력은 자동 보강하는 중입니다", self.source)
+        self.assertIn("\uac00\uaca9 \uc774\ub825 ${_fmtNumber(hydratedCount)}\uac1c \uc790\ub3d9 \ubcf4\uac15", self.source)
+        self.assertIn("\ub204\ub77d\ub41c \uac00\uaca9 \uc774\ub825\uc740 \uc790\ub3d9 \ubcf4\uac15\ud558\ub294 \uc911\uc785\ub2c8\ub2e4", self.source)
         self.assertIn("numberInputValue(els.backtestLongWindow", self.source)
 
     def test_strategy_editor_is_code_only_not_universe_editor(self):
@@ -327,7 +493,7 @@ class UiRoutingContractTests(unittest.TestCase):
         self.assertIn('id="quantStrategyGenerate"', html)
         self.assertIn('id="strategyPromptReviewSurface"', html)
         self.assertIn("Strategy definition JSON only", html)
-        self.assertIn("Python 코드가 아니며", html)
+        self.assertIn("Python \ucf54\ub4dc\uac00 \uc544\ub2c8\uba74", html)
 
     def test_dashboard_tab_switching_is_url_addressable_and_verified(self):
         html = INDEX_HTML.read_text(encoding="utf-8")
@@ -441,11 +607,58 @@ class UiRoutingContractTests(unittest.TestCase):
             'data-panel-view="details"',
             'data-panel-view="operations"',
             'data-panel-view="all"',
+            'id="globalQualitySummary"',
+            'id="dashboardRangeControls"',
+            'id="dashboardRangeSelect"',
+            'id="dashboardRangeStart"',
+            'id="dashboardRangeEnd"',
+            'id="quantamentalAiModel"',
+            'id="quantamentalAiModelStatus"',
+            'data-testid="quantamental-ai-model-control"',
+            'data-summary-field="observations"',
+            'data-summary-field="missing"',
+            'data-summary-field="ai-snapshot"',
+            'id="qualityContextSummary"',
+            'data-quality-detail="source"',
+            'data-quality-detail="cache"',
+            'data-quality-detail="range-support"',
+            'value="risk_adjusted_momentum"',
+            '<option value="1D">1D</option>',
+            '<option value="MAX">MAX</option>',
             '<button type="button" id="macroBriefGenerate"',
         ]:
             self.assertIn(marker, html)
+        module_source = QUANTAMENTAL_UI_JS.read_text(encoding="utf-8")
         self.assertIn('.dashboard-surface-grid[data-panel-view="overview"]', css)
         self.assertIn('.dashboard-view-controls', css)
+        self.assertIn(".global-quality-summary", css)
+        self.assertIn(".quality-context-summary", css)
+        self.assertIn(".dashboard-range-controls", css)
+        self.assertIn(".quantamental-ai-control", css)
+        self.assertIn('.dashboard-surface-grid[data-panel-view="all"] [data-panel-tier="primary"] .home-card-head::before', css)
+        self.assertIn(".dashboard-range-controls.range-warning", css)
+        self.assertIn("DEFAULT_DASHBOARD_PANEL_VIEWS", self.source)
+        self.assertIn("dashboardPanelViewByTab: initDashboardPanelViews()", self.source)
+        self.assertIn('market: "all"', self.source)
+        self.assertIn('macro: "all"', self.source)
+        self.assertIn("function setGlobalRange", self.source)
+        self.assertIn("function normalizeCustomGlobalDateOrder", self.source)
+        self.assertIn("function globalRangeValidationMessage", self.source)
+        self.assertIn("function globalRangeSupportSummary", self.source)
+        self.assertIn("function updateGlobalQualitySummary", self.source)
+        self.assertIn("function markGlobalQualityRangePending", self.source)
+        self.assertIn("function renderQuantamentalAiModelOptions", self.source)
+        self.assertIn("function quantamentalAiRequestOptions", self.source)
+        self.assertIn("quantamental-quant-algorithm", module_source)
+        self.assertIn("quality_adjusted_momentum_v1", module_source)
+        self.assertIn("model: aiOptions.model", self.source)
+        self.assertIn("risk_adjusted_momentum_63d", self.source)
+        self.assertIn("risk_adjusted_momentum", self.source)
+        self.assertIn("기간 변경 후 데이터 재계산 대기", self.source)
+        self.assertIn("function renderGlobalQualityContextSummary", self.source)
+        self.assertIn("function displayMissingSummary", self.source)
+        self.assertIn("AI 기준:", self.source)
+        self.assertIn("globalRangeLookbackDays", self.source)
         self.assertLess(
             html.index('class="home-card macro-card macro-hints-card macro-surface"'),
             html.index('class="home-card macro-card macro-brief-card macro-surface"'),
@@ -475,10 +688,10 @@ class UiRoutingContractTests(unittest.TestCase):
             "function renderMacroLoadStatus",
             "function renderMacroPanelFailure",
             "function renderMacroActionPaneStarters",
-            "기존 대시보드 화면을 유지",
+            "\uae30\uc874 \ub300\uc2dc\ubcf4\ub4dc \ud654\uba74\uc744 \uc720\uc9c0",
             "return true;",
             "return false;",
-            "renderMacroLoadStatus(\"매크로 공급자 갱신 실패\"",
+            "renderMacroLoadStatus(\"\ub9e4\ud06c\ub85c \uacf5\uae09\uc790 \uac31\uc2e0 \uc2e4\ud328\"",
             "function renderMacroCoverage",
             "function renderMacroIndicatorTable",
             "function renderMacroSeriesChart",
@@ -488,7 +701,7 @@ class UiRoutingContractTests(unittest.TestCase):
             "function exportMacroReport",
             "function macroDataSurfaces",
             "state.macroOverview",
-            "renderActionCompletion(\"매크로 데이터 갱신 완료\"",
+            "renderActionCompletion(\"\ub9e4\ud06c\ub85c \ub370\uc774\ud130 \uac31\uc2e0 \uc644\ub8cc\"",
         ]:
             self.assertIn(marker, self.source)
         self.assertIn(".macro-surface", css)
@@ -525,11 +738,11 @@ class UiRoutingContractTests(unittest.TestCase):
             'data-testid="quant-run-open"',
             'data-testid="quant-strategy-row-load"',
             'data-action="enable-strict-freshness"',
-            "renderActionCompletion(\"백테스트 완료\"",
-            "renderActionCompletion(\"백테스트 실행 보류\"",
-            "renderActionCompletion(\"백테스트 실패\"",
-            "renderActionCompletion(\"팩터 미리보기 완료\"",
-            "renderActionCompletion(\"포트폴리오 최적화 완료\"",
+            "renderActionCompletion(\"\ubc31\ud14c\uc2a4\ud2b8 \uc644\ub8cc\"",
+            "renderActionCompletion(\"\ubc31\ud14c\uc2a4\ud2b8 \uc2e4\ud589 \ubcf4\ub958\"",
+            "renderActionCompletion(\"\ubc31\ud14c\uc2a4\ud2b8 \uc2e4\ud328\"",
+            "renderActionCompletion(\"\ud329\ud130 \ubbf8\ub9ac\ubcf4\uae30 \uc644\ub8cc\"",
+            "renderActionCompletion(\"\ud3ec\ud2b8\ud3f4\ub9ac\uc624 \ucd5c\uc801\ud654 \uc644\ub8cc\"",
         ]:
             self.assertIn(marker, self.source)
 
@@ -587,6 +800,91 @@ class UiRoutingContractTests(unittest.TestCase):
             match = re.search(pattern, css, re.S)
             self.assertIsNotNone(match, class_name)
             self.assertIn(f"order: {order};", match.group("body"))
+
+    def test_quantamental_static_ui_contract(self):
+        html = INDEX_HTML.read_text(encoding="utf-8")
+        css = STYLES_CSS.read_text(encoding="utf-8")
+        module_source = (Path(__file__).resolve().parents[1] / "app" / "web" / "modules" / "quantamental-ui.js").read_text(encoding="utf-8")
+        for marker in [
+            'id="quantamentalTab"',
+            'data-testid="quantamental-tab"',
+            'data-dashboard-tab="quantamental"',
+            'id="quantamentalSurface"',
+            'id="quantamentalTicker"',
+            'id="quantamentalTickerOpen"',
+            'id="quantamentalMarket"',
+            'id="quantamentalPeriod"',
+            'id="quantamentalYears"',
+            'id="quantamentalLookback"',
+            'id="quantamentalStyle"',
+            'id="quantamentalAnalyze"',
+            'data-testid="quantamental-analyze"',
+            'id="quantamentalSignalSurface"',
+            'id="quantamentalScoreSurface"',
+            'id="quantamentalFactorSurface"',
+            'id="quantamentalMainSurface"',
+            'id="quantamentalAiRefresh"',
+            'data-testid="quantamental-ai-report"',
+            'id="quantamentalDataQualitySurface"',
+            'id="quantamentalCompareTickers"',
+            'id="quantamentalCompareRun"',
+            'data-testid="quantamental-compare-run"',
+            'id="quantamentalCompareSurface"',
+            'id="quantamentalScreenRun"',
+            'data-testid="quantamental-screen-run"',
+            'id="quantamentalScreenSurface"',
+            'id="quantamentalScoreThreshold"',
+            'id="quantamentalScoreMetric"',
+            'id="quantamentalScoreScreenLimit"',
+            'id="quantamentalScoreScreenRun"',
+            'data-testid="quantamental-score-screen-run"',
+            'id="quantamentalScoreScreenStatus"',
+            'id="quantamentalScoreScreenSurface"',
+            'src="modules/quantamental-ui.js?v=20260519-quantamental-v13"',
+        ]:
+            self.assertIn(marker, html)
+        for marker in [
+            "API.quantamentalAnalysis",
+            "API.quantamentalAiReport",
+            "API.quantamentalAiQa",
+            "API.quantamentalCompare",
+            "API.quantamentalTopSignals",
+            "API.quantamentalScoreScreen",
+            "score_key",
+            "function loadQuantamental",
+            "function runQuantamentalAnalysis",
+            "function runQuantamentalCompare",
+            "function loadQuantamentalScreen",
+            "function runQuantamentalScoreScreen",
+            "Force reloads bypass the UI cache; stale-aware server refresh keeps Top 5 fast.",
+            "forceRefresh: false",
+            "function refreshQuantamentalAiReport",
+            "function askQuantamentalQuestion",
+            'openSymbolPicker("quantamentalTicker")',
+            '"#quantamental"',
+            "state.quantamentalActiveTab",
+            "window.FinGPTQuantamentalUi",
+        ]:
+            self.assertIn(marker, self.source)
+        for marker in [
+            "global.FinGPTQuantamentalUi",
+            "companyHeader",
+            "signalCard",
+            "scoreDashboard",
+            "factorGrid",
+            "mainPanel",
+            "qaAnswer",
+            "comparisonTable",
+            "topSignals",
+            "scoreScreen",
+            "quantamental-ai-used-data",
+            "function aiReportSection",
+            "Research classification only. Not investment advice.",
+        ]:
+            self.assertIn(marker, module_source)
+        self.assertIn('[data-dashboard-tab="quantamental"]', css)
+        self.assertIn(".quantamental-surface", css)
+        self.assertIn(".quantamental-tabs", css)
 
 
 if __name__ == "__main__":

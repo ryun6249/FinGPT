@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 import json
 from pathlib import Path
 import shutil
@@ -22,6 +22,7 @@ from pipelines.orchestration.quant_lab_pipeline import (
     export_storage_report,
     feature_preview,
     load_backtest_artifact,
+    list_backtest_runs,
     list_replay_reports,
     preview_backtest_export_cleanup,
     preview_cross_run_export_cleanup,
@@ -30,9 +31,16 @@ from pipelines.orchestration.quant_lab_pipeline import (
     signal_preview,
 )
 from pipelines.backtest.artifact_exports import verify_export_package
+from pipelines.backtest.validation import _current_expected_market_date
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_current_expected_market_date_uses_new_york_market_clock() -> None:
+    assert _current_expected_market_date(datetime(2026, 5, 17, 15, tzinfo=timezone.utc)) == date(2026, 5, 15)
+    assert _current_expected_market_date(datetime(2026, 5, 18, 12, tzinfo=timezone.utc)) == date(2026, 5, 15)
+    assert _current_expected_market_date(datetime(2026, 5, 18, 14, tzinfo=timezone.utc)) == date(2026, 5, 18)
 
 
 def _seed_prices(db_path) -> None:
@@ -91,9 +99,38 @@ def test_feature_and_signal_preview_use_data_mart(tmp_path, monkeypatch) -> None
 
     assert features.status == "success"
     assert features.rows[0].features["momentum_63d"] is not None
+    assert features.rows[0].features["risk_adjusted_momentum_63d"] is not None
     assert features.diagnostics.freshness_policy["policy_id"] == "daily_price_t_plus_3_market_days"
     assert features.diagnostics.asset_freshness["SPY"]["latest_price_date"] == "2026-03-31"
     assert signals.rows[0].lookahead_policy == "close_signal_next_bar_execution"
+
+
+def test_feature_preview_audits_benchmark_price_freshness(tmp_path, monkeypatch) -> None:
+    db_path = tmp_path / "research_mart.db"
+    init_db(db_path)
+    monkeypatch.setenv("DATA_MART_DB_PATH", str(db_path))
+    expected_latest = _current_expected_market_date()
+    rows = []
+    for idx in range(90):
+        qqq_day = (expected_latest - timedelta(days=89 - idx)).isoformat()
+        spy_day = (expected_latest - timedelta(days=180 - idx)).isoformat()
+        rows.extend(
+            [
+                PriceBar(ticker="QQQ", date=qqq_day, close=100 + idx, adjusted_close=100 + idx, source="test"),
+                PriceBar(ticker="SPY", date=spy_day, close=90 + idx, adjusted_close=90 + idx, source="test"),
+            ]
+        )
+    repository.upsert_prices(rows, db_path=db_path)
+
+    features = feature_preview(
+        QuantFeaturePreviewRequest(tickers=["QQQ"], benchmark="SPY", freshness_profile="decision_review")
+    )
+
+    assert features.status == "partial"
+    assert features.diagnostics.latest_price_dates["QQQ"] == expected_latest.isoformat()
+    assert features.diagnostics.asset_freshness["SPY"]["freshness_status"] == "stale"
+    assert "SPY" in features.diagnostics.stale_assets
+    assert "strict_freshness_violation" in features.warnings
 
 
 def test_strict_freshness_marks_stale_preview_partial_and_backtest_failed(tmp_path, monkeypatch) -> None:
@@ -166,6 +203,8 @@ def test_quant_backtest_writes_artifacts_and_keeps_no_lookahead(tmp_path, monkey
     assert manifest["data_snapshot"]["freshness_policy"]["policy_id"] == "daily_price_t_plus_3_market_days"
     assert config["expanded_features"]
     assert config["validation"]["lookahead_safe"] is True
+    assert config["universe_policy"] == "user_supplied_static_list"
+    assert "point-in-time" in config["survivorship_bias_warning"]
     assert result.trades[0]["signal_date"] < result.trades[0]["execution_date"]
     assert replay.status == "success"
     assert replay.metrics["total_return"] == result.metrics["total_return"]
@@ -207,6 +246,31 @@ def test_quant_backtest_writes_artifacts_and_keeps_no_lookahead(tmp_path, monkey
         assert parquet_export["export_written"] is False
         assert parquet_export["dependency"]["available"] is False
     assert compare["replay_run_id"]
+
+
+def test_list_backtest_runs_reports_current_snapshot_freshness(tmp_path, monkeypatch) -> None:
+    db_path = tmp_path / "research_mart.db"
+    _seed_prices(db_path)
+    monkeypatch.setenv("DATA_MART_DB_PATH", str(db_path))
+    monkeypatch.setattr(quant_lab_pipeline, "ARTIFACT_ROOT", tmp_path / "artifacts")
+
+    result = run_quant_backtest(
+        QuantBacktestRequest(
+            tickers=["SPY", "QQQ"],
+            benchmark="SPY",
+            template="momentum_ranking",
+            lookback=21,
+            top_n=1,
+        )
+    )
+
+    runs = list_backtest_runs(limit=5)
+    item = next(row for row in runs["items"] if row["run_id"] == result.run_id)
+
+    assert item["snapshot_freshness"]["status"] == "stale"
+    assert set(item["snapshot_freshness"]["stale_assets"]) == {"SPY", "QQQ"}
+    assert item["snapshot_freshness"]["refresh_recommended"] is True
+    assert item["data_snapshot"]["snapshot_freshness"]["current_expected_latest_date"] == _current_expected_market_date().isoformat()
 
 
 def test_replay_report_flags_tolerance_failures(tmp_path, monkeypatch) -> None:
@@ -273,6 +337,9 @@ def test_compare_backtest_runs_is_read_only_and_reports_lineage(tmp_path, monkey
     assert any(row["metric"] == "sharpe" for row in report["metrics"])
     assert any(row["field"] == "top_n" for row in report["config_differences"])
     assert report["diagnostics"]["lookahead_safe_all"] is True
+    assert {run["snapshot_freshness"]["status"] for run in report["runs"]} == {"stale"}
+    assert all(run["snapshot_freshness"]["refresh_recommended"] is True for run in report["runs"])
+    assert all(run["data_snapshot"]["snapshot_freshness"]["current_expected_latest_date"] for run in report["runs"])
     assert before_dirs == after_dirs
 
 
@@ -546,6 +613,38 @@ def test_quant_backtest_maps_moving_average_template_to_existing_engine(tmp_path
     assert result.status == "success"
     assert result.template == "moving_average_trend"
     assert result.diagnostics.lookahead_safe is True
+
+
+def test_quant_backtest_supports_risk_adjusted_momentum_template(tmp_path, monkeypatch) -> None:
+    db_path = tmp_path / "research_mart.db"
+    _seed_prices(db_path)
+    monkeypatch.setenv("DATA_MART_DB_PATH", str(db_path))
+    monkeypatch.setattr(quant_lab_pipeline, "ARTIFACT_ROOT", tmp_path / "artifacts")
+
+    signal = signal_preview(
+        QuantSignalGenerateRequest(
+            tickers=["SPY", "QQQ", "TLT"],
+            benchmark="SPY",
+            template="risk_adjusted_momentum",
+            lookback=21,
+        )
+    )
+    result = run_quant_backtest(
+        QuantBacktestRequest(
+            tickers=["SPY", "QQQ", "TLT"],
+            benchmark="SPY",
+            template="risk_adjusted_momentum",
+            lookback=21,
+            top_n=2,
+        )
+    )
+
+    assert signal.status == "success"
+    assert signal.rows[0].factor_values["risk_adjusted_momentum_63d"] is not None
+    assert result.status == "success"
+    assert result.template == "risk_adjusted_momentum"
+    assert result.diagnostics.lookahead_safe is True
+    assert result.trades[0]["signal_date"] < result.trades[0]["execution_date"]
 
 
 def test_signal_preview_reports_research_score_provenance(tmp_path, monkeypatch) -> None:

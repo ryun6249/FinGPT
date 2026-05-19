@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 
 from core.config.settings import load_settings
+from core.schemas.request import _coerce_output_language
 from core.schemas.response import CatalystTimeline, Citation, ExecutionMeta, KeyMetric
 from core.schemas.retrieval import RetrievalItem
 from core.schemas.topic import (
@@ -1710,6 +1711,7 @@ async def run_topic_pipeline_async(
     event_sink: EventSink = None,
 ) -> TopicResponse:
     settings = load_settings()
+    language = _coerce_output_language(getattr(request, "output_language", None) or getattr(settings, "output_language", "ko"))
     started = time.time()
     theme = (request.theme or request.question).strip()
     status = "success"
@@ -1862,7 +1864,7 @@ async def run_topic_pipeline_async(
                 topic_plan=fallback_plan,
                 evidence_pack=fallback_pack,
                 error_metadata=None,
-                language=getattr(settings, "output_language", "ko"),
+                language=language,
                 phase="fast",
             )
             fast_payload["uncertainty"] = ""
@@ -1878,11 +1880,11 @@ async def run_topic_pipeline_async(
                         "asset_class": fallback_plan.asset_class,
                     }
                 )
-            fast_gate = topic_fast_gate(fast_payload, preferred_language=getattr(settings, "output_language", "ko"))
+            fast_gate = topic_fast_gate(fast_payload, preferred_language=language)
             final_gate = topic_final_gate(
                 fast_payload,
                 minimums=fallback_plan.minimums,
-                preferred_language=getattr(settings, "output_language", "ko"),
+                preferred_language=language,
             )
             fast_phase = TopicInferencePhaseResult(
                 payload=fast_payload,
@@ -1904,6 +1906,7 @@ async def run_topic_pipeline_async(
                 request.model,
                 request.related_tickers,
                 quant_snapshot,
+                language,
             )
     except Exception as infer_exc:  # noqa: BLE001
         logger.warning("[TOPIC_FAST_INFER_DEGRADED] %s", infer_exc)
@@ -1918,15 +1921,15 @@ async def run_topic_pipeline_async(
             topic_plan=fallback_plan,
             evidence_pack=fallback_pack,
             error_metadata=inference_error,
-            language=getattr(settings, "output_language", "ko"),
+            language=language,
             phase="fast",
         )
         _merge_quant_metrics(fast_payload, quant_snapshot)
-        fast_gate = topic_fast_gate(fast_payload, preferred_language=getattr(settings, "output_language", "ko"))
+        fast_gate = topic_fast_gate(fast_payload, preferred_language=language)
         final_gate = topic_final_gate(
             fast_payload,
             minimums=fallback_plan.minimums,
-            preferred_language=getattr(settings, "output_language", "ko"),
+            preferred_language=language,
         )
         fast_phase = TopicInferencePhaseResult(
             payload=fast_payload,
@@ -1944,7 +1947,7 @@ async def run_topic_pipeline_async(
     fast_phase = _apply_quant_to_phase(
         fast_phase,
         quant_snapshot,
-        preferred_language=getattr(settings, "output_language", "ko"),
+        preferred_language=language,
     )
     stage_timings["infer_fast"] = round(time.time() - infer_fast_started, 2)
     _emit(
@@ -2115,11 +2118,12 @@ async def run_topic_pipeline_async(
                 topic_plan=fast_phase.topic_plan,
                 deep_reason=", ".join(deep_pass_reason) or "quality completion",
                 quant_snapshot=quant_snapshot,
+                output_language=language,
             )
             deep_phase = _apply_quant_to_phase(
                 deep_phase,
                 quant_snapshot,
-                preferred_language=getattr(settings, "output_language", "ko"),
+                preferred_language=language,
             )
             stage_timings["infer_deep"] = round(time.time() - infer_deep_started, 2)
             _emit(
@@ -2147,14 +2151,14 @@ async def run_topic_pipeline_async(
                 topic_plan=fast_phase.topic_plan,
                 evidence_pack=fallback_pack,
                 error_metadata=inference_error,
-                language=getattr(settings, "output_language", "ko"),
+                language=language,
                 phase="final",
             )
             _merge_quant_metrics(degraded_payload, quant_snapshot)
             final_gate = topic_final_gate(
                 degraded_payload,
                 minimums=fast_phase.topic_plan.minimums,
-                preferred_language=getattr(settings, "output_language", "ko"),
+                preferred_language=language,
             )
             stage_timings["infer_deep"] = round(time.time() - infer_deep_started, 2)
             _emit(
@@ -2188,7 +2192,7 @@ async def run_topic_pipeline_async(
             topic_plan=fast_phase.topic_plan,
             evidence_pack=repair_pack,
             error_metadata=None,
-            language=getattr(settings, "output_language", "ko"),
+            language=language,
             phase="final_repair",
         )
         _merge_quant_metrics(repair_payload, quant_snapshot)
@@ -2203,7 +2207,7 @@ async def run_topic_pipeline_async(
         final_gate = topic_final_gate(
             final_payload,
             minimums=fast_phase.topic_plan.minimums,
-            preferred_language=getattr(settings, "output_language", "ko"),
+            preferred_language=language,
         )
         if final_gate.get("ok"):
             recovered_errors.append("최종 섹션 누락을 로컬 결정 규칙으로 보강했습니다.")
@@ -2290,6 +2294,7 @@ async def run_topic_pipeline_async(
             "macro_platform_metrics_count": len(macro_metric_dicts),
             "data_mart_freshness": structured_context.get("freshness") if isinstance(structured_context, dict) else {},
             "data_quality_summary": structured_context.get("data_quality_summary") if isinstance(structured_context, dict) else {},
+            "output_language": language,
             "llm_skipped_reason": final_meta.get("llm_skipped_reason") or fast_meta.get("llm_skipped_reason") or "",
             "metric_as_of_coverage": metric_coverage,
             "claim_evidence_date_coverage": claim_date_coverage,
@@ -2356,7 +2361,7 @@ async def run_topic_pipeline_async(
                 }
             else:
                 raise
-    report_md, report_html = build_topic_report(response, language=getattr(settings, "output_language", "ko"))
+    report_md, report_html = build_topic_report(response, language=language)
     stage_timings["report"] = round(time.time() - report_started, 2)
     _emit(event_sink, "stage_completed", stage="report", duration_s=stage_timings["report"])
 

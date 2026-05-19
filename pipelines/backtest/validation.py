@@ -1,7 +1,54 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
+
+
+_US_MARKET_TZ = ZoneInfo("America/New_York")
+_US_MARKET_OPEN = time(9, 30)
+
+
+FRESHNESS_PROFILES: dict[str, dict[str, Any]] = {
+    "research_default": {
+        "require_fresh_prices": False,
+        "max_market_calendar_lag_days": 3,
+    },
+    "decision_review": {
+        "require_fresh_prices": True,
+        "max_market_calendar_lag_days": 1,
+    },
+    "historical_lab": {
+        "require_fresh_prices": False,
+        "max_market_calendar_lag_days": 30,
+    },
+}
+
+
+def resolve_freshness_policy_request(request: Any) -> dict[str, Any]:
+    """Resolve a request object or dict into explicit validation kwargs."""
+
+    def _value(key: str, default: Any = None) -> Any:
+        if isinstance(request, dict):
+            return request.get(key, default)
+        return getattr(request, key, default)
+
+    profile = str(_value("freshness_profile", "research_default") or "research_default").strip().lower()
+    if profile not in FRESHNESS_PROFILES:
+        profile = "research_default"
+    fields_set = set(request.keys()) if isinstance(request, dict) else set(getattr(request, "model_fields_set", set()))
+    profile_defaults = FRESHNESS_PROFILES[profile]
+    require_fresh_prices = bool(profile_defaults["require_fresh_prices"])
+    max_lag = int(profile_defaults["max_market_calendar_lag_days"])
+    if "require_fresh_prices" in fields_set and _value("require_fresh_prices") is not None:
+        require_fresh_prices = bool(_value("require_fresh_prices"))
+    if "max_market_calendar_lag_days" in fields_set and _value("max_market_calendar_lag_days") is not None:
+        max_lag = int(_value("max_market_calendar_lag_days"))
+    return {
+        "freshness_profile": profile,
+        "require_fresh_prices": require_fresh_prices,
+        "max_market_calendar_lag_days": max_lag,
+    }
 
 
 def validate_backtest_inputs(
@@ -68,7 +115,7 @@ def _freshness_policy(
     require_fresh_prices: bool = False,
     max_market_calendar_lag_days: int = 3,
 ) -> dict[str, Any]:
-    expected = _expected_market_date(datetime.now(timezone.utc).date())
+    expected = _current_expected_market_date()
     max_lag = max(0, int(max_market_calendar_lag_days))
     return {
         "policy_id": f"daily_price_t_plus_{max_lag}_market_days",
@@ -121,6 +168,24 @@ def _asset_freshness(rows: list[dict[str, Any]], *, policy: dict[str, Any]) -> d
 
 def _expected_market_date(today: date) -> date:
     expected = today
+    while expected.weekday() >= 5:
+        expected = date.fromordinal(expected.toordinal() - 1)
+    return expected
+
+
+def _current_expected_market_date(now: datetime | None = None) -> date:
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    now_ny = current.astimezone(_US_MARKET_TZ)
+    candidate = now_ny.date()
+    if candidate.weekday() >= 5 or now_ny.time() < _US_MARKET_OPEN:
+        return _previous_market_date(candidate)
+    return candidate
+
+
+def _previous_market_date(day: date) -> date:
+    expected = date.fromordinal(day.toordinal() - 1)
     while expected.weekday() >= 5:
         expected = date.fromordinal(expected.toordinal() - 1)
     return expected

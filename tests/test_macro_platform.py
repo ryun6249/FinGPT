@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 from fastapi.testclient import TestClient
 
 from app.api.server import app
@@ -153,6 +155,49 @@ def test_macro_registry_loads_required_series() -> None:
         assert extension in ids
     assert len(enabled_items) >= 70
     assert {"housing_consumer", "financial_conditions", "fx_dollar", "commodities"}.issubset({item.category for item in enabled_items})
+    assert get_series_definition("CSUSHPISA").stale_after_days >= 140
+    busloans = get_series_definition("BUSLOANS")
+    assert busloans.frequency == "monthly"
+    assert busloans.stale_after_days >= 95
+
+
+def test_macro_data_quality_covers_full_registry_freshness(monkeypatch, tmp_path) -> None:
+    _reset_macro_runtime(monkeypatch, tmp_path)
+    definitions = [get_series_definition(series_id) for series_id in ["CSUSHPISA", "BUSLOANS", "DGS10"]]
+    monkeypatch.setattr(macro_service, "_list_macro_series", lambda include_disabled=False: definitions)
+    today = datetime.now(timezone.utc).date()
+    repository.upsert_macro_observations(
+        [
+            StoredMacroObservation(
+                series_id="CSUSHPISA",
+                date=(today - timedelta(days=120)).isoformat(),
+                value=330.0,
+                source="fred",
+            ),
+            StoredMacroObservation(
+                series_id="BUSLOANS",
+                date=(today - timedelta(days=60)).isoformat(),
+                value=2800.0,
+                source="fred",
+            ),
+            StoredMacroObservation(
+                series_id="DGS10",
+                date=(today - timedelta(days=8)).isoformat(),
+                value=4.4,
+                source="fred",
+            ),
+        ],
+        db_path=tmp_path / "macro_test.db",
+    )
+
+    payload = macro_service.get_data_quality()
+    rows = {row["series_id"]: row for row in payload["series"]}
+
+    assert payload["coverage"]["evaluated_series"] == 3
+    assert rows["CSUSHPISA"]["status"] == "ok"
+    assert rows["BUSLOANS"]["status"] == "ok"
+    assert rows["DGS10"]["status"] == "stale"
+    assert payload["data_quality"]["stale_series"] == ["DGS10"]
 
 
 def test_provider_unavailable_returns_no_fake_observations(monkeypatch, tmp_path) -> None:
@@ -231,6 +276,7 @@ def test_macro_dashboard_summary_endpoint_is_compact_and_operable(monkeypatch, t
     assert "overview" in body
     assert "coverage" in body
     assert "data_quality" in body
+    assert "quality_detail" in body
     assert "refresh" in body
     assert "generated_at" in body
     assert body["coverage"]["registry_series"] >= 70

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from pipelines.factors.core import momentum_return
+from pipelines.factors.core import momentum_return, risk_adjusted_momentum
 from pipelines.backtest.metrics import performance_metrics
 
 
@@ -253,6 +253,170 @@ def run_momentum_ranking_backtest(
             "transaction_cost_bps": config.transaction_cost_bps,
             "slippage_bps": config.slippage_bps,
             "lookahead_policy": "ranking uses history through the previous close before applying weights",
+        },
+        "date_range": {"start": common_dates[0], "end": common_dates[-1]},
+        "equity_curve": [{"date": date, "equity": round(value, 8)} for date, value in zip(common_dates, equity)],
+        "trades": trades,
+        "selected_history": selected_history,
+        "rebalance_snapshots": rebalance_snapshots,
+        "metrics": metrics,
+    }
+
+
+def run_risk_adjusted_momentum_backtest(
+    prices_by_asset: dict[str, list[dict[str, Any]]],
+    *,
+    lookback: int = 63,
+    top_n: int = 1,
+    rebalance_every: int = 21,
+    config: BacktestConfig | None = None,
+) -> dict[str, Any]:
+    config = config or BacktestConfig(strategy="risk_adjusted_momentum")
+    return _run_ranked_backtest(
+        prices_by_asset,
+        strategy_name="risk_adjusted_momentum",
+        score_reason="risk_adjusted_momentum_rebalance",
+        score_fn=lambda history: risk_adjusted_momentum(history, lookback=lookback, volatility_lookback=min(21, max(2, lookback // 3))),
+        lookback=lookback,
+        top_n=top_n,
+        rebalance_every=rebalance_every,
+        config=config,
+    )
+
+
+def _run_ranked_backtest(
+    prices_by_asset: dict[str, list[dict[str, Any]]],
+    *,
+    strategy_name: str,
+    score_reason: str,
+    score_fn,
+    lookback: int,
+    top_n: int,
+    rebalance_every: int,
+    config: BacktestConfig,
+) -> dict[str, Any]:
+    series = {
+        asset.upper().strip(): sorted([row for row in rows if _price(row) is not None], key=lambda row: str(row.get("date") or ""))
+        for asset, rows in prices_by_asset.items()
+        if str(asset).strip()
+    }
+    series = {asset: rows for asset, rows in series.items() if len(rows) >= lookback + 2}
+    if not series:
+        return {
+            "status": "partial",
+            "reason": "not_enough_price_history",
+            "strategy": strategy_name,
+            "equity_curve": [],
+            "trades": [],
+            "metrics": performance_metrics([]),
+        }
+
+    common_dates = sorted(set.intersection(*(set(str(row.get("date") or "") for row in rows) for rows in series.values())))
+    if len(common_dates) < lookback + 2:
+        return {
+            "status": "partial",
+            "reason": "not_enough_common_history",
+            "strategy": strategy_name,
+            "equity_curve": [],
+            "trades": [],
+            "metrics": performance_metrics([]),
+        }
+
+    prices = {
+        asset: {str(row.get("date") or ""): _price(row) for row in rows}
+        for asset, rows in series.items()
+    }
+    top_n = max(1, min(int(top_n), len(prices)))
+    rebalance_every = max(1, int(rebalance_every))
+    cost = (float(config.transaction_cost_bps) + float(config.slippage_bps)) / 10000.0
+    equity = [float(config.initial_capital)]
+    weights = {asset: 0.0 for asset in prices}
+    trades: list[dict[str, Any]] = []
+    selected_history: list[dict[str, Any]] = []
+    rebalance_snapshots: list[dict[str, Any]] = []
+    exposure_history: list[float] = []
+
+    for idx in range(1, len(common_dates)):
+        date = common_dates[idx]
+        prev_date = common_dates[idx - 1]
+        rebalance_turnover = 0.0
+        if idx > lookback and (idx - lookback - 1) % rebalance_every == 0:
+            scores: list[tuple[str, float]] = []
+            for asset in prices:
+                history = [prices[asset][d] for d in common_dates[:idx] if prices[asset].get(d) is not None]
+                score = score_fn(history)
+                if score is not None:
+                    scores.append((asset, float(score)))
+            ranked = sorted(scores, key=lambda item: item[1], reverse=True)
+            selected = [asset for asset, _ in ranked[:top_n]]
+            score_map = {asset: score for asset, score in ranked}
+            next_weights = {asset: (1.0 / len(selected) if asset in selected and selected else 0.0) for asset in prices}
+            turnover = sum(abs(next_weights[asset] - weights.get(asset, 0.0)) for asset in prices)
+            if turnover:
+                for asset in prices:
+                    previous_weight = weights.get(asset, 0.0)
+                    target_weight = next_weights[asset]
+                    if abs(target_weight - previous_weight) <= 1e-12:
+                        continue
+                    trades.append(
+                        _trade_event(
+                            signal_date=prev_date,
+                            execution_date=date,
+                            ticker=asset,
+                            previous_weight=previous_weight,
+                            target_weight=target_weight,
+                            price=prices[asset].get(date),
+                            cost_rate=cost,
+                            transaction_cost_bps=config.transaction_cost_bps,
+                            slippage_bps=config.slippage_bps,
+                            reason=score_reason,
+                            selected=asset in selected,
+                            score=score_map.get(asset),
+                        )
+                    )
+                rebalance_turnover = turnover
+            weights = next_weights
+            selected_history.append({"date": date, "selected": selected})
+            rebalance_snapshots.append(
+                {
+                    "signal_date": prev_date,
+                    "execution_date": date,
+                    "selected": selected,
+                    "rejected": [asset for asset, _ in ranked[top_n:]],
+                    "scores": {asset: round(score, 8) for asset, score in ranked},
+                    "target_weights": {asset: round(weight, 8) for asset, weight in weights.items()},
+                    "turnover": round(turnover, 8),
+                }
+            )
+        exposure_history.append(sum(abs(weight) for weight in weights.values()))
+        daily_return = 0.0
+        for asset, weight in weights.items():
+            prev_price = prices[asset].get(prev_date)
+            current_price = prices[asset].get(date)
+            if not prev_price or current_price is None:
+                continue
+            daily_return += weight * (current_price / prev_price - 1.0)
+        equity.append(equity[-1] * (1.0 + daily_return - rebalance_turnover * cost))
+
+    metrics = performance_metrics(equity)
+    metrics.update(
+        {
+            "turnover": round(sum(trade["turnover"] for trade in trades), 6),
+            "exposure": round(sum(exposure_history) / max(len(exposure_history), 1), 6),
+            "trade_count": len(trades),
+        }
+    )
+    return {
+        "status": "success",
+        "strategy": strategy_name,
+        "assumptions": {
+            "lookback": lookback,
+            "top_n": top_n,
+            "rebalance_every": rebalance_every,
+            "transaction_cost_bps": config.transaction_cost_bps,
+            "slippage_bps": config.slippage_bps,
+            "lookahead_policy": "ranking uses history through the previous close before applying weights",
+            "ranking_score": strategy_name,
         },
         "date_range": {"start": common_dates[0], "end": common_dates[-1]},
         "equity_curve": [{"date": date, "equity": round(value, 8)} for date, value in zip(common_dates, equity)],

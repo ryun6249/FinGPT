@@ -165,6 +165,7 @@ async def compare_research(request: CompareRequest) -> CompareResponse:
                     lookback_days=request.lookback_days,
                     top_k=request.top_k,
                     model=request.model,
+                    output_language=request.output_language,
                     scenario_simulation_enabled=request.scenario_simulation_enabled,
                 )
                 return ticker, await run_pipeline_async(sub_request)
@@ -175,9 +176,13 @@ async def compare_research(request: CompareRequest) -> CompareResponse:
                     question=request.question,
                     status="failed",
                     error_metadata=str(exc),
-                    summary=f"{ticker} 실행 실패: {exc}",
+                    summary=f"{ticker} failed: {exc}" if request.output_language == "en" else f"{ticker} 실행 실패: {exc}",
                     sentiment="Neutral",
-                    conclusion="비교 분석 중 파이프라인 예외가 발생했습니다.",
+                    conclusion=(
+                        "Pipeline exception during compare analysis."
+                        if request.output_language == "en"
+                        else "비교 분석 중 파이프라인 예외가 발생했습니다."
+                    ),
                 )
 
     pairs = await asyncio.gather(*(run_one(ticker) for ticker in tickers))

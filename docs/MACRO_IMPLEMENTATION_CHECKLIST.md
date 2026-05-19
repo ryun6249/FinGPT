@@ -541,6 +541,7 @@ This section tracks the dashboard/provider-health/scenario expansion for the sta
 | M13-4 | Convert the Macro tab to progressive dashboard loading with independent panel failures. | `app/web/index.html`, `app/web/app.js`, `app/web/styles.css` | DONE | Dashboard, provider health, filters, compare shell, scenario starter, and research preview render as separate surfaces. |
 | M13-5 | Keep static UI contracts and routing tests aligned with the new Macro DOM/API markers. | `scripts/check_ui_contract.py`, `tests/test_ui_routing_contract.py` | DONE | Contract checks include Macro dashboard/provider/scenario/research markers only within Macro scope. |
 | M13-6 | Add repeatable browser smoke for desktop and mobile Macro tab validation. | `scripts/macro_ui_smoke.py` | DONE | Script starts a disposable FastAPI server when no URL is provided, verifies progressive surfaces, search, advisory scenario, research preview, console errors, and mojibake tokens. |
+| M13-7 | Make Macro freshness evidence cover every enabled registry series. | `pipelines/macro/macro_service.py`, `pipelines/macro/dashboard.py`, `pipelines/macro/series_registry.py`, `app/web/app.js` | DONE | `/api/v1/macro/data-quality` defaults to full-registry validation, dashboard coverage uses the same aggregate quality, and `BUSLOANS`/`CSUSHPISA` release-lag thresholds are aligned with provider output. |
 
 Recommended validation gate:
 

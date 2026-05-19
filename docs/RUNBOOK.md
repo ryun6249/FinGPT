@@ -121,6 +121,15 @@ docker compose up -d qdrant
 docker logs fingpt-qdrant
 ```
 
+Docker compose validation:
+```bash
+docker compose config --quiet
+```
+
+Do not paste full `docker compose config` output into issues, PRs, or logs
+when environment variables may contain secrets. Use
+`docker compose config --quiet` for validation.
+
 Model recovery:
 ```bash
 ollama serve
@@ -138,6 +147,72 @@ Experimental fallback recovery:
 set ENABLE_EXPERIMENTAL_FALLBACK=true
 ollama pull gemma4:e4b
 ```
+
+## Quality Gates and Typecheck Policy
+The required local and CI quality gates are:
+
+```bash
+python scripts/check_env_example.py
+python -m ruff check app core pipelines scripts tests setup.py quality_review.py
+python -m compileall app core pipelines scripts tests
+python -m pytest -q
+python scripts/check_ui_contract.py
+docker compose config --quiet
+```
+
+`mypy` is not a required gate yet. The repository does not currently ship a
+project mypy configuration or a dev dependency pin for mypy. Add mypy gradually
+after the active runtime, API, and quant modules have typed boundaries that can
+pass without weakening checks.
+
+## Universe and Survivorship Bias Policy
+
+### Scope
+
+This project may use provider-specific current index constituents,
+user-supplied ticker lists, cached market data, or external APIs. Unless a
+point-in-time constituent database is explicitly configured, backtests over
+equity universes may be exposed to survivorship bias.
+
+### What is controlled
+
+- No-lookahead signal generation.
+- Next-bar or delayed execution where configured.
+- Transaction cost assumptions.
+- Slippage assumptions.
+- Time-series split, purge, and embargo safeguards for ML workflows.
+- Missing or invalid ticker handling without fake success.
+
+### What is not fully controlled by default
+
+- Delisted securities coverage.
+- Point-in-time index membership.
+- Corporate action completeness across providers.
+- Provider-specific historical constituent changes.
+- Full survivorship-free universe reconstruction.
+
+### Required practice for research-grade backtests
+
+- Use point-in-time constituent snapshots when evaluating index universes.
+- Store the universe definition with the backtest artifact.
+- Record provider, retrieval time, adjustment policy, and filtering rules.
+- Do not compare a current-constituent universe against historical benchmark
+  returns as if it were survivorship-free.
+- Mark results as exploratory unless delisted coverage and point-in-time
+  membership are verified.
+
+### Report labeling
+
+Backtest reports must label universe policy as one of:
+
+- `point_in_time_verified`
+- `current_constituents_only`
+- `user_supplied_static_list`
+- `provider_unknown`
+- `single_asset`
+
+Reports that are not `point_in_time_verified` must include a
+survivorship-bias warning.
 
 ## Single Research Run
 ```bash
@@ -182,6 +257,11 @@ python scripts/daily_update.py --market us --retry-failed --json
 python scripts/daily_update.py --market us --watchlist config/watchlists/core_us.yaml --start-date 2024-01-01 --json
 python -c "from pipelines.data_mart.jobs.update_macro_daily import update_macro_platform_data; print(update_macro_platform_data().status)"
 ```
+
+Macro tab freshness checks:
+- `GET /api/v1/macro/data-quality` validates every enabled Macro registry series, not just the overview indicators. Use `?scope=overview` only when you intentionally want the smaller overview-only check.
+- Some FRED series use observation-period dates rather than release timestamps. Keep registry `stale_after_days` aligned with release lag before treating a refreshed but old-looking observation date as stale.
+- `BUSLOANS` is monthly in the FRED graph CSV path used by the refresh job; do not classify it as a weekly series for freshness or YoY transforms.
 
 If the mart DB is corrupt, move it aside rather than deleting it blindly:
 ```powershell

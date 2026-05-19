@@ -575,6 +575,34 @@ def _assert_visible_text_or_selector(
     return {"label": label, "selector": selector, "text": _clip(text, 300)}
 
 
+def _ensure_command_panel_open(page: Any, *, timeout_ms: int) -> dict[str, str]:
+    form = page.locator("#analysisForm").first
+    latest_button = page.locator("#loadLatestBtn").first
+    try:
+        if latest_button.is_visible(timeout=1000):
+            return {"label": "command panel", "selector": "#analysisForm", "text": "already visible"}
+    except Exception:  # noqa: BLE001
+        pass
+
+    toggle = page.locator("#commandPanelToggle").first
+    toggle.wait_for(state="visible", timeout=timeout_ms)
+    if (toggle.get_attribute("aria-expanded", timeout=timeout_ms) or "").lower() == "true":
+        page.evaluate(
+            """() => {
+                const panel = document.querySelector(".control-panel");
+                const button = document.querySelector("#commandPanelToggle");
+                panel?.classList.remove("is-collapsed");
+                document.body.classList.add("command-panel-expanded");
+                button?.setAttribute("aria-expanded", "true");
+            }"""
+        )
+    else:
+        toggle.click(timeout=timeout_ms)
+    latest_button.wait_for(state="visible", timeout=timeout_ms)
+    form.wait_for(state="visible", timeout=timeout_ms)
+    return {"label": "command panel", "selector": "#commandPanelToggle", "text": "opened"}
+
+
 def _latest_output_readiness() -> dict[str, Any]:
     required = {
         "response": OUTPUTS_DIR / "latest_response.json",
@@ -611,14 +639,18 @@ def _run_browser_ui_checks(base_url: str, *, timeout_s: int, screenshot_dir: Pat
             locale="ko-KR",
             accept_downloads=True,
         )
+        context.add_init_script("localStorage.setItem('fingpt.controlPanel.v1', 'expanded');")
         try:
             page = context.new_page()
             page.set_default_timeout(timeout_ms)
             page.goto(current_url, wait_until="domcontentloaded", timeout=timeout_ms)
 
+            checked.append(_ensure_command_panel_open(page, timeout_ms=timeout_ms))
+
             home_selectors = [
                 ("#analysisForm", "analysis form"),
-                ("#homeMarketList", "market snapshot"),
+                ("#marketTapeSurface", "market tape"),
+                ("#marketSignalSurface", "market signals"),
                 ("#homeNewsList", "home news"),
                 ("#homeHeatmap", "intraday heatmap"),
                 ("#historyList", "run history"),

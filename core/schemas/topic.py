@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-from core.schemas.request import SupportedInferenceRoute
+from core.schemas.request import SupportedInferenceRoute, SupportedOutputLanguage, _coerce_output_language
 from core.schemas.response import (
     CatalystTimeline,
     Citation,
@@ -28,10 +28,19 @@ class TopicRequest(BaseModel):
     top_k: int = 12
     model: SupportedInferenceRoute = "qwen"
     output_dir: Optional[str] = None
+    output_language: SupportedOutputLanguage = Field(
+        default="ko",
+        description="Per-request output language for topic analysis and reports.",
+    )
     scenario_simulation_enabled: Optional[bool] = Field(
         default=None,
         description="Optional per-request override for the default-off scenario simulation layer.",
     )
+
+    @field_validator("output_language", mode="before")
+    @classmethod
+    def _clean_output_language(cls, value) -> str:
+        return _coerce_output_language(value)
 
 
 class KeyDriver(BaseModel):

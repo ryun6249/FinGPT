@@ -144,6 +144,8 @@ class Settings(BaseSettings):
     # with an organization/contact string before sustained automated use.
     sec_user_agent: str = Field(default="FinGPTLocalResearch/1.0 contact@example.com")
     sec_request_delay_s: float = Field(default=0.12)
+    dart_api_key: str = Field(default="")
+    dart_request_timeout_s: float = Field(default=12.0)
 
     # Local structured data auto refresh. This is an in-process workstation
     # scheduler, not a distributed job runner. It polls SEC/company data on a

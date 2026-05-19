@@ -8,6 +8,7 @@ from core.config.settings import load_settings
 from core.schemas.macro import (
     MacroBriefResponse,
     MacroDataQuality,
+    MacroObservation,
     MacroOverview,
     MacroReportResponse,
     MacroSeriesDetailResponse,
@@ -15,6 +16,7 @@ from core.schemas.macro import (
     MacroSeriesSearchItem,
     MacroSeriesSearchResponse,
 )
+from pipelines.data_mart.storage import repository
 from pipelines.macro.ai_brief import generate_brief
 from pipelines.macro.asset_impact import get_asset_impacts
 from pipelines.macro.data_quality import aggregate_quality, evaluate_series_quality
@@ -111,6 +113,15 @@ def clear_macro_caches() -> None:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _parse_observation_date(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value)[:10]).replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
 
 
 def _cache_time() -> float:
@@ -552,6 +563,82 @@ def _series_map(series_ids: list[str] | None = None) -> dict[str, MacroSeriesRes
     return out
 
 
+def _summary_raw_limit(definition, observation_limit: int = 0) -> int:
+    requested = max(0, int(observation_limit or 0))
+    if str(definition.transform or "").lower() == "yoy_percent":
+        freq = str(definition.frequency or "").lower()
+        period = 4 if "quarter" in freq else (52 if "week" in freq else (252 if "daily" in freq else 12))
+        return max(period + requested + 12, 36)
+    return max(requested + 12, 30)
+
+
+def _summary_series_response(definition, *, observation_limit: int = 0) -> MacroSeriesResponse:
+    rows = repository.recent_macro_observations(definition.series_id, limit=_summary_raw_limit(definition, observation_limit))
+    provider = str(rows[-1].get("source") or "data_mart") if rows else "data_mart"
+    raw_observations = [
+        MacroObservation(
+            date=str(row.get("date") or ""),
+            value=row.get("value"),
+            raw_value=row.get("value"),
+            source=str(row.get("source") or provider),
+            metadata={"collected_at": row.get("collected_at")},
+        )
+        for row in rows
+    ]
+    provider_quality = MacroDataQuality(
+        status="ok" if raw_observations else "unavailable",
+        provider=provider,
+        last_updated=str(rows[-1].get("collected_at") or rows[-1].get("date") or "") if rows else None,
+        missing_series=[] if raw_observations else [definition.series_id],
+    )
+    observations, transform_errors = apply_transform(definition, raw_observations)
+    quality = evaluate_series_quality(definition, observations, provider_quality, transform_errors=transform_errors)
+    latest = observations[-1] if observations else None
+    limit = max(0, int(observation_limit or 0))
+    return MacroSeriesResponse(
+        series_id=definition.series_id,
+        display_name=definition.display_name,
+        category=definition.category,
+        unit=definition.unit,
+        frequency=definition.frequency,
+        provider=provider,
+        observations=observations[-limit:] if limit else [],
+        latest=latest,
+        changes=compute_changes(observations),
+        data_quality=quality,
+    )
+
+
+def _series_group_summary(category: str, definitions, *, observation_limit: int = 0) -> dict[str, Any]:
+    items = [_summary_series_response(definition, observation_limit=observation_limit) for definition in definitions]
+    return {
+        "status": "success",
+        "category": category,
+        "count": len(items),
+        "items": [item.model_dump(mode="json") for item in items],
+        "data_quality": aggregate_quality(items, provider="macro_category").model_dump(mode="json"),
+    }
+
+
+def get_macro_category_summary(category: str, *, observation_limit: int = 0) -> dict[str, Any]:
+    slug = normalize_category(category)
+    definitions = series_by_category(slug)
+    if not definitions:
+        raise KeyError(slug)
+    return _series_group_summary(slug, definitions, observation_limit=observation_limit)
+
+
+def get_growth_labor_summary(*, observation_limit: int = 0) -> dict[str, Any]:
+    definitions = [*series_by_category("growth"), *series_by_category("labor")]
+    return _series_group_summary("growth_labor", definitions, observation_limit=observation_limit)
+
+
+def get_yield_curve_summary(*, observation_limit: int = 0) -> dict[str, Any]:
+    ids = ["DGS3MO", "DGS1", "DGS2", "DGS5", "DGS7", "DGS10", "DGS30", "T10Y2Y", "T10Y3M", "DFII10"]
+    definitions = [get_series_definition(series_id) for series_id in ids]
+    return _series_group_summary("yield_curve", definitions, observation_limit=observation_limit)
+
+
 def get_macro_category(category: str) -> dict[str, Any]:
     slug = normalize_category(category)
     definitions = series_by_category(slug)
@@ -905,23 +992,121 @@ def generate_macro_report() -> MacroReportResponse:
     )
 
 
-def get_data_quality() -> dict[str, Any]:
-    overview = get_macro_overview()
+def _series_freshness_quality(definition, row: dict[str, Any] | None, *, now: datetime) -> MacroDataQuality:
+    provider = str(row.get("source") or "data_mart") if row else "data_mart"
+    if not row:
+        return MacroDataQuality(
+            status="unavailable",
+            provider=provider,
+            missing_series=[definition.series_id],
+            notes=["No cached macro observation is available."],
+        )
+    latest_date = str(row.get("date") or "")
+    latest_dt = _parse_observation_date(latest_date)
+    errors: list[str] = []
+    notes: list[str] = []
+    stale_series: list[str] = []
+    status = "ok"
+    if latest_dt is None:
+        status = "partial"
+        errors.append(f"invalid latest date for {definition.series_id}: {latest_date}")
+    else:
+        age_days = (now - latest_dt).days
+        if age_days > definition.stale_after_days:
+            status = "stale"
+            stale_series.append(definition.series_id)
+            notes.append(
+                f"{definition.series_id} latest observation is {age_days} days old "
+                f"(threshold {definition.stale_after_days} days)."
+            )
+    return MacroDataQuality(
+        status=status,
+        provider=provider,
+        last_updated=str(row.get("collected_at") or latest_date or ""),
+        stale_series=stale_series,
+        errors=errors,
+        notes=notes,
+    )
+
+
+def _data_quality_row(definition, row: dict[str, Any] | None, quality: MacroDataQuality) -> dict[str, Any]:
     return {
-        "status": overview.data_quality.status,
-        "data_quality": overview.data_quality.model_dump(mode="json"),
-        "series": [
+        "series_id": definition.series_id,
+        "display_name": definition.display_name,
+        "category": definition.category,
+        "subcategory": definition.subcategory,
+        "status": quality.status,
+        "latest_date": row.get("date") if row else None,
+        "last_updated": quality.last_updated,
+        "provider": quality.provider,
+        "source": row.get("source") if row else None,
+        "frequency": definition.frequency,
+        "stale_after_days": definition.stale_after_days,
+        "errors": quality.errors,
+        "notes": quality.notes,
+    }
+
+
+def _status_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
+    return {status: sum(1 for row in rows if row.get("status") == status) for status in ["ok", "partial", "stale", "unavailable"]}
+
+
+def get_data_quality(*, include_disabled: bool = False, scope: str = "all") -> dict[str, Any]:
+    selected_scope = str(scope or "all").strip().lower()
+    if selected_scope == "overview":
+        overview = get_macro_overview()
+        rows = [
             {
                 "series_id": item.series_id,
                 "display_name": item.display_name,
+                "category": item.category,
                 "status": item.data_quality.status,
                 "latest_date": item.latest.date if item.latest else None,
+                "last_updated": item.data_quality.last_updated,
                 "provider": item.provider,
                 "errors": item.data_quality.errors,
                 "notes": item.data_quality.notes,
             }
             for item in overview.key_indicators
-        ],
+        ]
+        return {
+            "status": overview.data_quality.status,
+            "scope": "overview",
+            "data_quality": overview.data_quality.model_dump(mode="json"),
+            "coverage": {
+                "registry_series": len(_list_macro_series(include_disabled=include_disabled)),
+                "evaluated_series": len(rows),
+                "status_counts": _status_counts(rows),
+            },
+            "series": rows,
+        }
+
+    definitions = _list_macro_series(include_disabled=include_disabled)
+    latest_by_id = repository.latest_macros([definition.series_id for definition in definitions])
+    now = datetime.now(timezone.utc)
+    qualities: list[MacroDataQuality] = []
+    rows: list[dict[str, Any]] = []
+    for definition in definitions:
+        row = latest_by_id.get(definition.series_id)
+        quality = _series_freshness_quality(definition, row, now=now)
+        qualities.append(quality)
+        rows.append(_data_quality_row(definition, row, quality))
+    aggregate = aggregate_quality(qualities, provider="macro_registry")
+    counts = _status_counts(rows)
+    return {
+        "status": aggregate.status,
+        "scope": "all",
+        "data_quality": aggregate.model_dump(mode="json"),
+        "coverage": {
+            "registry_series": len(definitions),
+            "evaluated_series": len(rows),
+            "status_counts": counts,
+            "ok_series": counts.get("ok", 0),
+            "stale_series": counts.get("stale", 0),
+            "partial_series": counts.get("partial", 0),
+            "unavailable_series": counts.get("unavailable", 0),
+        },
+        "series": rows,
     }
 
 

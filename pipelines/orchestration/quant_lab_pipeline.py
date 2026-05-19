@@ -18,7 +18,12 @@ from core.schemas.quant import (
     QuantSignalGenerateResponse,
 )
 from pipelines.backtest.artifacts import build_run_id, write_backtest_artifacts
-from pipelines.backtest.engine import BacktestConfig, run_momentum_ranking_backtest, run_multi_asset_backtest
+from pipelines.backtest.engine import (
+    BacktestConfig,
+    run_momentum_ranking_backtest,
+    run_multi_asset_backtest,
+    run_risk_adjusted_momentum_backtest,
+)
 from pipelines.backtest.artifact_exports import (
     cleanup_backtest_artifact_exports,
     cleanup_cross_run_artifact_exports,
@@ -29,7 +34,11 @@ from pipelines.backtest.artifact_exports import (
     summarize_backtest_artifact_export_storage,
     verify_backtest_artifact_export,
 )
-from pipelines.backtest.validation import validate_backtest_inputs
+from pipelines.backtest.validation import (
+    FRESHNESS_PROFILES,
+    resolve_freshness_policy_request,
+    validate_backtest_inputs,
+)
 from pipelines.data_mart.storage.repository import get_prices
 from pipelines.factors.catalog import compute_factor_latest, list_factor_catalog
 from pipelines.factors.core import drawdown_series
@@ -42,6 +51,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 ARTIFACT_ROOT = PROJECT_ROOT / "data" / "quant_lab" / "backtests"
 DEFAULT_FEATURES = [
     {"id": "momentum_63d"},
+    {"id": "risk_adjusted_momentum_63d"},
     {"id": "realized_vol_21d"},
     {"id": "drawdown_current"},
     {"id": "ma_ratio_20_50"},
@@ -60,22 +70,6 @@ DEFAULT_REPLAY_TOLERANCES = {
         "exposure": 1e-8,
     },
 }
-FRESHNESS_PROFILES: dict[str, dict[str, Any]] = {
-    "research_default": {
-        "require_fresh_prices": False,
-        "max_market_calendar_lag_days": 3,
-    },
-    "decision_review": {
-        "require_fresh_prices": True,
-        "max_market_calendar_lag_days": 1,
-    },
-    "historical_lab": {
-        "require_fresh_prices": False,
-        "max_market_calendar_lag_days": 30,
-    },
-}
-
-
 def quant_config() -> dict[str, Any]:
     return {
         "status": "success",
@@ -86,6 +80,7 @@ def quant_config() -> dict[str, Any]:
             "moving_average_trend",
             "volatility_targeting",
             "momentum_ranking",
+            "risk_adjusted_momentum",
             "research_confirmed_momentum",
         ],
         "execution_assumptions": {
@@ -115,14 +110,20 @@ def feature_preview(request: QuantFeaturePreviewRequest) -> QuantFeaturePreviewR
             diagnostics=QuantRunDiagnostics(warnings=["ticker_universe_empty"]),
             warnings=["ticker_universe_empty"],
         )
-    prices_by_asset = _load_prices(tickers, start_date=request.start_date, end_date=request.end_date)
+    validation_tickers = _unique_strings(list(tickers) + [request.benchmark])
+    prices_for_validation = _load_prices(
+        validation_tickers,
+        start_date=request.start_date,
+        end_date=request.end_date,
+    )
+    prices_by_asset = {ticker: list(prices_for_validation.get(ticker, [])) for ticker in tickers}
     freshness_policy = _resolve_freshness_policy_request(request)
     freshness_validation = validate_backtest_inputs(
-        prices_by_asset,
+        prices_for_validation,
         **freshness_policy,
     )
     asset_freshness = dict(freshness_validation.get("asset_freshness") or {})
-    benchmark_rows = _load_prices([request.benchmark], start_date=request.start_date, end_date=request.end_date).get(request.benchmark, [])
+    benchmark_rows = prices_for_validation.get(request.benchmark, [])
     benchmark_prices = _prices(benchmark_rows)
     rows: list[QuantFeatureRow] = []
     missing_assets: list[str] = []
@@ -183,6 +184,9 @@ def feature_preview(request: QuantFeaturePreviewRequest) -> QuantFeaturePreviewR
     status = "success" if rows and not missing_assets else ("partial" if rows else "empty")
     if strict_violation and rows:
         status = "partial"
+    missing_assets = _unique_strings(list(missing_assets) + list(freshness_validation.get("missing_assets") or []))
+    stale_assets = _unique_strings(list(stale_assets) + list(freshness_validation.get("stale_assets") or []))
+    price_counts = dict(freshness_validation.get("price_counts") or price_counts)
     if missing_assets:
         warnings.append(f"missing_assets:{','.join(missing_assets)}")
     if stale_assets:
@@ -353,7 +357,15 @@ def run_quant_backtest(request: QuantBacktestRequest) -> QuantBacktestResponse:
         initial_capital=1.0,
     )
     try:
-        if request.template == "momentum_ranking" and len(tickers) > 1:
+        if request.template == "risk_adjusted_momentum" and len(tickers) > 1:
+            result = run_risk_adjusted_momentum_backtest(
+                prices_by_asset,
+                lookback=request.lookback,
+                top_n=min(request.top_n, len(tickers)),
+                rebalance_every=request.rebalance_every,
+                config=config,
+            )
+        elif request.template == "momentum_ranking" and len(tickers) > 1:
             result = run_momentum_ranking_backtest(
                 prices_by_asset,
                 lookback=request.lookback,
@@ -691,6 +703,7 @@ def list_backtest_runs(limit: int = 20) -> dict[str, Any]:
             diagnostics = _read_artifact_json(run_dir / "diagnostics.json", default={})
             config = _read_artifact_json(run_dir / "config.json", default={})
             data_snapshot = dict(manifest.get("data_snapshot") or {})
+            snapshot_freshness = _current_snapshot_freshness(data_snapshot, config=config, diagnostics=diagnostics)
             items.append(
                 {
                     "run_id": manifest.get("run_id") or run_dir.name,
@@ -699,9 +712,15 @@ def list_backtest_runs(limit: int = 20) -> dict[str, Any]:
                     "code_version": manifest.get("code_version") or {},
                     "data_snapshot": {
                         "price_counts": data_snapshot.get("price_counts") or {},
-                        "latest_price_dates": data_snapshot.get("latest_price_dates") or {},
+                        "latest_price_dates": data_snapshot.get("latest_price_dates") or data_snapshot.get("latest_dates") or {},
+                        "latest_as_of": data_snapshot.get("latest_as_of") or "unknown",
+                        "expected_latest_date": data_snapshot.get("expected_latest_date") or "unknown",
+                        "market_calendar_lag_days": data_snapshot.get("market_calendar_lag_days") or {},
+                        "asset_freshness": data_snapshot.get("asset_freshness") or {},
                         "freshness_policy": data_snapshot.get("freshness_policy") or {},
+                        "snapshot_freshness": snapshot_freshness,
                     },
+                    "snapshot_freshness": snapshot_freshness,
                     "template": config.get("template") or "unknown",
                     "tickers": config.get("tickers") or [],
                     "benchmark": config.get("benchmark") or "",
@@ -735,6 +754,73 @@ def list_backtest_runs(limit: int = 20) -> dict[str, Any]:
     return {"status": "success", "count": len(items), "items": items}
 
 
+def _current_snapshot_freshness(
+    data_snapshot: dict[str, Any],
+    *,
+    config: dict[str, Any],
+    diagnostics: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    latest_dates = dict(data_snapshot.get("latest_price_dates") or data_snapshot.get("latest_dates") or {})
+    tickers = _unique_strings(
+        list(config.get("tickers") or [])
+        + ([config.get("benchmark")] if config.get("benchmark") else [])
+        + list(latest_dates)
+    )
+    policy = dict((diagnostics or {}).get("freshness_policy") or data_snapshot.get("freshness_policy") or {})
+    policy_request = resolve_freshness_policy_request(
+        {
+            "freshness_profile": policy.get("profile") or config.get("freshness_profile") or "research_default",
+            "require_fresh_prices": True,
+            "max_market_calendar_lag_days": policy.get("max_market_calendar_lag_days")
+            if policy.get("max_market_calendar_lag_days") is not None
+            else config.get("max_market_calendar_lag_days", 3),
+        }
+    )
+    historical_end_date = str(config.get("end_date") or "").strip()
+    current_expected = validate_backtest_inputs({}, **policy_request).get("expected_latest_date") or "unknown"
+    if historical_end_date and current_expected != "unknown" and historical_end_date < str(current_expected):
+        return {
+            "status": "historical",
+            "refresh_recommended": False,
+            "historical_end_date": historical_end_date,
+            "current_expected_latest_date": str(current_expected),
+            "stale_assets": [],
+            "missing_assets": [],
+            "asset_freshness": {},
+            "market_calendar_lag_days": {},
+            "policy": policy_request,
+            "detail": "snapshot_has_explicit_historical_end_date",
+        }
+    prices_by_asset: dict[str, list[dict[str, Any]]] = {}
+    for ticker in tickers:
+        latest = str(latest_dates.get(ticker) or "").strip()
+        prices_by_asset[ticker] = [{"date": latest}, {"date": latest}] if latest and latest != "unknown" else []
+    validation = validate_backtest_inputs(prices_by_asset, **policy_request)
+    stale_assets = list(validation.get("stale_assets") or [])
+    missing_assets = list(validation.get("missing_assets") or [])
+    excluded_assets = list(validation.get("excluded_assets") or [])
+    status = "fresh"
+    if not tickers:
+        status = "unknown"
+    elif missing_assets or excluded_assets:
+        status = "partial"
+    elif stale_assets:
+        status = "stale"
+    return {
+        "status": status,
+        "refresh_recommended": status in {"stale", "partial", "unknown"},
+        "current_expected_latest_date": str(validation.get("expected_latest_date") or "unknown"),
+        "latest_price_dates": dict(validation.get("latest_dates") or {}),
+        "stale_assets": stale_assets,
+        "missing_assets": missing_assets,
+        "excluded_assets": excluded_assets,
+        "asset_freshness": dict(validation.get("asset_freshness") or {}),
+        "market_calendar_lag_days": dict(validation.get("market_calendar_lag_days") or {}),
+        "policy": dict(validation.get("freshness_policy") or {}),
+        "detail": "current_snapshot_audit",
+    }
+
+
 def _clean_compare_run_ids(run_ids: list[str] | tuple[str, ...]) -> list[str]:
     if not isinstance(run_ids, (list, tuple)):
         raise ValueError("run_ids must contain exactly two saved Quant Lab run ids")
@@ -754,6 +840,7 @@ def _run_compare_snapshot(run_id: str) -> dict[str, Any]:
     metrics = load_backtest_artifact(run_id, "metrics")
     diagnostics = load_backtest_artifact(run_id, "diagnostics")
     data_snapshot = dict(manifest.get("data_snapshot") or {})
+    snapshot_freshness = _current_snapshot_freshness(data_snapshot, config=config, diagnostics=diagnostics)
     return {
         "run_id": manifest.get("run_id") or run_id,
         "generated_at": manifest.get("generated_at") or "",
@@ -769,9 +856,15 @@ def _run_compare_snapshot(run_id: str) -> dict[str, Any]:
         "code_version": manifest.get("code_version") or {},
         "data_snapshot": {
             "price_counts": data_snapshot.get("price_counts") or {},
-            "latest_price_dates": data_snapshot.get("latest_price_dates") or {},
+            "latest_price_dates": data_snapshot.get("latest_price_dates") or data_snapshot.get("latest_dates") or {},
+            "latest_as_of": data_snapshot.get("latest_as_of") or "unknown",
+            "expected_latest_date": data_snapshot.get("expected_latest_date") or "unknown",
+            "market_calendar_lag_days": data_snapshot.get("market_calendar_lag_days") or {},
+            "asset_freshness": data_snapshot.get("asset_freshness") or {},
             "freshness_policy": data_snapshot.get("freshness_policy") or {},
+            "snapshot_freshness": snapshot_freshness,
         },
+        "snapshot_freshness": snapshot_freshness,
     }
 
 
@@ -792,6 +885,8 @@ def _compare_config_summary(config: dict[str, Any]) -> dict[str, Any]:
         "use_research_score",
         "require_fresh_prices",
         "max_market_calendar_lag_days",
+        "universe_policy",
+        "survivorship_bias_warning",
     ]
     return {key: config.get(key) for key in keys if key in config}
 
@@ -948,22 +1043,7 @@ def _replay_report_summary(report: dict[str, Any], path: Path) -> dict[str, Any]
 
 
 def _resolve_freshness_policy_request(request: QuantFeaturePreviewRequest | QuantBacktestRequest) -> dict[str, Any]:
-    profile = str(getattr(request, "freshness_profile", "research_default") or "research_default").strip().lower()
-    if profile not in FRESHNESS_PROFILES:
-        profile = "research_default"
-    fields_set = set(getattr(request, "model_fields_set", set()))
-    profile_defaults = FRESHNESS_PROFILES[profile]
-    require_fresh_prices = bool(profile_defaults["require_fresh_prices"])
-    max_lag = int(profile_defaults["max_market_calendar_lag_days"])
-    if "require_fresh_prices" in fields_set:
-        require_fresh_prices = bool(request.require_fresh_prices)
-    if "max_market_calendar_lag_days" in fields_set:
-        max_lag = int(request.max_market_calendar_lag_days)
-    return {
-        "freshness_profile": profile,
-        "require_fresh_prices": require_fresh_prices,
-        "max_market_calendar_lag_days": max_lag,
-    }
+    return resolve_freshness_policy_request(request)
 
 
 def _artifact_config(
@@ -973,6 +1053,7 @@ def _artifact_config(
     validation: dict[str, Any],
 ) -> dict[str, Any]:
     payload = request.model_dump(mode="json")
+    universe_policy = _infer_universe_policy(request)
     freshness_policy = dict(validation.get("freshness_policy") or {})
     if freshness_policy:
         payload["freshness_profile"] = freshness_policy.get("profile") or payload.get("freshness_profile")
@@ -985,6 +1066,8 @@ def _artifact_config(
     payload.update(
         {
             "schema_version": "quant_lab_config_v1",
+            "universe_policy": universe_policy,
+            "survivorship_bias_warning": _survivorship_bias_warning(universe_policy),
             "expanded_features": [dict(item) for item in DEFAULT_FEATURES],
             "engine_config": {
                 "strategy": config.strategy,
@@ -998,6 +1081,21 @@ def _artifact_config(
         }
     )
     return payload
+
+
+def _infer_universe_policy(request: QuantBacktestRequest) -> str:
+    if len(request.tickers or []) <= 1:
+        return "single_asset"
+    return "user_supplied_static_list"
+
+
+def _survivorship_bias_warning(universe_policy: str) -> str:
+    if universe_policy == "point_in_time_verified":
+        return ""
+    return (
+        "Universe membership is not verified as point-in-time. Treat results as exploratory "
+        "unless delisted coverage and historical constituent membership are independently verified."
+    )
 
 
 def _data_snapshot(request: QuantBacktestRequest, *, validation: dict[str, Any]) -> dict[str, Any]:
@@ -1040,6 +1138,7 @@ def _engine_strategy_for_template(template: str) -> str | None:
         "moving_average_trend": "moving_average",
         "volatility_targeting": "volatility_targeting",
         "momentum_ranking": "momentum_ranking",
+        "risk_adjusted_momentum": "risk_adjusted_momentum",
         "research_confirmed_momentum": "moving_average",
     }.get(clean)
 

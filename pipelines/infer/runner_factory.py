@@ -8,6 +8,7 @@ Production defaults stay pinned to the Ollama-backed Qwen baseline.
 from typing import Any, Dict, List
 
 from core.config.settings import load_settings
+from core.schemas.request import _coerce_output_language
 from core.schemas.fundamentals import FundamentalsCard
 from core.schemas.retrieval import RetrievalItem
 from core.utils.model_capabilities import model_capability_dict
@@ -49,8 +50,10 @@ def run_inference(
     task_type: str = "general",
     horizon: str = "unspecified",
     fundamentals: FundamentalsCard | None = None,
+    output_language: str | None = None,
 ) -> Dict[str, Any]:
     settings = load_settings()
+    settings.output_language = _coerce_output_language(output_language or getattr(settings, "output_language", "ko"))
     from pipelines.infer.ollama_adapter import OllamaAdapter
 
     resolved_model_name = resolve_model_name(model_name, settings)

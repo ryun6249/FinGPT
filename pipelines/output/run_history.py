@@ -176,10 +176,14 @@ def list_runs(
             where = "WHERE ticker = ?"
             params.append(_safe_segment(ticker.upper()))
         # Optional WHERE clause is selected from a fixed template.
-        sql = (
-            "SELECT id, ticker, question, status, sentiment, confidence, model, "
-            "lookback_days, top_k, sources, created_at, run_dir, error_metadata "
-            f"FROM runs {where} ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        sql = " ".join(
+            [
+                "SELECT id, ticker, question, status, sentiment, confidence, model,",
+                "lookback_days, top_k, sources, created_at, run_dir, error_metadata",
+                "FROM runs",
+                where,
+                "ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            ]
         )
         params.extend([int(limit), int(offset)])
         rows = conn.execute(sql, params).fetchall()

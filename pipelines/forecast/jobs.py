@@ -279,10 +279,8 @@ def _update_job(job_id: str, **values: Any) -> None:
     values["job_id"] = job_id
     with _connect() as conn:
         # Assignment identifiers are filtered through the local allowlist.
-        conn.execute(
-            f"UPDATE forecast_jobs SET {', '.join(assignments)} WHERE job_id = :job_id",
-            values,
-        )
+        query = " ".join(["UPDATE forecast_jobs SET", ", ".join(assignments), "WHERE job_id = :job_id"])
+        conn.execute(query, values)
 
 
 def _is_cancel_requested(job_id: str) -> bool:

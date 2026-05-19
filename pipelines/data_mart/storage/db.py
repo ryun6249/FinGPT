@@ -104,32 +104,43 @@ def _fingpt_annotations_needs_model_id_rebuild(conn: sqlite3.Connection) -> bool
 
 def _copy_fingpt_annotations_rows(conn: sqlite3.Connection, model_expr: str) -> None:
     # Table names and model expression are internal migration constants.
-    conn.execute(
-        f"""
-        INSERT INTO {FINGPT_ANNOTATIONS_TABLE}(
+    if model_expr not in {"COALESCE(model_id, '')", "''"}:
+        raise ValueError(f"unsupported model_id migration expression: {model_expr}")
+    sql = "\n".join(
+        [
+            "INSERT INTO " + FINGPT_ANNOTATIONS_TABLE + "(",
+            """
             article_id, ticker, task, label, confidence, source, model_id, metadata_json, created_at
-        )
-        SELECT article_id, ticker, task, label, confidence, source, model_id, metadata_json, created_at
-        FROM (
-            SELECT
+            )
+            SELECT article_id, ticker, task, label, confidence, source, model_id, metadata_json, created_at
+            FROM (
+                SELECT
                 article_id,
                 ticker,
                 task,
                 label,
                 confidence,
                 source,
-                {model_expr} AS model_id,
+                """,
+            model_expr + " AS model_id,",
+            """
                 metadata_json,
                 created_at,
                 ROW_NUMBER() OVER (
-                    PARTITION BY article_id, task, source, {model_expr}
+                    PARTITION BY article_id, task, source, """,
+            model_expr,
+            """
                     ORDER BY created_at DESC, rowid DESC
                 ) AS row_rank
-            FROM {FINGPT_ANNOTATIONS_OLD_TABLE}
-        )
-        WHERE row_rank = 1
-        """
+                FROM """,
+            FINGPT_ANNOTATIONS_OLD_TABLE,
+            """
+            )
+            WHERE row_rank = 1
+            """,
+        ]
     )
+    conn.execute(sql)
 
 
 def _migrate_fingpt_annotations_model_id(conn: sqlite3.Connection) -> None:

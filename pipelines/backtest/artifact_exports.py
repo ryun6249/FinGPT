@@ -922,7 +922,9 @@ def _apply_export_retention(
     if keep_last <= 0:
         return _retention_result(keep_last_exports, applied=False)
     exports_root.mkdir(parents=True, exist_ok=True)
+    resolved_exports_root = exports_root.resolve()
     current_resolved = current_export_dir.resolve()
+    _validate_direct_export_dir(current_resolved, exports_root=resolved_exports_root, label="current export directory")
     export_dirs = [
         path
         for path in exports_root.iterdir()
@@ -933,7 +935,8 @@ def _apply_export_retention(
     prune_dirs = export_dirs[keep_older:]
     pruned: list[str] = []
     for path in prune_dirs:
-        shutil.rmtree(path)
+        target = _validate_direct_export_dir(path, exports_root=resolved_exports_root, label="export retention target")
+        shutil.rmtree(target)
         pruned.append(str(path))
     return {
         "policy": "keep_last_exports",
@@ -985,12 +988,8 @@ def _export_cleanup_plan(
     if apply_cleanup:
         resolved_exports_root = exports_root.resolve()
         for path in prune_dirs:
-            resolved_path = path.resolve()
-            try:
-                resolved_path.relative_to(resolved_exports_root)
-            except ValueError as exc:
-                raise ValueError("export cleanup target must stay within this run's exports directory") from exc
-            shutil.rmtree(resolved_path)
+            target = _validate_direct_export_dir(path, exports_root=resolved_exports_root, label="export cleanup target")
+            shutil.rmtree(target)
             pruned.append(str(path))
 
     return {
@@ -1209,12 +1208,18 @@ def _validate_cross_run_cleanup_target(path: Path, *, artifact_root: Path, run_i
     clean_run_id = _clean_run_id(run_id)
     exports_root = (artifact_root / clean_run_id / "exports").resolve()
     resolved_path = path.resolve()
+    return _validate_direct_export_dir(resolved_path, exports_root=exports_root, label="cross-run cleanup target")
+
+
+def _validate_direct_export_dir(path: Path, *, exports_root: Path, label: str) -> Path:
+    resolved_exports_root = exports_root.resolve()
+    resolved_path = path.resolve()
     try:
-        resolved_path.relative_to(exports_root)
+        resolved_path.relative_to(resolved_exports_root)
     except ValueError as exc:
-        raise ValueError("cross-run cleanup target must stay within its run exports directory") from exc
-    if resolved_path.parent != exports_root:
-        raise ValueError("cross-run cleanup target must be a direct generated export directory")
+        raise ValueError(f"{label} must stay within its run exports directory") from exc
+    if resolved_path.parent != resolved_exports_root:
+        raise ValueError(f"{label} must be a direct generated export directory")
     if not resolved_path.exists() or not resolved_path.is_dir():
         raise FileNotFoundError(str(resolved_path))
     return resolved_path

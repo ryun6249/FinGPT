@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FinGPT Local Research Assistant</title>
-  <link rel="stylesheet" href="styles.css?v=20260512-macro-cache" />
+  <link rel="stylesheet" href="styles.css?v=20260519-continuous-enhancement-v3" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='48' font-size='48'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E" />
 </head>
 <body>
@@ -24,7 +24,20 @@
       </button>
       <button id="qdrantAdminBtn" type="button" class="ghost-btn admin-btn" title="벡터 DB 컬렉션 상태와 정리">Qdrant</button>
       <button id="qualityDashBtn" type="button" class="ghost-btn admin-btn" title="평가 및 품질 대시보드">품질</button>
+      <button id="globalQualitySummary" type="button" class="global-quality-summary unknown" aria-label="데이터 품질 요약: 확인 불가" title="품질 상세 보기">
+        <span class="quality-status">품질: 확인 불가</span>
+        <span class="quality-meta">기준일: -</span>
+        <span class="quality-meta">업데이트: -</span>
+        <span class="quality-meta quality-range">기간: 1Y</span>
+        <span class="quality-meta quality-observations" data-summary-field="observations">관측치: 확인 불가</span>
+        <span class="quality-meta quality-missing" data-summary-field="missing">결측: 확인 불가</span>
+        <span class="quality-meta quality-ai" data-summary-field="ai-snapshot">AI 기준: 확인 불가</span>
+      </button>
       <button id="themeToggleBtn" type="button" class="ghost-btn admin-btn theme-toggle" aria-pressed="false" aria-label="테마 전환">테마</button>
+      <div id="languageToggle" class="language-toggle" role="group" aria-label="출력 언어">
+        <button type="button" data-language="ko" aria-pressed="true" class="active">KR</button>
+        <button type="button" data-language="en" aria-pressed="false">EN</button>
+      </div>
       <span id="healthPill" class="health-pill">api · 확인 중</span>
     </nav>
   </header>
@@ -74,6 +87,21 @@
       </div>
     </div>
     <div id="qualitySummary" class="quality-summary"></div>
+    <div id="qualityContextSummary" class="quality-context-summary unknown" data-quality-context="global" aria-live="polite">
+      <div class="quality-context-head">
+        <strong>현재 분석 신뢰도: 확인 불가</strong>
+        <span>상단 품질 배지와 같은 기준으로 표시합니다.</span>
+      </div>
+      <div class="quality-context-grid">
+        <span class="quality-context-item" data-quality-detail="source"><strong>데이터 소스</strong><em>확인 불가</em></span>
+        <span class="quality-context-item" data-quality-detail="range"><strong>분석 기간</strong><em>1Y</em></span>
+        <span class="quality-context-item" data-quality-detail="observations"><strong>관측치</strong><em>확인 불가</em></span>
+        <span class="quality-context-item" data-quality-detail="missing"><strong>결측치</strong><em>확인 불가</em></span>
+        <span class="quality-context-item" data-quality-detail="cache"><strong>캐시</strong><em>확인 불가</em></span>
+        <span class="quality-context-item" data-quality-detail="ai-snapshot"><strong>AI 분석 기준</strong><em>확인 불가</em></span>
+        <span class="quality-context-item quality-context-item-wide" data-quality-detail="range-support"><strong>기간 적용 방식</strong><em>날짜 지원 화면은 직접 반영, lookback 기반 화면은 지원 버킷으로 변환</em></span>
+      </div>
+    </div>
     <section class="quality-section">
       <h4>데이터 마트 품질</h4>
       <div id="qualityDataHealth" class="decision-surface compact-surface">
@@ -278,6 +306,9 @@
           <button id="quantLabTab" type="button" class="dashboard-tab" data-dashboard-tab="quant" data-testid="quant-lab-tab" role="tab" aria-selected="false">
             Quant Lab
           </button>
+          <button id="quantamentalTab" type="button" class="dashboard-tab" data-dashboard-tab="quantamental" data-testid="quantamental-tab" role="tab" aria-selected="false">
+            Quantamental
+          </button>
           <button id="mlForecastTab" type="button" class="dashboard-tab" data-dashboard-tab="forecast" data-testid="ml-forecast-tab" role="tab" aria-selected="false">
             ML Forecast
           </button>
@@ -291,11 +322,38 @@
           <span><strong>Runtime</strong> Local only</span>
           <span><strong>Execution</strong> Advisory</span>
         </div>
+        <div id="dashboardRangeControls" class="dashboard-range-controls" aria-label="Global dashboard range controls">
+          <label>
+            <span>분석 기간</span>
+            <select id="dashboardRangeSelect" aria-label="Global analysis range">
+              <option value="1D">1D</option>
+              <option value="1W">1W</option>
+              <option value="1M">1M</option>
+              <option value="3M">3M</option>
+              <option value="6M">6M</option>
+              <option value="YTD">YTD</option>
+              <option value="1Y" selected>1Y</option>
+              <option value="3Y">3Y</option>
+              <option value="5Y">5Y</option>
+              <option value="MAX">MAX</option>
+              <option value="custom">Custom range</option>
+            </select>
+          </label>
+          <label class="custom-range-field">
+            <span>시작일</span>
+            <input id="dashboardRangeStart" type="date" aria-label="Global range start date" />
+          </label>
+          <label class="custom-range-field">
+            <span>종료일</span>
+            <input id="dashboardRangeEnd" type="date" aria-label="Global range end date" />
+          </label>
+          <span id="dashboardRangeSupport" class="dashboard-range-support">날짜 지원 화면은 직접 반영하고, lookback 기반 화면은 지원 기간 버킷으로 변환합니다.</span>
+        </div>
         <div id="dashboardViewControls" class="dashboard-view-controls" aria-label="Dashboard panel view" hidden>
-          <button type="button" data-panel-view="overview" aria-pressed="true">Core</button>
+          <button type="button" data-panel-view="overview" aria-pressed="false">Core</button>
           <button type="button" data-panel-view="details" aria-pressed="false">Diagnostics</button>
           <button type="button" data-panel-view="operations" aria-pressed="false">Operations</button>
-          <button type="button" data-panel-view="all" aria-pressed="false">All</button>
+          <button type="button" data-panel-view="all" aria-pressed="true" class="active">All</button>
         </div>
         <div id="homeSurfaceGrid" class="home-grid dashboard-surface-grid" data-dashboard-tab="market" data-panel-view="all">
           <section class="home-card market-overview-card market-surface">
@@ -310,8 +368,34 @@
           <section class="home-card market-signals-card market-surface">
             <div class="home-card-head">
               <h3>교차자산 신호</h3>
-              <span>rules, not predictions</span>
+              <span>user-controlled regime analysis</span>
             </div>
+            <div class="cross-asset-workbench">
+              <label class="wide">
+                <span>자산 입력</span>
+                <input id="crossAssetSymbols" type="text" value="SPY, QQQ, TLT, HYG, LQD, GLD, BTC-USD, DXY, US10Y" aria-label="Cross asset symbols" />
+              </label>
+              <button type="button" id="crossAssetSymbolOpen" class="ghost-btn">찾기</button>
+              <label>
+                <span>기준 기간</span>
+                <select id="crossAssetHorizon" aria-label="Cross asset horizon">
+                  <option value="1d">1D</option>
+                  <option value="5d">5D</option>
+                  <option value="1m" selected>1M</option>
+                  <option value="3m">3M</option>
+                </select>
+              </label>
+              <label class="wide">
+                <span>주제</span>
+                <input id="crossAssetTopic" type="text" maxlength="160" placeholder="예: 금리 상승, AI 반도체, 달러 강세" aria-label="Cross asset topic" />
+              </label>
+              <button type="button" id="crossAssetRun" class="primary-btn" data-testid="cross-asset-run">분석</button>
+              <div id="crossAssetStatus" class="cross-asset-status" role="status" aria-live="polite"></div>
+            </div>
+            <div id="crossAssetAnalysisSurface" class="decision-surface cross-asset-analysis-surface">
+              <div class="home-news-empty">자산과 주제를 입력하면 교차자산 상태와 향후 동향 해석이 여기에 표시됩니다.</div>
+            </div>
+            <div class="market-signal-subhead">기본 교차자산 스냅샷</div>
             <div id="marketSignalSurface" class="decision-surface market-signal-surface">
               <div class="home-news-empty">시장 신호를 불러오는 중입니다.</div>
             </div>
@@ -576,7 +660,7 @@
             <div class="home-card-head"><h3>Data Quality</h3><span>missing, stale, provider errors</span></div>
             <div id="macroDataQualitySurface" class="decision-surface compact-surface"><div class="home-news-empty">Loading data quality.</div></div>
           </section>
-          <section class="home-card asset-detail-card quant-surface" data-panel-tier="primary">
+          <section class="home-card asset-detail-card quant-surface" data-panel-tier="details">
             <div class="home-card-head">
               <h3>자산 상세</h3>
               <span>가격 · 수익률 · 리스크</span>
@@ -592,11 +676,17 @@
               <label>
                 <span>기간</span>
                 <select id="assetDetailRange" aria-label="Asset detail range">
+                  <option value="1d">1D</option>
+                  <option value="1w">1W</option>
+                  <option value="1m">1M</option>
                   <option value="3m">3개월</option>
                   <option value="6m">6개월</option>
+                  <option value="ytd">YTD</option>
                   <option value="1y" selected>1년</option>
                   <option value="3y">3년</option>
+                  <option value="5y">5Y</option>
                   <option value="all">전체</option>
+                  <option value="custom">Custom</option>
                 </select>
               </label>
               <label>
@@ -681,7 +771,7 @@
               <button type="button" id="quantStrategyDelete" class="ghost-btn danger" data-testid="quant-strategy-delete">저장본 삭제</button>
             </div>
             <div class="strategy-editor-note">
-              현재 화면의 실제 전략 코드는 Python 코드가 아니며 JSON 전략 정의를 기준으로 재현성을 보장합니다. Python 전략 코드는 서버 측 샌드박스, 허용 API, 산출물 추적, 보안 검토가 붙은 별도 어댑터로 도입해야 하며, 지금 화면에서는 실행 가능한 Python을 직접 저장하지 않습니다.
+              프롬프트 결과가 Python 코드가 아니면 실행 코드로 취급하지 않고 JSON 전략 정의를 기준으로 재현성을 보장합니다. Python 전략 코드는 서버 측 샌드박스, 허용 API, 산출물 추적, 보안 검토가 붙은 별도 어댑터로 도입해야 하며, 지금 화면에서는 실행 가능한 Python을 직접 저장하지 않습니다.
             </div>
             <div class="strategy-workbench-grid">
               <label class="strategy-prompt-panel">
@@ -731,6 +821,7 @@
                   <option value="moving_average">이동평균 추세</option>
                   <option value="volatility_targeting">변동성 타깃</option>
                   <option value="momentum_ranking">모멘텀 랭킹</option>
+                  <option value="risk_adjusted_momentum">위험조정 모멘텀</option>
                   <option value="research_confirmed_momentum">리서치 확인 모멘텀</option>
                 </select>
               </label>
@@ -931,7 +1022,7 @@
             <div class="home-card-head"><h3>Dataset Quality</h3><span>가격 데이터, 결측, 벤치마크</span></div>
             <div id="forecastDatasetSurface" class="decision-surface"><div class="home-news-empty">데이터셋 미리보기를 실행하면 품질 상태가 표시됩니다.</div></div>
           </section>
-          <section class="home-card forecast-card forecast-feature-card forecast-surface" data-panel-tier="primary">
+          <section class="home-card forecast-card forecast-feature-card forecast-surface" data-panel-tier="details">
             <div class="home-card-head"><h3>Feature Lab</h3><span>feature shift=1 기본</span></div>
             <div id="forecastFeatureSurface" class="decision-surface"><div class="home-news-empty">feature group, 결측률, timestamp alignment를 계산합니다.</div></div>
           </section>
@@ -943,7 +1034,7 @@
             <div class="home-card-head"><h3>Forecast Result</h3><span>수익률, 확률, 신뢰도</span></div>
             <div id="forecastResultSurface" class="decision-surface"><div class="home-news-empty">Train / Forecast를 실행하면 OOS 검증 기반 예측 결과가 표시됩니다.</div></div>
           </section>
-          <section class="home-card forecast-card forecast-signal-card forecast-surface" data-panel-tier="primary">
+          <section class="home-card forecast-card forecast-surface forecast-signal-card" data-panel-tier="details">
             <div class="home-card-head"><h3>Signal Generator</h3><span>advisory-only</span></div>
             <div id="forecastSignalSurface" class="decision-surface"><div class="home-news-empty">예측을 threshold, confidence, volatility filter로 advisory signal로 변환합니다.</div></div>
           </section>
@@ -1158,10 +1249,129 @@
             <div id="aiPortfolioHistorySurface" class="decision-surface compact-surface"><div class="home-news-empty">정책 생성, 추천 생성, 리밸런싱 점검, 사용자 조치가 이력으로 기록됩니다.</div></div>
           </section>
 
+
+          <section id="quantamentalSurface" class="home-card quantamental-card quantamental-surface" data-panel-tier="primary">
+            <div class="home-card-head">
+              <h3>Quantamental</h3>
+              <span>펀더멘털 + 가격 + 리스크 + AI 해석</span>
+            </div>
+            <div class="workbench-guardrail-strip">
+              <span><strong>데이터</strong> yfinance + DART</span>
+              <span><strong>시장</strong> US/KR/Global 지원</span>
+              <span><strong>신선도</strong> stale 데이터 차단</span>
+              <span><strong>AI</strong> 정량 결과만 해석</span>
+            </div>
+            <div class="decision-form quantamental-form">
+              <label><span>티커</span><div class="input-action-row compact"><input id="quantamentalTicker" type="text" value="AAPL" maxlength="24" aria-label="Quantamental ticker" /><button type="button" id="quantamentalTickerOpen" class="ghost-btn">찾기</button></div></label>
+              <label><span>시장</span><select id="quantamentalMarket" aria-label="Quantamental market"><option value="US" selected>US</option><option value="KR">한국 (DART)</option><option value="GLOBAL">Global</option></select></label>
+              <label><span>재무 기간</span><select id="quantamentalPeriod" aria-label="Fundamental period"><option value="annual" selected>연간</option><option value="quarterly">분기</option></select></label>
+              <label><span>연수</span><select id="quantamentalYears" aria-label="Fundamental years"><option value="3">3Y</option><option value="5" selected>5Y</option><option value="10">10Y</option></select></label>
+              <label><span>가격 기간</span><select id="quantamentalLookback" aria-label="Price lookback"><option value="1">1D</option><option value="5">1W</option><option value="21">1M</option><option value="63">3M</option><option value="126">6M</option><option value="252" selected>1Y</option><option value="756">3Y</option><option value="1260">5Y</option><option value="5000">MAX</option></select></label>
+              <label><span>전략 스타일</span><select id="quantamentalStyle" aria-label="Strategy style"><option value="balanced" selected>균형</option><option value="quality_growth">퀄리티 성장</option><option value="value">가치</option><option value="momentum">모멘텀</option><option value="defensive">방어형</option></select></label>
+              <button type="button" id="quantamentalAnalyze" class="ghost-btn" data-testid="quantamental-analyze">분석</button>
+            </div>
+            <div id="quantamentalStatus" class="form-notice info" role="status">Quantamental 분석은 리서치 전용이며 투자 자문이 아닙니다.</div>
+            <div id="quantamentalCompanySurface" class="decision-surface compact-surface"><div class="home-news-empty">분석을 실행하면 회사 개요와 데이터 커버리지가 표시됩니다.</div></div>
+          </section>
+
+          <section class="home-card quantamental-card quantamental-signal-card-shell quantamental-surface" data-panel-tier="primary">
+            <div class="home-card-head"><h3>Quantamental 시그널</h3><span>결정론적 점수 요약</span></div>
+            <div id="quantamentalSignalSurface" class="decision-surface compact-surface"><div class="home-news-empty">분석의 deterministic 시그널이 여기에 표시됩니다.</div></div>
+          </section>
+
+          <section class="home-card quantamental-card quantamental-score-card quantamental-surface" data-panel-tier="primary">
+            <div class="home-card-head"><h3>종합 점수 브레이크다운</h3><span>펀더멘털과 가격 요인의 결합</span></div>
+            <div id="quantamentalScoreSurface" class="decision-surface compact-surface"><div class="home-news-empty">분석 결과가 여기에 표시됩니다.</div></div>
+          </section>
+
+          <section class="home-card quantamental-card quantamental-screen-card quantamental-surface" data-panel-tier="primary">
+            <div class="home-card-head card-head-action">
+              <div class="home-card-title"><h3>Signal Screener Top 5</h3><span>사용 가능한 신선 데이터 기준</span></div>
+              <button type="button" id="quantamentalScreenRun" class="linkish" data-testid="quantamental-screen-run">스크리닝</button>
+            </div>
+            <div id="quantamentalScreenStatus" class="form-notice info" role="status">Top 5 스크리너는 신선한 데이터만 후보로 올립니다.</div>
+            <div id="quantamentalScreenSurface" class="decision-surface compact-surface"><div class="home-news-empty">Top 5 후보를 계산하면 여기에 표시됩니다.</div></div>
+          </section>
+
+          <section class="home-card quantamental-card quantamental-score-screen-card quantamental-surface" data-panel-tier="primary">
+            <div class="home-card-head card-head-action">
+              <div class="home-card-title"><h3>점수 기준 스크리너</h3><span>요인별 최소 점수 필터</span></div>
+              <button type="button" id="quantamentalScoreScreenRun" class="linkish" data-testid="quantamental-score-screen-run">실행</button>
+            </div>
+            <div class="decision-form quantamental-score-screen-form">
+              <label><span>점수 항목</span><select id="quantamentalScoreMetric" aria-label="Quantamental score screen metric"><option value="composite" selected>종합</option><option value="value">가치</option><option value="quality">퀄리티</option><option value="growth">성장</option><option value="momentum">모멘텀</option><option value="low_volatility">저변동성</option><option value="liquidity">유동성</option></select></label>
+              <label><span>최소 점수</span><input id="quantamentalScoreThreshold" type="number" min="0" max="100" step="1" value="70" aria-label="Quantamental minimum score" /></label>
+              <label><span>결과 수</span><select id="quantamentalScoreScreenLimit" aria-label="Quantamental score screen limit"><option value="10">10</option><option value="20" selected>20</option><option value="50">50</option></select></label>
+            </div>
+            <div id="quantamentalScoreScreenStatus" class="form-notice info" role="status">점수 기준을 선택한 뒤 Quantamental 스크리너를 실행하세요.</div>
+            <div id="quantamentalScoreScreenSurface" class="decision-surface compact-surface"><div class="home-news-empty">점수 기준 후보가 여기에 표시됩니다.</div></div>
+          </section>
+
+          <section class="home-card quantamental-card quantamental-factor-card quantamental-surface" data-panel-tier="details">
+            <div class="home-card-head"><h3>요인별 점수</h3><span>가치, 퀄리티, 성장, 모멘텀, 저변동성, 유동성</span></div>
+            <div id="quantamentalFactorSurface" class="decision-surface compact-surface"><div class="home-news-empty">요인별 점수가 여기에 표시됩니다.</div></div>
+          </section>
+
+          <section class="home-card quantamental-card quantamental-main-card quantamental-surface" data-panel-tier="details">
+            <div class="home-card-head">
+              <h3>분석 리포트</h3>
+              <button type="button" id="quantamentalAiRefresh" class="linkish" data-testid="quantamental-ai-report">AI 해석</button>
+            </div>
+            <div class="quantamental-ai-control" data-testid="quantamental-ai-model-control">
+              <label>
+                <span>AI 모델</span>
+                <select id="quantamentalAiModel" aria-label="Quantamental AI interpretation model">
+                  <option value="deterministic" selected>Deterministic guardrail</option>
+                </select>
+              </label>
+              <span id="quantamentalAiModelStatus" class="form-notice subtle" role="status">기본값은 deterministic 해석입니다. Qwen/Gemma는 실행 시 가용성을 확인합니다.</span>
+            </div>
+            <div id="quantamentalMainSurface" class="decision-surface"><div class="home-news-empty">가격, 재무, 리스크, 피어 비교, AI 해석, Q&amp;A 결과가 여기에 표시됩니다.</div></div>
+          </section>
+
+          <section class="home-card quantamental-card quantamental-quality-card quantamental-surface" data-panel-tier="details">
+            <div class="home-card-head"><h3>데이터 품질</h3><span>누락 항목과 신선도 상태</span></div>
+            <div id="quantamentalDataQualitySurface" class="decision-surface compact-surface"><div class="home-news-empty">데이터 품질 점검 결과가 여기에 표시됩니다.</div></div>
+          </section>
+
+          <section class="home-card quantamental-card quantamental-compare-card quantamental-surface" data-panel-tier="operations">
+            <div class="home-card-head"><h3>종목 비교</h3><span>여러 티커의 점수와 피어 상대값</span></div>
+            <div class="input-action-row">
+              <input id="quantamentalCompareTickers" type="search" value="AAPL MSFT NVDA TSLA" aria-label="Quantamental comparison tickers" />
+              <button type="button" id="quantamentalCompareRun" class="ghost-btn" data-testid="quantamental-compare-run">비교</button>
+            </div>
+            <div class="input-action-row compact-actions">
+              <label class="inline-check"><input id="quantamentalExpandPeers" type="checkbox" aria-label="Expand peer universe" /> 피어 확장</label>
+              <label><span>피어 수</span><select id="quantamentalPeerLimit" aria-label="Quantamental peer limit"><option value="4">4</option><option value="8" selected>8</option><option value="12">12</option><option value="20">20</option></select></label>
+              <input id="quantamentalWatchlistName" type="text" value="Core Tech" maxlength="40" aria-label="Quantamental comparison watchlist name" />
+              <select id="quantamentalWatchlistSelect" aria-label="Saved Quantamental comparison watchlists"></select>
+              <button type="button" id="quantamentalWatchlistSave" class="linkish" data-testid="quantamental-watchlist-save">목록 저장</button>
+              <button type="button" id="quantamentalWatchlistLoad" class="linkish" data-testid="quantamental-watchlist-load">목록 불러오기</button>
+              <button type="button" id="quantamentalCompareCsv" class="linkish" data-testid="quantamental-compare-csv">CSV</button>
+            </div>
+            <div id="quantamentalCompareSurface" class="decision-surface compact-surface"><div class="home-news-empty">두 개 이상 티커를 입력하면 비교 결과가 여기에 표시됩니다.</div></div>
+          </section>
+
           <section class="home-card home-news-card market-surface">
             <div class="home-card-head">
               <h3>주요 뉴스</h3>
               <button type="button" id="homeNewsRefresh" class="linkish" data-testid="market-news-refresh">새로고침</button>
+            </div>
+            <div class="news-search-workbench">
+              <label>
+                <span>티커</span>
+                <input id="homeNewsTicker" type="text" maxlength="20" placeholder="NVDA" aria-label="Company news ticker" />
+              </label>
+              <button type="button" id="homeNewsTickerOpen" class="ghost-btn">찾기</button>
+              <label class="wide">
+                <span>주제/회사</span>
+                <input id="homeNewsTopic" type="text" maxlength="120" placeholder="예: Nvidia earnings, 반도체 수출 규제" aria-label="Company or topic news query" />
+              </label>
+              <button type="button" id="homeNewsSearchRun" class="primary-btn" data-testid="market-news-search-run">뉴스 로드</button>
+              <div id="homeNewsSearchStatus" class="news-search-status" role="status" aria-live="polite"></div>
+            </div>
+            <div id="homeNewsFocusedList" class="home-news-list focused-news-list">
+              <div class="home-news-empty">티커나 주제를 입력하면 관련 회사/주제 뉴스가 현재 주요 뉴스 위에 추가됩니다.</div>
             </div>
             <div id="homeNewsCategories" class="home-news-categories"></div>
             <div id="homeNewsList" class="home-news-list">
@@ -1382,6 +1592,7 @@
           <option value="etf_commodity">원자재/달러 ETF</option>
           <option value="kr_kospi200">KOSPI 200</option>
           <option value="kr_kosdaq100">KOSDAQ 100</option>
+          <option value="global_equity">글로벌 주식</option>
           <option value="crypto">BTC/ETH</option>
         </select>
       </div>
@@ -1402,6 +1613,7 @@
   <script src="modules/forecast-ui.js?v=20260514-domain-modules"></script>
   <script src="modules/quant-ui.js?v=20260514-domain-modules"></script>
   <script src="modules/ai-portfolio-ui.js?v=20260514-domain-modules"></script>
-  <script src="app.js?v=20260514-domain-modules"></script>
+  <script src="modules/quantamental-ui.js?v=20260519-quantamental-v13"></script>
+  <script src="app.js?v=20260519-continuous-enhancement-v3"></script>
 </body>
 </html>

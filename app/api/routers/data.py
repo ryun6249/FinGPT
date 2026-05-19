@@ -5,6 +5,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
+from pipelines.backtest.validation import resolve_freshness_policy_request, validate_backtest_inputs
 from pipelines.data_mart.scheduler import get_scheduler as get_data_mart_scheduler
 from pipelines.data_mart.jobs.update_prices_daily import update_prices_daily
 from pipelines.data_mart.storage.repository import data_health as data_mart_health
@@ -60,6 +61,25 @@ def _clean_optional_query(value: str | None) -> str | None:
     return cleaned or None
 
 
+def _filter_rows_for_freshness(
+    rows: list[dict[str, Any]],
+    *,
+    start_date: str | None,
+    end_date: str | None,
+) -> list[dict[str, Any]]:
+    start = _clean_optional_query(start_date)
+    end = _clean_optional_query(end_date)
+    filtered = []
+    for row in rows:
+        row_date = str(row.get("date") or "")
+        if start and row_date < start:
+            continue
+        if end and row_date > end:
+            continue
+        filtered.append(row)
+    return filtered
+
+
 @router.get("/health")
 async def data_health() -> dict[str, Any]:
     """Structured data mart health, update history, provider status, and quality checks."""
@@ -110,6 +130,9 @@ async def data_prices(
     refresh: bool = False,
     start_date: str | None = None,
     end_date: str | None = None,
+    freshness_profile: str = "research_default",
+    require_fresh_prices: bool | None = None,
+    max_market_calendar_lag_days: int | None = None,
 ) -> dict[str, Any]:
     """Return normalized daily prices from the structured data mart."""
 
@@ -150,6 +173,19 @@ async def data_prices(
                 "end_date": clean_end,
             }
     rows = await asyncio.to_thread(data_mart_get_prices, clean_ticker, limit=limit)
+    filtered_rows = _filter_rows_for_freshness(rows, start_date=start_date, end_date=end_date)
+    freshness_request = {
+        "freshness_profile": freshness_profile,
+        "require_fresh_prices": require_fresh_prices,
+        "max_market_calendar_lag_days": max_market_calendar_lag_days,
+    }
+    freshness_policy_request = resolve_freshness_policy_request(
+        {key: value for key, value in freshness_request.items() if value is not None}
+    )
+    freshness_validation = validate_backtest_inputs(
+        {clean_ticker: filtered_rows},
+        **freshness_policy_request,
+    )
     latest = rows[-1] if rows else None
     return {
         "status": "ok" if rows else "empty",
@@ -158,6 +194,12 @@ async def data_prices(
         "latest": latest,
         "items": rows,
         "refresh": refresh_payload,
+        "freshness_policy": dict(freshness_validation.get("freshness_policy") or {}),
+        "asset_freshness": dict(freshness_validation.get("asset_freshness") or {}).get(clean_ticker, {}),
+        "stale": clean_ticker in set(freshness_validation.get("stale_assets") or []),
+        "strict_freshness_violation": bool(freshness_validation.get("strict_freshness_violation")),
+        "expected_latest_date": str(freshness_validation.get("expected_latest_date") or "unknown"),
+        "market_calendar_lag_days": int((freshness_validation.get("market_calendar_lag_days") or {}).get(clean_ticker) or 0),
     }
 
 
