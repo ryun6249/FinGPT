@@ -815,3 +815,87 @@
 - [x] README updated if needed
 - [x] PR summary includes changed files
 - [x] PR summary includes validation result
+
+## 2026-05-19 Continuous Enhancement Run 14:03
+
+- Branch: `automation/continuous-enhancement-20260519-1403`.
+- Current status: previous runs already added All-default panels, top-right quality, global range controls, Quantamental AI model guardrails, Quant Lab `risk_adjusted_momentum_63d`, and Quantamental `quality_adjusted_momentum_v1`. This run preserved those contracts and added one additional bounded Quantamental diagnostic algorithm.
+- Compatibility: no trading/order execution path, strategy entry/exit policy, API default, secret, `.env`, provider selection, or composite scoring weight was changed. The new algorithm is emitted as a secondary diagnostic with `used_in_composite_score=false`.
+- Quant algorithm: added `volatility_adjusted_breakout_v1`, a deterministic volatility-adjusted breakout diagnostic using latest close vs prior 63-day high, 20-day trend return, 20-day realized volatility, current drawdown, 20-day positive-return share, and latest-volume confirmation.
+- Data integration: the algorithm is stored under `quant.metrics.algorithms.volatility_adjusted_breakout`, exposed in `component_scores.volatility_adjusted_breakout`, and carries required/available observation counts plus input provenance.
+- UI/UX: the Quantamental overview and score summary now show `VAB Score` and `VAB Class` alongside QAM, with an explicit note that VAB is a secondary diagnostic and not part of the composite score.
+- AI briefing: Quantamental AI context now includes `quant_snapshot.volatility_adjusted_breakout` and `quant_snapshot.algorithms`; deterministic AI fallback adds `secondary_quant_algorithm` to key changes without allowing the AI to override deterministic signal labels.
+- Translation: Korean and English UI labels were added for VAB while preserving ticker, numeric, date, and unit output. Existing Korean/English module tests passed.
+- Performance: no background polling, no new provider calls, and no LLM call were added; VAB reuses already-loaded price/volume vectors inside the existing quant calculation.
+
+### 14:03 Validation Results
+
+| Check | Command / Tool | Result | Notes |
+|---|---|---|---|
+| Python syntax | `python -m py_compile pipelines/quantamental/quant_engine.py pipelines/quantamental/ai_service.py pipelines/quantamental/service.py scripts/check_ui_contract.py` | Passed | Targeted changed Python modules compile. |
+| JS syntax | `node --check app/web/modules/quantamental-ui.js` and `node --check app/web/app.js` | Passed | Static UI JavaScript syntax. |
+| UI contract | `python scripts/check_ui_contract.py` | Passed | VAB module markers included; no mojibake or placeholder lines found. |
+| Target regression | `python -m pytest tests/test_quantamental_engines.py tests/test_quantamental_api.py tests/test_ui_modules.py tests/test_ui_routing_contract.py -q` | Passed | `80 passed, 4 subtests passed`. |
+| Diff hygiene | `git diff --check -- ...touched files...` | Passed | Only line-ending warnings from Windows Git; no whitespace errors. |
+| Browser desktop UI | Browser at `http://127.0.0.1:8407/ui/?range=1Y#quantamental` | Passed | `panelView=all`, `range=1Y`, quality summary updated, QAM/VAB visible, no console errors, no horizontal overflow. |
+| Browser mobile UI | Browser viewport `390x900` | Passed | Quantamental analysis completed, VAB visible in DOM, no horizontal overflow, no console errors. |
+| Quantamental browser smoke | `python scripts/quantamental_ui_smoke.py --base-url http://127.0.0.1:8407 --output reports/quantamental_ui_smoke_continuous_20260519_1403.json` | Passed | Required tickers, invalid ticker, styles, GLOBAL resolver, Top 5, score screen, overview axes, Q&A, and audit smoke passed with VAB text present. |
+| npm/pnpm build/lint/test | Not run | Excluded | Repo root has no `package.json`, `pnpm-lock.yaml`, or frontend build manifest; static UI is validated through Python contracts and Browser/Playwright smoke. |
+
+### 14:03 Completion Checklist
+
+#### Compatibility
+- [x] Existing features still work
+- [x] Existing API contracts are not broken
+- [x] Existing UI flow is preserved
+- [x] No unauthorized strategy logic change
+- [x] No secret or env file exposure
+
+#### Data
+- [x] Date range selection works
+- [x] KPI/chart/table use the same selected period in the checked Quantamental flow
+- [x] Data source and basis date are displayed
+- [x] Missing data is handled
+- [x] Data quality summary is visible at top-right
+- [x] Cache/fresh data distinction is clear
+
+#### UI
+- [x] Default view is All
+- [x] Core/Diagnostics/Operations filters still exist
+- [x] Font sizes are readable in the checked Quantamental surface
+- [x] Layout spacing is consistent in the checked desktop/mobile surfaces
+- [x] Cards/tables/charts are aligned
+- [x] Mobile layout is acceptable
+- [x] Loading state exists
+- [x] Empty state exists
+- [x] Error state exists
+
+#### Visualization
+- [x] Chart titles are meaningful
+- [x] Axis labels are readable
+- [x] Tooltips/legends remain useful
+- [x] Period selection updates the checked Quantamental results
+- [x] No chart overflow or label collision observed in browser checks
+
+#### AI Briefing
+- [x] Gemma/Qwen availability remains runtime-checked
+- [x] Model selection is not fake
+- [x] AI output includes used data period
+- [x] AI output includes basis/source/observation count
+- [x] AI does not invent unsupported numbers
+- [x] Unverified facts are marked unavailable by existing guardrails
+- [x] Translation preserves numbers/dates/units in tested module/API contracts
+
+#### Validation
+- [x] Lint/static checks executed or reason documented
+- [x] Build executed or reason documented
+- [x] Tests executed or reason documented
+- [x] UI validation executed or reason documented
+- [x] Data validation executed or reason documented
+- [x] AI briefing validation executed or reason documented
+
+#### Documentation
+- [x] docs/CONTINUOUS_ENHANCEMENT_LOG.md updated
+- [x] README updated if needed
+- [x] PR summary includes changed files
+- [x] PR summary includes validation result

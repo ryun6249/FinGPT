@@ -186,6 +186,14 @@ const quantamentalMain = context.window.FinGPTQuantamentalUi.mainPanel({
         classification: "constructive_quality_adjusted_momentum",
         used_in_composite_score: false,
       },
+      algorithms: {
+        volatility_adjusted_breakout: {
+          algorithm_id: "volatility_adjusted_breakout_v1",
+          volatility_adjusted_breakout_score: 68.2,
+          classification: "constructive_breakout_setup",
+          used_in_composite_score: false,
+        },
+      },
     },
     chart_data: {
       price: [{ date: "2026-01-01", close: 100 }, { date: "2026-01-02", close: 101 }],
@@ -209,6 +217,8 @@ assert.match(quantamentalMain, /X: date/);
 assert.match(quantamentalMain, /Freshness/);
 assert.match(quantamentalMain, /QAM Score/);
 assert.match(quantamentalMain, /constructive_quality_adjusted_momentum/);
+assert.match(quantamentalMain, /volatility_adjusted_breakout_v1/);
+assert.match(quantamentalMain, /constructive_breakout_setup/);
 
 const quantamentalTopSignals = context.window.FinGPTQuantamentalUi.topSignals({
   status: "ok",
@@ -272,6 +282,14 @@ const quantamentalKorean = context.window.FinGPTQuantamentalUi.mainPanel({
         quality_adjusted_momentum_score: 72.4,
         classification: "constructive_quality_adjusted_momentum",
         used_in_composite_score: false,
+      },
+      algorithms: {
+        volatility_adjusted_breakout: {
+          algorithm_id: "volatility_adjusted_breakout_v1",
+          volatility_adjusted_breakout_score: 68.2,
+          classification: "constructive_breakout_setup",
+          used_in_composite_score: false,
+        },
       },
     },
     chart_data: {

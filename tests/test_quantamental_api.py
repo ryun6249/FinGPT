@@ -156,6 +156,8 @@ def test_quantamental_analysis_endpoint_shape(monkeypatch):
     assert "used_data" in body["ai_report"]["report"]
     assert body["ai_report"]["report"]["used_data"]["analysis_period"] != ""
     assert body["ai_report"]["report"]["used_data"]["data_source"] != ""
+    assert body["quant"]["metrics"]["algorithms"]["volatility_adjusted_breakout"]["algorithm_id"] == "volatility_adjusted_breakout_v1"
+    assert body["quant"]["metrics"]["algorithms"]["volatility_adjusted_breakout"]["used_in_composite_score"] is False
     assert body["execution_policy"] == "scores_and_signal_from_deterministic_engines_ai_interprets_only"
 
 

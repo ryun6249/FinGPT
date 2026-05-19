@@ -141,6 +141,7 @@ def health() -> dict[str, Any]:
             "fast_top_signal_screen_cache",
             "axis_annotated_overview_charts",
             "quality_adjusted_momentum_v1",
+            "volatility_adjusted_breakout_v1",
         ],
     }
 

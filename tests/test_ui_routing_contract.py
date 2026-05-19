@@ -651,6 +651,8 @@ class UiRoutingContractTests(unittest.TestCase):
         self.assertIn("function quantamentalAiRequestOptions", self.source)
         self.assertIn("quantamental-quant-algorithm", module_source)
         self.assertIn("quality_adjusted_momentum_v1", module_source)
+        self.assertIn("quantamental-volatility-breakout-algorithm", module_source)
+        self.assertIn("volatility_adjusted_breakout_v1", module_source)
         self.assertIn("model: aiOptions.model", self.source)
         self.assertIn("risk_adjusted_momentum_63d", self.source)
         self.assertIn("risk_adjusted_momentum", self.source)

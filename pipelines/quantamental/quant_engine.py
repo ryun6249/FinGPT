@@ -103,6 +103,14 @@ def calculate_quant(payload: dict[str, Any]) -> dict[str, Any]:
         risk_adjusted=risk_adjusted,
         liquidity=liquidity,
     )
+    breakout_algorithm = _volatility_adjusted_breakout_algorithm(
+        rows=rows,
+        returns=returns,
+        trend=trend,
+        volatility=volatility,
+        drawdown=drawdown,
+        liquidity=liquidity,
+    )
     chart_data = {
         "price": _price_chart(rows),
         "cumulative_return": _cumulative_return_chart(rows),
@@ -120,6 +128,10 @@ def calculate_quant(payload: dict[str, Any]) -> dict[str, Any]:
         "risk": risk,
         "liquidity": liquidity,
         "algorithm": algorithm,
+        "algorithms": {
+            "quality_adjusted_momentum": algorithm,
+            "volatility_adjusted_breakout": breakout_algorithm,
+        },
     }
     return {
         "status": "ok" if rows else "empty",
@@ -535,6 +547,108 @@ def _quality_adjusted_momentum_algorithm(
     }
 
 
+def _volatility_adjusted_breakout_algorithm(
+    *,
+    rows: list[dict[str, Any]],
+    returns: list[float],
+    trend: dict[str, Any],
+    volatility: dict[str, Any],
+    drawdown: dict[str, Any],
+    liquidity: dict[str, Any],
+) -> dict[str, Any]:
+    closes = [_price(row) for row in rows]
+    available_observations = len(rows)
+    required_observations = 90
+    warnings: list[str] = []
+    if available_observations < required_observations:
+        warnings.append("insufficient_price_history_for_volatility_adjusted_breakout")
+
+    latest_close = closes[-1] if closes else None
+    prior_high_63d = _rolling_prior_high(closes, 63)
+    breakout_strength = safe_divide((latest_close or 0.0) - prior_high_63d, prior_high_63d) if latest_close is not None and prior_high_63d is not None else None
+    trend_return_20d = _window_return(closes, 20)
+    positive_share_20d = _positive_return_share(returns, 20)
+    volume_confirmation = liquidity.get("volume_spike")
+    current_drawdown_abs = abs(drawdown.get("current_drawdown")) if drawdown.get("current_drawdown") is not None else None
+
+    breakout_score = _score_high(breakout_strength, -0.05, 0.08)
+    trend_score = _avg([
+        _score_high(trend_return_20d, -0.06, 0.12),
+        _trend_regime_score(trend.get("trend_regime")),
+        100.0 if trend.get("price_above_sma_50") is True else 30.0 if trend.get("price_above_sma_50") is False else None,
+    ])
+    volatility_score = _score_low(volatility.get("realized_volatility_20d"), 0.12, 0.70)
+    drawdown_score = _score_low(current_drawdown_abs, 0.00, 0.25)
+    consistency_score = _score_high(positive_share_20d, 0.42, 0.68)
+    volume_score = _score_high(volume_confirmation, 0.7, 1.8)
+    score = _weighted_score(
+        [
+            (breakout_score, 0.30),
+            (trend_score, 0.20),
+            (volatility_score, 0.16),
+            (drawdown_score, 0.14),
+            (consistency_score, 0.12),
+            (volume_score, 0.08),
+        ],
+        min_components=4,
+    )
+    if available_observations < required_observations:
+        score = None
+
+    return {
+        "algorithm_id": "volatility_adjusted_breakout_v1",
+        "volatility_adjusted_breakout_score": score,
+        "classification": _volatility_adjusted_breakout_classification(score, breakout_strength),
+        "score_direction": "higher means a breakout is better supported by trend, volatility, drawdown, consistency, and volume",
+        "required_observations": required_observations,
+        "available_observations": available_observations,
+        "prior_high_window": "63d",
+        "prior_high": prior_high_63d,
+        "latest_close": latest_close,
+        "breakout_strength": breakout_strength,
+        "trend_return_20d": trend_return_20d,
+        "positive_return_share_20d": positive_share_20d,
+        "component_scores": {
+            "breakout": breakout_score,
+            "trend": trend_score,
+            "volatility": volatility_score,
+            "drawdown": drawdown_score,
+            "consistency": consistency_score,
+            "volume": volume_score,
+        },
+        "inputs": {
+            "breakout_basis": "latest_close_vs_prior_63d_high",
+            "trend_window": "20d",
+            "volatility_window": "20d",
+            "volume_basis": "latest_volume_vs_average_volume_20d",
+        },
+        "warnings": warnings,
+        "not_investment_advice": True,
+        "used_in_composite_score": False,
+    }
+
+
+def _rolling_prior_high(closes: list[float | None], window: int) -> float | None:
+    if len(closes) <= window:
+        return None
+    nums = [value for value in closes[-window - 1 : -1] if value is not None]
+    return max(nums) if nums else None
+
+
+def _volatility_adjusted_breakout_classification(score: float | None, breakout_strength: float | None) -> str:
+    if score is None:
+        return "insufficient_data"
+    if breakout_strength is not None and breakout_strength <= 0 and score < 65:
+        return "no_confirmed_breakout"
+    if score >= 75:
+        return "confirmed_volatility_adjusted_breakout"
+    if score >= 60:
+        return "constructive_breakout_setup"
+    if score >= 45:
+        return "mixed_breakout_setup"
+    return "weak_breakout_setup"
+
+
 def _first_numeric(*values: Any) -> float | None:
     for value in values:
         parsed = _finite(value)
@@ -647,6 +761,8 @@ def _component_scores(metrics: dict[str, Any]) -> dict[str, float | None]:
     drawdown = metrics["drawdown"]
     liquidity = metrics["liquidity"]
     algorithm = metrics.get("algorithm") or {}
+    algorithms = metrics.get("algorithms") or {}
+    breakout_algorithm = algorithms.get("volatility_adjusted_breakout") or {}
     return {
         "momentum": _avg([
             _score_high(momentum.get("momentum_3m"), -0.10, 0.20),
@@ -675,6 +791,7 @@ def _component_scores(metrics: dict[str, Any]) -> dict[str, float | None]:
             _score_high(liquidity.get("volume_trend"), -0.5, 0.5),
         ]),
         "quality_adjusted_momentum": _finite(algorithm.get("quality_adjusted_momentum_score")),
+        "volatility_adjusted_breakout": _finite(breakout_algorithm.get("volatility_adjusted_breakout_score")),
     }
 
 

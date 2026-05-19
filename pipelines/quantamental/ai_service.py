@@ -39,6 +39,9 @@ def build_context(analysis: dict[str, Any]) -> dict[str, Any]:
     fundamentals = analysis.get("fundamentals") or {}
     quant = analysis.get("quant") or {}
     quant_algorithm = ((quant.get("metrics") or {}).get("algorithm") or {}) if isinstance(quant, dict) else {}
+    quant_algorithms = ((quant.get("metrics") or {}).get("algorithms") or {}) if isinstance(quant, dict) else {}
+    if quant_algorithm and not quant_algorithms.get("quality_adjusted_momentum"):
+        quant_algorithms = {**quant_algorithms, "quality_adjusted_momentum": quant_algorithm}
     sec_evidence = analysis.get("sec_evidence") or {}
     peer_relative = analysis.get("peer_relative") or {}
     used_data = _build_used_data_snapshot(
@@ -125,6 +128,8 @@ def build_context(analysis: dict[str, Any]) -> dict[str, Any]:
         "quant_snapshot": {
             "component_scores": quant.get("component_scores") or {},
             "quality_adjusted_momentum": quant_algorithm,
+            "volatility_adjusted_breakout": quant_algorithms.get("volatility_adjusted_breakout") or {},
+            "algorithms": quant_algorithms,
             "missing_metrics": (quant.get("missing_metrics") or [])[:20],
         },
     }
@@ -317,9 +322,18 @@ def _key_changes(context: dict[str, Any], *, language: str) -> dict[str, Any]:
 
 
 def _algorithm_change_text(algorithm: dict[str, Any], *, unavailable: str, language: str) -> str:
-    score = algorithm.get("quality_adjusted_momentum_score")
+    if not algorithm:
+        return unavailable
+    score_key = (
+        "quality_adjusted_momentum_score"
+        if "quality_adjusted_momentum_score" in algorithm
+        else "volatility_adjusted_breakout_score"
+        if "volatility_adjusted_breakout_score" in algorithm
+        else "score"
+    )
+    score = algorithm.get(score_key)
     classification = algorithm.get("classification") or unavailable
-    algorithm_id = algorithm.get("algorithm_id") or "quality_adjusted_momentum_v1"
+    algorithm_id = algorithm.get("algorithm_id") or "unknown_quant_algorithm"
     if score is None:
         return (
             f"{algorithm_id}: unavailable; classification={classification}."
@@ -475,6 +489,14 @@ def _fallback_report(context: dict[str, Any], *, language: str = "ko") -> dict[s
         key_changes.setdefault(
             "quant_algorithm",
             _algorithm_change_text(quant_algorithm, unavailable=_unavailable(language), language=language),
+        )
+        report["key_changes"] = key_changes
+    breakout_algorithm = ((context.get("quant_snapshot") or {}).get("volatility_adjusted_breakout") or {})
+    if breakout_algorithm:
+        key_changes = dict(report.get("key_changes") or {})
+        key_changes.setdefault(
+            "secondary_quant_algorithm",
+            _algorithm_change_text(breakout_algorithm, unavailable=_unavailable(language), language=language),
         )
         report["key_changes"] = key_changes
     return {

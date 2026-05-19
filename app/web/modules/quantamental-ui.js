@@ -1,5 +1,6 @@
 (function initQuantamentalUi(global) {
   const QUALITY_ADJUSTED_MOMENTUM_ID = "quality_adjusted_momentum_v1";
+  const VOLATILITY_ADJUSTED_BREAKOUT_ID = "volatility_adjusted_breakout_v1";
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -69,6 +70,9 @@
       qamScore: "QAM Score",
       qamClass: "QAM Class",
       qamNotInComposite: "Quality-adjusted momentum is shown as a deterministic research signal and is not used in the composite score.",
+      vabScore: "VAB Score",
+      vabClass: "VAB Class",
+      vabNotInComposite: "Volatility-adjusted breakout is a secondary quant diagnostic and is not used in the composite score.",
       maxDrawdown: "Max Drawdown",
       latestFiling: "Latest Filing",
       revenue: "Revenue",
@@ -281,6 +285,9 @@
       qamScore: "QAM 점수",
       qamClass: "QAM 분류",
       qamNotInComposite: "품질 조정 모멘텀은 결정론적 리서치 신호로만 표시되며 복합 점수에는 반영하지 않습니다.",
+      vabScore: "VAB 점수",
+      vabClass: "VAB 분류",
+      vabNotInComposite: "변동성 조정 돌파는 보조 퀀트 진단 지표이며 복합 점수에는 반영하지 않습니다.",
       maxDrawdown: "최대 낙폭",
       latestFiling: "최근 공시",
       revenue: "매출",
@@ -558,6 +565,8 @@
 
   function algorithmStatusClass(value) {
     const key = String(value || "").toLowerCase();
+    if (key.includes("no_confirmed")) return "warn";
+    if (key.includes("confirmed")) return "ok";
     if (key.includes("strong") || key.includes("constructive")) return "ok";
     if (key.includes("weak")) return "fail";
     if (key.includes("mixed") || key.includes("insufficient")) return "warn";
@@ -592,14 +601,26 @@
 
   function quantAlgorithmSummary(data) {
     const cpy = copy();
-    const algorithm = data?.quant?.metrics?.algorithm || {};
-    if (!algorithm.algorithm_id) return "";
+    const metrics = data?.quant?.metrics || {};
+    const algorithm = metrics.algorithm || {};
+    const algorithms = metrics.algorithms || {};
+    const breakout = algorithms.volatility_adjusted_breakout || metrics.volatility_adjusted_breakout || {};
+    if (!algorithm.algorithm_id && !breakout.algorithm_id) return "";
     const algorithmId = algorithm.algorithm_id || QUALITY_ADJUSTED_MOMENTUM_ID;
+    const breakoutId = breakout.algorithm_id || VOLATILITY_ADJUSTED_BREAKOUT_ID;
     return `
-      <div class="decision-summary ${escapeHtml(algorithmStatusClass(algorithm.classification))}" data-testid="quantamental-quant-algorithm">
-        ${escapeHtml(algorithmId)} / ${escapeHtml(cpy.qamScore)} ${escapeHtml(fmt(algorithm.quality_adjusted_momentum_score))} / ${escapeHtml(cpy.qamClass)} ${escapeHtml(algorithm.classification || cpy.unavailable)}
-        <br /><span class="muted">${escapeHtml(cpy.qamNotInComposite)}</span>
-      </div>
+      ${algorithm.algorithm_id ? `
+        <div class="decision-summary ${escapeHtml(algorithmStatusClass(algorithm.classification))}" data-testid="quantamental-quant-algorithm">
+          ${escapeHtml(algorithmId)} / ${escapeHtml(cpy.qamScore)} ${escapeHtml(fmt(algorithm.quality_adjusted_momentum_score))} / ${escapeHtml(cpy.qamClass)} ${escapeHtml(algorithm.classification || cpy.unavailable)}
+          <br /><span class="muted">${escapeHtml(cpy.qamNotInComposite)}</span>
+        </div>
+      ` : ""}
+      ${breakout.algorithm_id ? `
+        <div class="decision-summary ${escapeHtml(algorithmStatusClass(breakout.classification))}" data-testid="quantamental-volatility-breakout-algorithm">
+          ${escapeHtml(breakoutId)} / ${escapeHtml(cpy.vabScore)} ${escapeHtml(fmt(breakout.volatility_adjusted_breakout_score))} / ${escapeHtml(cpy.vabClass)} ${escapeHtml(breakout.classification || cpy.unavailable)}
+          <br /><span class="muted">${escapeHtml(cpy.vabNotInComposite)}</span>
+        </div>
+      ` : ""}
     `;
   }
 
@@ -656,6 +677,7 @@
       ...(data?.factors?.missing_factor_inputs || []),
     ];
     const algorithm = qMetrics?.algorithm || {};
+    const breakout = qMetrics?.algorithms?.volatility_adjusted_breakout || {};
     return `
       <div data-testid="quantamental-overview-tab">
         <div class="quantamental-overview-brief">
@@ -666,6 +688,8 @@
             ${metric(cpy.vol60d, fmtPct(qMetrics?.volatility?.realized_volatility_60d), statusClass(qMetrics?.liquidity?.liquidity_risk))}
             ${metric(cpy.qamScore, fmt(algorithm.quality_adjusted_momentum_score), scoreClass(algorithm.quality_adjusted_momentum_score))}
             ${metric(cpy.qamClass, algorithm.classification || "-", algorithmStatusClass(algorithm.classification))}
+            ${metric(cpy.vabScore, fmt(breakout.volatility_adjusted_breakout_score), scoreClass(breakout.volatility_adjusted_breakout_score))}
+            ${metric(cpy.vabClass, breakout.classification || "-", algorithmStatusClass(breakout.classification))}
             ${metric(cpy.maxDrawdown, fmtPct(qMetrics?.drawdown?.max_drawdown), "warn")}
             ${metric(cpy.latestFiling, latestStatement?.date || "-", statusClass(freshness?.sections?.fundamentals?.status))}
             ${metric(cpy.revenue, compact(latestStatement?.revenue), "neutral")}
@@ -677,6 +701,7 @@
           <div class="decision-summary neutral">
             ${escapeHtml(cpy.chartAxisNote)}
           </div>
+          ${quantAlgorithmSummary(data)}
         </div>
         <div class="quantamental-chart-grid" data-testid="quantamental-chart-surface">
           ${chartCard(chart.priceTitle, lineChart(chartData.price || [], "close", ["sma_50", "sma_200"], { yLabel: chart.priceY, yFormat: "number", legendLabels: [chart.close, chart.sma50, chart.sma200] }), chart.priceNote)}

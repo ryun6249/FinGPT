@@ -376,6 +376,8 @@ REQUIRED_APP_JS_MARKERS: dict[str, str] = {
 REQUIRED_QUANTAMENTAL_MODULE_MARKERS: dict[str, str] = {
     "quantamental quant algorithm summary": "quantamental-quant-algorithm",
     "quantamental quality adjusted momentum algorithm": "quality_adjusted_momentum_v1",
+    "quantamental volatility adjusted breakout summary": "quantamental-volatility-breakout-algorithm",
+    "quantamental volatility adjusted breakout algorithm": "volatility_adjusted_breakout_v1",
 }
 
 
