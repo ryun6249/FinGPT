@@ -107,6 +107,27 @@ class UiRoutingContractTests(unittest.TestCase):
         self.assertIn("state.preflightTimer = setInterval(() => loadPreflight(false), 60000)", self.source)
         self.assertIn('document.addEventListener("visibilitychange"', self.source)
 
+    def test_standard_global_ranges_do_not_reuse_custom_date_bounds(self):
+        init_match = re.search(
+            r"function initGlobalRangeFromLocation\(\) \{(?P<body>.*?)\n\}\n\nconst els =",
+            self.source,
+            re.S,
+        )
+        self.assertIsNotNone(init_match)
+        init_body = init_match.group("body")
+        self.assertIn('if (range !== "custom")', init_body)
+        self.assertIn('globalRangeDateBounds(range, "", "")', init_body)
+
+        setter_match = re.search(
+            r"function setGlobalRange\(range, options = \{\}\) \{(?P<body>.*?)\n\}\n\nfunction assetDetailOptionsFromControls",
+            self.source,
+            re.S,
+        )
+        self.assertIsNotNone(setter_match)
+        setter_body = setter_match.group("body")
+        self.assertIn('const useCustomInputs = normalized === "custom";', setter_body)
+        self.assertIn('globalRangeDateBounds(normalized, "", "")', setter_body)
+
     def test_ai_portfolio_dashboard_is_loaded_once_per_refresh_path(self):
         self.assertIn("async function loadAiPortfolioOps", self.source)
         self.assertIn("const AI_PORTFOLIO_DASHBOARD_CACHE_TTL_MS = 15000", self.source)
@@ -132,8 +153,8 @@ class UiRoutingContractTests(unittest.TestCase):
         self.assertIn('src="modules/quant-ui.js?v=20260514-domain-modules"', html)
         self.assertIn('src="modules/ai-portfolio-ui.js?v=20260514-domain-modules"', html)
         self.assertIn('src="modules/quantamental-ui.js?v=20260519-quantamental-v12"', html)
-        self.assertIn('href="styles.css?v=20260519-continuous-enhancement-v3"', html)
-        self.assertIn('src="app.js?v=20260519-continuous-enhancement-v3"', html)
+        self.assertIn('href="styles.css?v=20260519-continuous-enhancement-v4"', html)
+        self.assertIn('src="app.js?v=20260519-continuous-enhancement-v4"', html)
         self.assertIn('id="dashboardContextStrip"', html)
         self.assertIn("dashboardDecisionCards", self.source)
         self.assertIn("function loadDashboardDecisionCards", self.source)
@@ -154,7 +175,7 @@ class UiRoutingContractTests(unittest.TestCase):
         smoke_source = AI_PORTFOLIO_UI_SMOKE.read_text(encoding="utf-8")
         self.assertIn('DOMAIN_BUNDLE_VERSION = "20260514-domain-modules"', smoke_source)
         self.assertIn('QUANTAMENTAL_BUNDLE_VERSION = "20260519-quantamental-v12"', smoke_source)
-        self.assertIn('APP_BUNDLE_VERSION = "20260519-continuous-enhancement-v3"', smoke_source)
+        self.assertIn('APP_BUNDLE_VERSION = "20260519-continuous-enhancement-v4"', smoke_source)
         self.assertIn("def _normalize_base_url", smoke_source)
         self.assertIn("modules/quantamental-ui.js", smoke_source)
         self.assertIn("FinGPTQuantamentalUi?.topSignals", smoke_source)
@@ -635,10 +656,12 @@ class UiRoutingContractTests(unittest.TestCase):
         self.assertIn(".quantamental-ai-control", css)
         self.assertIn('.dashboard-surface-grid[data-panel-view="all"] [data-panel-tier="primary"] .home-card-head::before', css)
         self.assertIn(".dashboard-range-controls.range-warning", css)
+        self.assertIn("overflow-x: auto", css)
         self.assertIn("DEFAULT_DASHBOARD_PANEL_VIEWS", self.source)
         self.assertIn("dashboardPanelViewByTab: initDashboardPanelViews()", self.source)
         self.assertIn('market: "all"', self.source)
         self.assertIn('macro: "all"', self.source)
+        self.assertIn("els.homeDashboardTabs.scrollTo", self.source)
         self.assertIn("function setGlobalRange", self.source)
         self.assertIn("function normalizeCustomGlobalDateOrder", self.source)
         self.assertIn("function globalRangeValidationMessage", self.source)
