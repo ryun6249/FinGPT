@@ -107,6 +107,40 @@ DEFAULT_SCREENING_UNIVERSES = {
     "mega_cap_tech": ["AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "AVGO", "TSLA", "AMD", "NFLX"],
 }
 
+SCORE_SCREEN_REGISTRY: dict[str, dict[str, str]] = {
+    "composite": {"label": "Composite", "row_field": "final_score"},
+    "value": {"label": "Value", "row_field": "value_score"},
+    "quality": {"label": "Quality", "row_field": "quality_score"},
+    "growth": {"label": "Growth", "row_field": "growth_score"},
+    "momentum": {"label": "Momentum", "row_field": "momentum_score"},
+    "low_volatility": {"label": "Low Volatility", "row_field": "low_volatility_score"},
+    "liquidity": {"label": "Liquidity", "row_field": "liquidity_score"},
+    "drawdown_resilience": {
+        "label": "Drawdown Resilience",
+        "row_field": "drawdown_resilience_score",
+        "algorithm_key": "drawdown_recovery_resilience",
+        "algorithm_score_field": "drawdown_recovery_resilience_score",
+    },
+    "liquidity_stability": {
+        "label": "Liquidity Stability",
+        "row_field": "liquidity_stability_score",
+        "algorithm_key": "liquidity_participation_stability",
+        "algorithm_score_field": "liquidity_participation_stability_score",
+    },
+    "trend_efficiency": {
+        "label": "Trend Efficiency",
+        "row_field": "trend_efficiency_score",
+        "algorithm_key": "trend_efficiency_stability",
+        "algorithm_score_field": "trend_efficiency_stability_score",
+    },
+    "market_resilience": {
+        "label": "Market Resilience",
+        "row_field": "market_resilience_score",
+        "algorithm_key": "market_relative_resilience",
+        "algorithm_score_field": "market_relative_resilience_score",
+    },
+}
+
 
 def health() -> dict[str, Any]:
     return {
@@ -145,6 +179,17 @@ def health() -> dict[str, Any]:
             "drawdown_recovery_resilience_v1",
             "liquidity_participation_stability_v1",
             "trend_efficiency_stability_v1",
+            "market_relative_resilience_v1",
+        ],
+        "score_screen_keys": [
+            {
+                "key": key,
+                "label": meta["label"],
+                "row_field": meta["row_field"],
+                "algorithm_key": meta.get("algorithm_key"),
+                "used_in_composite_score": key == "composite",
+            }
+            for key, meta in SCORE_SCREEN_REGISTRY.items()
         ],
     }
 
@@ -1179,33 +1224,12 @@ def _screening_score_key(req: QuantamentalScreenRequest | QuantamentalScoreScree
 
 
 def _score_screen_label(score_key: str) -> str:
-    return {
-        "composite": "Composite",
-        "value": "Value",
-        "quality": "Quality",
-        "growth": "Growth",
-        "momentum": "Momentum",
-        "low_volatility": "Low Volatility",
-        "liquidity": "Liquidity",
-        "drawdown_resilience": "Drawdown Resilience",
-        "liquidity_stability": "Liquidity Stability",
-        "trend_efficiency": "Trend Efficiency",
-    }.get(str(score_key or "composite"), "Composite")
+    return SCORE_SCREEN_REGISTRY.get(str(score_key or "composite"), SCORE_SCREEN_REGISTRY["composite"])["label"]
 
 
 def _screening_score_value(row: dict[str, Any], score_key: str) -> Any:
-    return {
-        "composite": row.get("final_score"),
-        "value": row.get("value_score"),
-        "quality": row.get("quality_score"),
-        "growth": row.get("growth_score"),
-        "momentum": row.get("momentum_score"),
-        "low_volatility": row.get("low_volatility_score"),
-        "liquidity": row.get("liquidity_score"),
-        "drawdown_resilience": row.get("drawdown_resilience_score"),
-        "liquidity_stability": row.get("liquidity_stability_score"),
-        "trend_efficiency": row.get("trend_efficiency_score"),
-    }.get(str(score_key or "composite"), row.get("final_score"))
+    meta = SCORE_SCREEN_REGISTRY.get(str(score_key or "composite"), SCORE_SCREEN_REGISTRY["composite"])
+    return row.get(meta["row_field"], row.get("final_score"))
 
 
 def _screening_row(payload: dict[str, Any], *, score_key: str = "composite") -> dict[str, Any]:
@@ -1218,9 +1242,6 @@ def _screening_row(payload: dict[str, Any], *, score_key: str = "composite") -> 
     integrity = payload.get("data_integrity") or quality.get("data_integrity") or {}
     quant = payload.get("quant") or {}
     quant_algorithms = ((quant.get("metrics") or {}).get("algorithms") or {}) if isinstance(quant, dict) else {}
-    drawdown_resilience = quant_algorithms.get("drawdown_recovery_resilience") or {}
-    liquidity_stability = quant_algorithms.get("liquidity_participation_stability") or {}
-    trend_efficiency = quant_algorithms.get("trend_efficiency_stability") or {}
     row = {
         "ticker": payload.get("ticker"),
         "market": payload.get("market"),
@@ -1239,9 +1260,6 @@ def _screening_row(payload: dict[str, Any], *, score_key: str = "composite") -> 
         "momentum_score": factors.get("momentum_score"),
         "low_volatility_score": factors.get("low_volatility_score"),
         "liquidity_score": factors.get("liquidity_score"),
-        "drawdown_resilience_score": drawdown_resilience.get("drawdown_recovery_resilience_score"),
-        "liquidity_stability_score": liquidity_stability.get("liquidity_participation_stability_score"),
-        "trend_efficiency_score": trend_efficiency.get("trend_efficiency_stability_score"),
         "data_quality_score": quality.get("data_quality_score"),
         "quality_level": quality.get("quality_level"),
         "freshness_status": freshness.get("status"),
@@ -1254,6 +1272,11 @@ def _screening_row(payload: dict[str, Any], *, score_key: str = "composite") -> 
         "warnings": _unique([*list(payload.get("warnings") or []), *list(freshness.get("warnings") or [])])[:12],
         "not_investment_advice": True,
     }
+    for meta in SCORE_SCREEN_REGISTRY.values():
+        algorithm_key = meta.get("algorithm_key")
+        score_field = meta.get("algorithm_score_field")
+        if algorithm_key and score_field:
+            row[meta["row_field"]] = (quant_algorithms.get(algorithm_key) or {}).get(score_field)
     row["screen_score_key"] = score_key
     row["screen_score_label"] = _score_screen_label(score_key)
     row["screen_score"] = _screening_score_value(row, score_key)

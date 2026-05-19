@@ -137,6 +137,14 @@ def calculate_quant(payload: dict[str, Any]) -> dict[str, Any]:
         risk_adjusted=risk_adjusted,
         liquidity=liquidity,
     )
+    market_resilience_algorithm = _market_relative_resilience_algorithm(
+        returns=returns,
+        benchmark_returns=benchmark_returns,
+        risk=risk,
+        volatility=volatility,
+        drawdown=drawdown,
+        liquidity=liquidity,
+    )
     chart_data = {
         "price": _price_chart(rows),
         "cumulative_return": _cumulative_return_chart(rows),
@@ -160,6 +168,7 @@ def calculate_quant(payload: dict[str, Any]) -> dict[str, Any]:
             "drawdown_recovery_resilience": resilience_algorithm,
             "liquidity_participation_stability": liquidity_stability_algorithm,
             "trend_efficiency_stability": trend_efficiency_algorithm,
+            "market_relative_resilience": market_resilience_algorithm,
         },
     }
     return {
@@ -960,6 +969,102 @@ def _trend_efficiency_stability_algorithm(
     }
 
 
+def _market_relative_resilience_algorithm(
+    *,
+    returns: list[float],
+    benchmark_returns: list[float],
+    risk: dict[str, Any],
+    volatility: dict[str, Any],
+    drawdown: dict[str, Any],
+    liquidity: dict[str, Any],
+) -> dict[str, Any]:
+    pairs = _aligned_return_pairs(returns, benchmark_returns)
+    available_observations = len(pairs)
+    required_observations = 90
+    warnings: list[str] = []
+    if available_observations < required_observations:
+        warnings.append("insufficient_benchmark_history_for_market_relative_resilience")
+
+    recent_pairs = pairs[-63:]
+    asset_return_63d = _compound_return_values([asset for asset, _ in recent_pairs])
+    benchmark_return_63d = _compound_return_values([benchmark for _, benchmark in recent_pairs])
+    active_return_63d = (
+        asset_return_63d - benchmark_return_63d
+        if asset_return_63d is not None and benchmark_return_63d is not None
+        else None
+    )
+    downside_capture_63d = _downside_capture_ratio(recent_pairs)
+    active_positive_share_63d = _active_positive_share(recent_pairs)
+    beta = _finite(risk.get("beta_vs_benchmark"))
+    correlation = _finite(risk.get("correlation_vs_benchmark"))
+    current_drawdown_abs = abs(drawdown.get("current_drawdown")) if drawdown.get("current_drawdown") is not None else None
+
+    active_return_score = _score_high(active_return_63d, -0.10, 0.12)
+    downside_capture_score = _score_low(downside_capture_63d, 0.0, 1.4)
+    beta_balance_score = _score_low(abs(beta - 1.0) if beta is not None else None, 0.0, 1.2)
+    active_consistency_score = _score_high(active_positive_share_63d, 0.42, 0.62)
+    volatility_score = _score_low(volatility.get("realized_volatility_60d"), 0.12, 0.75)
+    drawdown_score = _score_low(current_drawdown_abs, 0.0, 0.35)
+    liquidity_score = _score_high(
+        math.log10(liquidity.get("average_dollar_volume")) if liquidity.get("average_dollar_volume") else None,
+        6.0,
+        9.0,
+    )
+    benchmark_relevance_score = _score_high(abs(correlation) if correlation is not None else None, 0.20, 0.80)
+    score = _weighted_score(
+        [
+            (active_return_score, 0.26),
+            (downside_capture_score, 0.20),
+            (active_consistency_score, 0.14),
+            (beta_balance_score, 0.12),
+            (volatility_score, 0.10),
+            (drawdown_score, 0.10),
+            (liquidity_score, 0.05),
+            (benchmark_relevance_score, 0.03),
+        ],
+        min_components=5,
+    )
+    if available_observations < required_observations:
+        score = None
+
+    return {
+        "algorithm_id": "market_relative_resilience_v1",
+        "market_relative_resilience_score": score,
+        "classification": _market_relative_resilience_classification(score, active_return_63d, downside_capture_63d),
+        "score_direction": "higher means the asset outperformed its benchmark with lower downside capture and controlled risk",
+        "required_observations": required_observations,
+        "available_observations": available_observations,
+        "asset_return_63d": asset_return_63d,
+        "benchmark_return_63d": benchmark_return_63d,
+        "active_return_63d": active_return_63d,
+        "downside_capture_63d": downside_capture_63d,
+        "active_positive_share_63d": active_positive_share_63d,
+        "beta_vs_benchmark": beta,
+        "correlation_vs_benchmark": correlation,
+        "current_drawdown_abs": current_drawdown_abs,
+        "component_scores": {
+            "active_return": active_return_score,
+            "downside_capture": downside_capture_score,
+            "active_consistency": active_consistency_score,
+            "beta_balance": beta_balance_score,
+            "volatility": volatility_score,
+            "drawdown": drawdown_score,
+            "liquidity": liquidity_score,
+            "benchmark_relevance": benchmark_relevance_score,
+        },
+        "inputs": {
+            "benchmark_basis": "configured_market_benchmark_aligned_by_date",
+            "active_return_window": "63d",
+            "downside_capture_window": "63d_benchmark_down_days",
+            "risk_window": "60d",
+            "liquidity_basis": "average_dollar_volume_60d",
+        },
+        "warnings": warnings,
+        "not_investment_advice": True,
+        "used_in_composite_score": False,
+    }
+
+
 def _rolling_prior_high(closes: list[float | None], window: int) -> float | None:
     if len(closes) <= window:
         return None
@@ -1031,6 +1136,24 @@ def _trend_efficiency_stability_classification(score: float | None, net_return_6
     return "inefficient_or_choppy_trend"
 
 
+def _market_relative_resilience_classification(
+    score: float | None,
+    active_return_63d: float | None,
+    downside_capture_63d: float | None,
+) -> str:
+    if score is None:
+        return "insufficient_data"
+    if active_return_63d is not None and active_return_63d < 0 and downside_capture_63d is not None and downside_capture_63d > 1.0 and score < 60:
+        return "benchmark_lagging_fragile_resilience"
+    if score >= 75:
+        return "market_relative_resilient_leader"
+    if score >= 60:
+        return "constructive_market_relative_resilience"
+    if score >= 45:
+        return "mixed_market_relative_resilience"
+    return "weak_market_relative_resilience"
+
+
 def _first_numeric(*values: Any) -> float | None:
     for value in values:
         parsed = _finite(value)
@@ -1061,6 +1184,31 @@ def _absolute_return_path(returns: list[float], window: int) -> float | None:
         return None
     total = sum(nums)
     return total if total > 0 else None
+
+
+def _compound_return_values(values: list[float]) -> float | None:
+    nums = [value for value in values if math.isfinite(value)]
+    if len(nums) < 20:
+        return None
+    total = 1.0
+    for value in nums:
+        total *= 1.0 + value
+    return total - 1.0
+
+
+def _downside_capture_ratio(pairs: list[tuple[float, float]]) -> float | None:
+    downside_pairs = [(asset, benchmark) for asset, benchmark in pairs if benchmark < 0]
+    if len(downside_pairs) < 10:
+        return None
+    benchmark_downside = sum(benchmark for _, benchmark in downside_pairs)
+    asset_downside = sum(asset for asset, _ in downside_pairs)
+    return safe_divide(asset_downside, benchmark_downside)
+
+
+def _active_positive_share(pairs: list[tuple[float, float]]) -> float | None:
+    if len(pairs) < 20:
+        return None
+    return sum(1 for asset, benchmark in pairs if asset - benchmark > 0) / len(pairs)
 
 
 def _weighted_score(values: list[tuple[float | None, float]], *, min_components: int = 1) -> float | None:
@@ -1156,6 +1304,7 @@ def _component_scores(metrics: dict[str, Any]) -> dict[str, float | None]:
     resilience_algorithm = algorithms.get("drawdown_recovery_resilience") or {}
     liquidity_stability_algorithm = algorithms.get("liquidity_participation_stability") or {}
     trend_efficiency_algorithm = algorithms.get("trend_efficiency_stability") or {}
+    market_resilience_algorithm = algorithms.get("market_relative_resilience") or {}
     return {
         "momentum": _avg([
             _score_high(momentum.get("momentum_3m"), -0.10, 0.20),
@@ -1188,6 +1337,7 @@ def _component_scores(metrics: dict[str, Any]) -> dict[str, float | None]:
         "drawdown_recovery_resilience": _finite(resilience_algorithm.get("drawdown_recovery_resilience_score")),
         "liquidity_participation_stability": _finite(liquidity_stability_algorithm.get("liquidity_participation_stability_score")),
         "trend_efficiency_stability": _finite(trend_efficiency_algorithm.get("trend_efficiency_stability_score")),
+        "market_relative_resilience": _finite(market_resilience_algorithm.get("market_relative_resilience_score")),
     }
 
 

@@ -132,6 +132,7 @@ def build_context(analysis: dict[str, Any]) -> dict[str, Any]:
             "drawdown_recovery_resilience": quant_algorithms.get("drawdown_recovery_resilience") or {},
             "liquidity_participation_stability": quant_algorithms.get("liquidity_participation_stability") or {},
             "trend_efficiency_stability": quant_algorithms.get("trend_efficiency_stability") or {},
+            "market_relative_resilience": quant_algorithms.get("market_relative_resilience") or {},
             "algorithms": quant_algorithms,
             "missing_metrics": (quant.get("missing_metrics") or [])[:20],
         },
@@ -338,6 +339,8 @@ def _algorithm_change_text(algorithm: dict[str, Any], *, unavailable: str, langu
         if "liquidity_participation_stability_score" in algorithm
         else "trend_efficiency_stability_score"
         if "trend_efficiency_stability_score" in algorithm
+        else "market_relative_resilience_score"
+        if "market_relative_resilience_score" in algorithm
         else "score"
     )
     score = algorithm.get(score_key)
@@ -530,6 +533,14 @@ def _fallback_report(context: dict[str, Any], *, language: str = "ko") -> dict[s
         key_changes.setdefault(
             "trend_efficiency_algorithm",
             _algorithm_change_text(trend_efficiency_algorithm, unavailable=_unavailable(language), language=language),
+        )
+        report["key_changes"] = key_changes
+    market_resilience_algorithm = ((context.get("quant_snapshot") or {}).get("market_relative_resilience") or {})
+    if market_resilience_algorithm:
+        key_changes = dict(report.get("key_changes") or {})
+        key_changes.setdefault(
+            "market_resilience_algorithm",
+            _algorithm_change_text(market_resilience_algorithm, unavailable=_unavailable(language), language=language),
         )
         report["key_changes"] = key_changes
     return {
