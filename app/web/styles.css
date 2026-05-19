@@ -709,8 +709,11 @@ input[type="range"]::-moz-range-thumb {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  max-width: 100%;
   margin: 0 0 16px;
   padding: 3px;
+  overflow-x: auto;
+  scrollbar-width: thin;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: rgba(15, 23, 42, 0.45);
@@ -726,6 +729,7 @@ input[type="range"]::-moz-range-thumb {
   font-family: var(--font-mono);
   font-size: 12px;
   cursor: pointer;
+  flex: 0 0 auto;
 }
 .dashboard-tab:hover {
   color: var(--text);
@@ -10189,7 +10193,7 @@ html[data-theme="light"] button.primary-btn {
 
 .dashboard-range-controls {
   display: grid;
-  grid-template-columns: minmax(150px, 190px) repeat(2, minmax(132px, 160px)) minmax(220px, 1fr);
+  grid-template-columns: minmax(150px, 190px) repeat(2, minmax(170px, 190px)) minmax(220px, 1fr);
   gap: 10px;
   align-items: end;
   margin: 12px 0;
@@ -10215,6 +10219,12 @@ html[data-theme="light"] button.primary-btn {
 .dashboard-range-controls input {
   min-height: 34px;
   width: 100%;
+}
+
+.dashboard-range-controls input[type="date"] {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding-inline: 10px 8px;
 }
 
 .dashboard-range-controls:not(.custom-active) .custom-range-field {

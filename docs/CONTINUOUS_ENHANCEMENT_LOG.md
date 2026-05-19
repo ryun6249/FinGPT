@@ -718,3 +718,112 @@
 - Final scope: added truthful Quantamental AI model selection without changing strategy logic, data providers, schemas, secrets, or default deterministic analysis behavior.
 - Final validation: `node --check app/web/app.js`, `python -m py_compile app/api/routers/system.py scripts/check_ui_contract.py scripts/ai_portfolio_ui_smoke.py`, `python scripts/check_ui_contract.py`, targeted UI/API/Quantamental tests, full `python -m pytest -q`, Quantamental browser smoke, AI Portfolio browser smoke retry, and Playwright DOM/payload checks all passed.
 - Remaining limit: Qwen/Gemma options are runtime-checked and not claimed as locally installed; provider failure still falls back to deterministic interpretation.
+
+## 2026-05-19 Continuous Enhancement Run 11:03
+
+## Current Project Summary
+- Project purpose: Local financial research workstation with FastAPI APIs and a static `/ui/` shell for market, macro, Quant Lab, Quantamental, ML Forecast, AI Portfolio, and local LLM interpretation workflows.
+- Main frontend structure: `app/web/index.html`, `app/web/app.js`, `app/web/styles.css`, and small domain modules under `app/web/modules/`.
+- Main backend structure: FastAPI app setup in `app/api/server.py`; routers under `app/api/routers/`; shared schemas in `core/schemas/`; services under `pipelines/`.
+- Data flow: UI range and tab state call `/api/v1/*` endpoints; Python services normalize provider/cache data before rendering UI cards, charts, tables, and AI briefing sections.
+- AI/LLM flow: `/api/v1/config` exposes runtime-checked Qwen/Gemma routes; Quantamental UI keeps deterministic guardrail as default and sends an LLM model only on explicit AI actions.
+- Visualization flow: Static UI cards and chart surfaces render from server payloads; global range controls synchronize supported date/range controls.
+- Testing flow: Static contract script, Python route tests, UI module fixture tests, syntax checks, and Playwright screenshots are the available lightweight validation path.
+
+## Current Problems
+- Compatibility: The previous automation branch is still open, so this run is stacked on top of `automation/continuous-enhancement-20260519-0920` instead of rebasing onto `master`.
+- Data consistency: Standard ranges could reuse a stale custom range end date from localStorage or disabled date inputs.
+- UI consistency: `/ui/quantamental` client route returned 404 even though the static UI expects client-side routes under `/ui/`.
+- Visualization: Dashboard range date inputs could truncate the final digit at desktop widths.
+- AI briefing: Qwen/Gemma availability remains runtime-checked; no fake local availability was added.
+- Data freshness: Top-right quality summary remains visible, but fresh values still depend on each tab's data payload.
+- Translation quality: Korean/English static contract checks still pass; no numeric/date translation logic changed.
+- Performance: No background polling or extra LLM calls were added.
+- Code structure: Changes are limited to route fallback and UI range/tab helpers.
+- User experience: Mobile tab navigation could leave the active tab partly clipped.
+
+## Enhancement Plan
+- Priority 1: Reset standard global ranges to current date bounds instead of stale custom bounds.
+- Priority 2: Preserve static asset 404 behavior while serving `index.html` for extensionless `/ui/<client-route>` paths.
+- Priority 3: Improve dashboard range and mobile tab layout so dates and active tabs remain readable.
+
+## Validation Plan
+- Build: No repo-level frontend package manifest; use syntax and contract checks.
+- Lint: Use `git diff --check` and static UI contract because no JS linter is configured.
+- Unit test: Run targeted UI/API route tests.
+- Integration test: Run FastAPI static contract and live local server route checks.
+- UI test: Capture Playwright desktop/mobile screenshots against `/ui/?range=1Y#quantamental`.
+- Data quality test: Verify top-right quality/range markers remain present.
+- AI hallucination guard test: Verify Quantamental AI UI panel fixture still exposes used-data and guardrail sections.
+
+### 11:03 Changes
+
+- Compatibility: Added `UiStaticFiles` in `app/api/server.py` so `/ui/quantamental` falls back to `index.html`, while asset-like missing paths such as `/ui/not-found-bundle.js` still return 404.
+- Data consistency: `initGlobalRangeFromLocation()` and `setGlobalRange()` now use custom start/end dates only for `custom`; standard ranges recalculate bounds from the current local date.
+- UI/UX: Dashboard date columns now fit full `YYYY-MM-DD` values, and mobile dashboard tabs use horizontal scroll with active-tab horizontal alignment only.
+- Visualization: Range support copy and the visible range controls now reflect the current standard period without stale custom anchors.
+- AI Briefing: No model/provider behavior changed; existing deterministic guardrail and runtime-checked model selector were revalidated through UI contract tests.
+- Translation: No translation or label-generation logic changed.
+- Performance: No new network calls, polling loops, or synchronous heavy work were added.
+
+### 11:03 Validation Results
+
+| Check | Command / Tool | Result | Notes |
+|---|---|---|---|
+| JS syntax | `node --check app/web/app.js`; `node --check app/web/modules/quantamental-ui.js` | Passed | Static UI controller and Quantamental module parse. |
+| Python syntax | `python -m py_compile app/api/server.py scripts/check_ui_contract.py scripts/ai_portfolio_ui_smoke.py` | Passed | Server fallback and scripts import. |
+| UI/API contract | `python scripts/check_ui_contract.py` | Passed | `/ui/` 200, `/ui/quantamental` 200, missing asset 404, no missing markers. |
+| Targeted tests | `python -m pytest tests/test_ui_routing_contract.py tests/test_ui_modules.py tests/test_quantamental_ui_ai_panel.py tests/test_api_routing_contract.py -q` | Passed | `55 passed, 4 subtests passed`. |
+| Diff hygiene | `git diff --check -- app/api/server.py app/web/index.html app/web/app.js app/web/styles.css scripts/check_ui_contract.py scripts/ai_portfolio_ui_smoke.py tests/test_ui_routing_contract.py` | Passed | Only CRLF normalization warnings. |
+| Live server | `python -m uvicorn app.api.server:app --host 127.0.0.1 --port 8403` | Passed | `/api/v1/health`, `/ui/?range=1Y#quantamental`, `/ui/quantamental` checked. |
+| UI screenshots | `npx playwright screenshot` desktop `1440x1000` and mobile `390x900` | Passed | Files written under `reports/ui_continuous_20260519_1103_*final2.png`. |
+| Model availability | `GET /api/v1/config` | Passed | Qwen and Gemma remain `runtime_checked`; local installation is not claimed. |
+| Quantamental API regression | `python -m pytest tests/test_quantamental_api.py -q` | Blocked | Clean stacked worktree only has tracked `pipelines/quantamental/ai_service.py`; missing `pipelines.quantamental.service` exists outside this branch as prior dirty/untracked work. |
+| npm/pnpm build/lint/test | Not run | Excluded | Repo root has no `package.json` or `pnpm-lock.yaml`. |
+
+### 11:03 Completion Checklist
+
+#### Compatibility
+- [x] Existing UI route flow preserved
+- [x] Static asset 404 behavior preserved
+- [x] Existing API contracts touched by this run are not broken
+- [x] No unauthorized strategy logic change
+- [x] No secret or env file exposure
+
+#### Data
+- [x] Standard range selection no longer reuses stale custom bounds
+- [x] Range markers and quality summary remain visible
+- [x] Missing data behavior was not relaxed or fabricated
+- [x] Cache/fresh data distinction remains unchanged
+
+#### UI
+- [x] Default view remains All
+- [x] Core/Diagnostics/Operations filters still exist
+- [x] Date input text fits in desktop range controls
+- [x] Mobile tabs keep the active tab readable without vertical scroll jumps
+- [x] Loading/empty/error state markers remain in the static contract
+
+#### Visualization
+- [x] Period selection continues to update supported controls
+- [x] Range support copy remains visible
+- [x] Desktop and mobile screenshots were captured
+
+#### AI Briefing
+- [x] Gemma/Qwen availability checked through `/api/v1/config`
+- [x] Model selection is not fake
+- [x] Existing used-data UI guard fixture passed
+- [x] No unsupported facts or generated metrics were added
+
+#### Validation
+- [x] Lint/diff hygiene executed
+- [x] Build exclusion documented
+- [x] Tests executed with blocker documented
+- [x] UI validation executed
+- [x] Data validation executed through range contract
+- [x] AI briefing validation executed through UI fixture and config check
+
+#### Documentation
+- [x] `docs/CONTINUOUS_ENHANCEMENT_LOG.md` updated
+- [x] README update not needed
+- [x] PR summary includes changed files
+- [x] PR summary includes validation result

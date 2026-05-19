@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.openbb_agent import router as openbb_agent_router
 from app.api.routers.backtest import router as backtest_router
@@ -29,6 +30,21 @@ _settings = load_settings()
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 WEB_DIR = PROJECT_ROOT / "app" / "web"
+
+
+def _is_ui_client_route(path: str) -> bool:
+    name = Path(path).name
+    return bool(path.strip("/")) and "." not in name
+
+
+class UiStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope):  # type: ignore[override]
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code == 404 and _is_ui_client_route(path):
+                return await super().get_response("index.html", scope)
+            raise
 
 
 async def _start_watchlist_scheduler() -> None:
@@ -118,7 +134,7 @@ app.include_router(forecast_router, prefix="/api/v1/forecast")
 app.include_router(forecast_router, prefix="/api/forecast")
 
 if WEB_DIR.exists():
-    app.mount("/ui", StaticFiles(directory=str(WEB_DIR), html=True), name="web")
+    app.mount("/ui", UiStaticFiles(directory=str(WEB_DIR), html=True), name="web")
 
     @app.get("/", include_in_schema=False)
     async def root_redirect():

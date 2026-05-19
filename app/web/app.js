@@ -327,6 +327,12 @@ function initGlobalRangeFromLocation() {
   const params = new URLSearchParams(window.location.search || "");
   const urlRange = params.get("range");
   const range = normalizeGlobalRange(urlRange || saved.range || DEFAULT_GLOBAL_RANGE.range);
+  if (range !== "custom") {
+    return {
+      range,
+      ...globalRangeDateBounds(range, "", ""),
+    };
+  }
   const ordered = normalizeCustomGlobalDateOrder(params.get("start") || saved.startDate, params.get("end") || saved.endDate);
   return {
     range,
@@ -4196,6 +4202,11 @@ function setDashboardTab(tab = "market", options = {}) {
     el.classList.toggle("active", isActive);
     el.setAttribute("aria-selected", isActive ? "true" : "false");
   });
+  const activeButton = buttons.find(({ tab: buttonTab }) => buttonTab === active)?.el;
+  if (activeButton && els.homeDashboardTabs) {
+    const targetLeft = activeButton.offsetLeft - Math.max(0, (els.homeDashboardTabs.clientWidth - activeButton.clientWidth) / 2);
+    els.homeDashboardTabs.scrollTo({ left: Math.max(0, targetLeft), behavior: "auto" });
+  }
   updateDashboardHero(active);
   if (active === "quant") {
     loadQuantRunHistory(false);
@@ -6064,17 +6075,22 @@ function updateGlobalRangeUrl() {
 
 function setGlobalRange(range, options = {}) {
   const normalized = normalizeGlobalRange(range);
-  const start = sanitizeDateInput(options.startDate ?? els.dashboardRangeStart?.value ?? state.globalRange?.startDate);
-  const end = sanitizeDateInput(options.endDate ?? els.dashboardRangeEnd?.value ?? state.globalRange?.endDate);
+  const useCustomInputs = normalized === "custom";
+  const start = useCustomInputs
+    ? sanitizeDateInput(options.startDate ?? els.dashboardRangeStart?.value ?? state.globalRange?.startDate)
+    : "";
+  const end = useCustomInputs
+    ? sanitizeDateInput(options.endDate ?? els.dashboardRangeEnd?.value ?? state.globalRange?.endDate)
+    : "";
   state.globalRangeNotice = "";
-  if (normalized === "custom") {
+  if (useCustomInputs) {
     const ordered = normalizeCustomGlobalDateOrder(start, end);
     if (ordered.reordered) {
       state.globalRangeNotice = "시작일과 종료일이 역순이라 자동으로 정렬했습니다.";
     }
     state.globalRange = { range: normalized, startDate: ordered.startDate, endDate: ordered.endDate };
   } else {
-    state.globalRange = { range: normalized, ...globalRangeDateBounds(normalized, start, end) };
+    state.globalRange = { range: normalized, ...globalRangeDateBounds(normalized, "", "") };
   }
   if (options.persist !== false) safeWriteStoredJson(STORAGE.dashboardRange, state.globalRange);
   applyGlobalRangeToControls();
