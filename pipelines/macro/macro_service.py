@@ -462,9 +462,15 @@ def _related_search_items(definition, *, exclude: set[str], limit: int = 8) -> l
     return out
 
 
-def get_macro_series_detail(series_id: str, *, observation_limit: int = 240) -> MacroSeriesDetailResponse:
+def get_macro_series_detail(
+    series_id: str,
+    *,
+    observation_limit: int = 240,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> MacroSeriesDetailResponse:
     definition = get_series_definition(series_id)
-    series = get_macro_series(definition.series_id)
+    series = get_macro_series(definition.series_id, start_date=start_date, end_date=end_date)
     statistics = _series_statistics(series)
     limit = max(0, int(observation_limit or 0))
     limited_series = series.model_copy(

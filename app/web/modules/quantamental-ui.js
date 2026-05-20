@@ -599,6 +599,78 @@
     `;
   }
 
+  function quantamentalGate(label, value, status, detail = "") {
+    return `
+      <div class="quantamental-decision-gate ${escapeHtml(statusClass(status))}">
+        <span>${escapeHtml(label)}</span>
+        <strong>${escapeHtml(value ?? "-")}</strong>
+        ${detail ? `<small>${escapeHtml(detail)}</small>` : ""}
+      </div>
+    `;
+  }
+
+  function quantamentalDecisionMemo(data) {
+    const ko = activeLanguage() === "ko";
+    const signal = data?.signal || {};
+    const c = data?.composite || {};
+    const risk = data?.risk || {};
+    const quality = data?.data_quality || {};
+    const freshness = data?.freshness || quality.freshness || {};
+    const integrity = data?.data_integrity || quality.data_integrity || {};
+    const factors = data?.factors || {};
+    const peer = data?.peer_relative || {};
+    const score = Number(c.final_score);
+    const riskLevel = String(risk.risk_level || "").toLowerCase();
+    const blocking = Array.isArray(integrity.blocking_sections) ? integrity.blocking_sections : [];
+    const stale = Array.isArray(freshness.stale_sections) ? freshness.stale_sections : [];
+    const missing = Array.isArray(quality.missing_sections) ? quality.missing_sections : [];
+    const usable = integrity.usable_for_signal !== false && !blocking.length;
+    const highRisk = riskLevel.includes("high");
+    const strongScore = Number.isFinite(score) && score >= 70;
+    const weakScore = Number.isFinite(score) && score < 45;
+    const status = !usable || weakScore ? "fail" : strongScore && !highRisk ? "ok" : "warn";
+    const action = !usable
+      ? (ko ? "데이터 보강 후 재판정" : "Refresh data before classifying")
+      : weakScore
+        ? (ko ? "후보 제외 우선" : "Exclude before watchlisting")
+        : strongScore && !highRisk
+          ? (ko ? "후보 유지, 리스크 조건부 검토" : "Keep as candidate with risk checks")
+          : (ko ? "관찰 리스트, 촉매 확인" : "Watchlist pending catalyst confirmation");
+    const thesis = signal.rationale?.[0]
+      || risk.risk_summary
+      || (ko ? "결정론적 점수와 리스크 게이트를 함께 확인하세요." : "Review deterministic scores with risk gates.");
+    const invalidation = [
+      !usable ? (ko ? `차단 데이터: ${blocking.join(", ") || "-"}` : `Blocking data: ${blocking.join(", ") || "-"}`) : "",
+      stale.length ? (ko ? `오래된 섹션: ${stale.join(", ")}` : `Stale sections: ${stale.join(", ")}`) : "",
+      highRisk ? (ko ? "리스크 레벨이 높음" : "Risk level is high") : "",
+      missing.length ? (ko ? `결측 섹션: ${missing.slice(0, 4).join(", ")}` : `Missing sections: ${missing.slice(0, 4).join(", ")}`) : "",
+    ].filter(Boolean);
+    return `
+      <div class="quantamental-decision-memo ${escapeHtml(statusClass(status))}" data-testid="quantamental-decision-memo">
+        <div class="quantamental-decision-head">
+          <div>
+            <strong>${escapeHtml(ko ? "의사결정 메모" : "Decision memo")}</strong>
+            <span>${escapeHtml(data?.ticker || "-")} · ${escapeHtml(signal.signal_label || "signal pending")} · ${escapeHtml(c.style || "balanced")}</span>
+          </div>
+          <b>${escapeHtml(action)}</b>
+        </div>
+        <div class="quantamental-decision-gates">
+          ${quantamentalGate(ko ? "종합점수" : "Composite", fmt(c.final_score), scoreClass(c.final_score), c.data_conflict_classification || "")}
+          ${quantamentalGate(ko ? "리스크" : "Risk", risk.risk_level || "unknown", statusClass(risk.risk_level), risk.risk_summary || "")}
+          ${quantamentalGate(ko ? "데이터 무결성" : "Integrity", usable ? (ko ? "사용 가능" : "usable") : (ko ? "차단" : "blocked"), usable ? "ok" : "fail", blocking.join(", "))}
+          ${quantamentalGate(ko ? "신선도" : "Freshness", freshness.status || "unknown", statusClass(freshness.status), stale.join(", "))}
+          ${quantamentalGate(ko ? "피어 강도" : "Peer strength", fmt(peer.relative_strength_score), scoreClass(peer.relative_strength_score), peer.rank ? `${ko ? "순위" : "rank"} ${peer.rank}` : "")}
+          ${quantamentalGate(ko ? "팩터 균형" : "Factor balance", fmt(factors.factor_balance_score ?? factors.factor_composite_score ?? c.factor_score), scoreClass(factors.factor_balance_score ?? factors.factor_composite_score ?? c.factor_score), factors.style_alignment || "")}
+        </div>
+        <div class="quantamental-decision-body">
+          <div><strong>${escapeHtml(ko ? "투자 논리" : "Thesis")}</strong><span>${escapeHtml(thesis)}</span></div>
+          <div><strong>${escapeHtml(ko ? "확인할 조건" : "Confirm")}</strong><span>${escapeHtml(strongScore ? (ko ? "점수는 충분합니다. 가격 추세, 피어 강도, 데이터 신선도가 같은 방향인지 확인하세요." : "Score is constructive. Confirm trend, peer strength, and freshness alignment.") : (ko ? "점수 또는 리스크 게이트가 애매합니다. 촉매와 재무 품질 개선 근거가 필요합니다." : "Score or risk gates are mixed. Require catalysts and improving quality evidence."))}</span></div>
+          <div><strong>${escapeHtml(ko ? "무효화 조건" : "Invalidate")}</strong><span>${escapeHtml(invalidation.join(" · ") || (ko ? "고위험 전환, 주요 데이터 stale, 피어 대비 약세 전환" : "High-risk shift, stale core data, or peer-relative weakness."))}</span></div>
+        </div>
+      </div>
+    `;
+  }
+
   function signalCard(data) {
     const signal = data?.signal || {};
     const warnings = Array.isArray(signal.warnings) ? signal.warnings : [];
@@ -614,6 +686,7 @@
           <small>${escapeHtml(signal.signal_confidence || "low")}</small>
         </div>
       </div>
+      ${quantamentalDecisionMemo(data)}
       <div class="decision-warning">${escapeHtml(copy().notAdvice)}</div>
       ${warnings.length ? `<ul class="quantamental-warning-list">${warnings.slice(0, 8).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}
     `;
@@ -883,6 +956,7 @@
           <div class="decision-summary neutral">
             ${escapeHtml(cpy.chartAxisNote)}
           </div>
+          ${quantamentalDecisionMemo(data)}
           ${quantAlgorithmSummary(data)}
         </div>
         <div class="quantamental-chart-grid" data-testid="quantamental-chart-surface">

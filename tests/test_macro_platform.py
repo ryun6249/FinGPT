@@ -237,6 +237,32 @@ def test_macro_search_matches_human_alias_and_detail_components(monkeypatch, tmp
     assert "interpretation" in payload
 
 
+def test_macro_series_detail_accepts_date_range(monkeypatch, tmp_path) -> None:
+    _reset_macro_runtime(monkeypatch, tmp_path)
+    client = TestClient(app)
+    repository.upsert_macro_observations(
+        [
+            StoredMacroObservation(series_id="DGS10", date="2026-01-01", value=4.1, source="test"),
+            StoredMacroObservation(series_id="DGS10", date="2026-01-02", value=4.2, source="test"),
+            StoredMacroObservation(series_id="DGS10", date="2026-01-03", value=4.3, source="test"),
+            StoredMacroObservation(series_id="DGS10", date="2026-01-04", value=4.4, source="test"),
+        ],
+        db_path=tmp_path / "macro_test.db",
+    )
+
+    detail = client.get(
+        "/api/v1/macro/series/DGS10/detail",
+        params={"start_date": "2026-01-03", "end_date": "2026-01-04", "observation_limit": 5000},
+    )
+
+    assert detail.status_code == 200
+    payload = detail.json()
+    assert [row["date"] for row in payload["series"]["observations"]] == ["2026-01-03", "2026-01-04"]
+    assert payload["statistics"]["start_date"] == "2026-01-03"
+    assert payload["statistics"]["end_date"] == "2026-01-04"
+    assert payload["statistics"]["observation_count"] == 2
+
+
 def test_macro_overview_schema_and_unknown_regime_on_insufficient_data(monkeypatch, tmp_path) -> None:
     _reset_macro_runtime(monkeypatch, tmp_path)
     overview = macro_service.get_macro_overview()

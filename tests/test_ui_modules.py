@@ -75,12 +75,24 @@ const marketSignals = context.window.FinGPTMarketUi.marketSignals({
     status: "partial",
     signal_id: "credit",
     title: "Credit stress",
+    score: -0.42,
+    confidence: "medium",
+    horizon: "1D credit tape",
+    impact: "Funding",
     summary: "spread widening",
     evidence: ["HYG down", "LQD down"],
+    components: [{ label: "HYG", value: "-1.2%", status: "risk_off" }],
+    next_actions: ["check spreads"],
+    watch_points: ["HYG underperforms"],
+    invalidation: ["HYG recovers"],
     interpretation: "risk-off",
+    is_decision_usable: true,
   }],
 });
 assert.match(marketSignals, /market-signal-item/);
+assert.match(marketSignals, /market-signal-command/);
+assert.match(marketSignals, /market-signal-components/);
+assert.match(marketSignals, /check spreads/);
 assert.match(marketSignals, /credit/);
 
 const macroProvider = context.window.FinGPTMacroUi.providerHealth({

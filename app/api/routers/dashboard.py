@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from copy import deepcopy
+import math
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -434,19 +435,38 @@ def _pct_change_from_close(close_values: Any, periods: int) -> float | None:
         return None
 
 
+def _history_close_series(data_symbol: str, *, period: str = "6mo") -> Any:
+    import yfinance as yf
+
+    history = yf.Ticker(data_symbol).history(period=period, interval="1d", auto_adjust=False)
+    if history is None or history.empty or "Close" not in history:
+        raise RuntimeError("no close data")
+    close = history["Close"].dropna()
+    if close.empty:
+        raise RuntimeError("empty close series")
+    return close
+
+
+def _date_label(value: Any) -> str:
+    if hasattr(value, "date"):
+        try:
+            return value.date().isoformat()
+        except Exception:
+            pass
+    if hasattr(value, "isoformat"):
+        try:
+            return value.isoformat()
+        except Exception:
+            pass
+    return str(value)
+
+
 def _collect_cross_asset_item(symbol: str) -> dict[str, Any]:
     display_symbol = str(symbol or "").strip().upper()
     data_symbol = _cross_asset_data_symbol(display_symbol)
     label, role = _cross_asset_profile(display_symbol)
     try:
-        import yfinance as yf
-
-        history = yf.Ticker(data_symbol).history(period="6mo", interval="1d", auto_adjust=False)
-        if history is None or history.empty or "Close" not in history:
-            raise RuntimeError("no close data")
-        close = history["Close"].dropna()
-        if close.empty:
-            raise RuntimeError("empty close series")
+        close = _history_close_series(data_symbol)
         latest_idx = close.index[-1]
         last_price = round(float(close.iloc[-1]), 4)
         returns = {
@@ -463,7 +483,7 @@ def _collect_cross_asset_item(symbol: str) -> dict[str, Any]:
             "label": label,
             "role": role,
             "price": last_price,
-            "as_of": latest_idx.isoformat() if hasattr(latest_idx, "isoformat") else str(latest_idx),
+            "as_of": _date_label(latest_idx),
             "status": "ok",
             "is_decision_usable": True,
             "returns": returns,
@@ -484,6 +504,530 @@ def _collect_cross_asset_item(symbol: str) -> dict[str, Any]:
             "returns": {"1d": None, "5d": None, "1m": None, "3m": None},
             "trend_score": None,
             "source": "yfinance_daily_6mo",
+            "error": str(exc),
+        }
+
+
+def _horizon_periods(horizon: str) -> int:
+    return {"1d": 1, "5d": 5, "1m": 21, "3m": 63}.get(str(horizon or "").lower(), 21)
+
+
+def _pair_ratio_points(close_a: Any, close_b: Any, *, limit: int = 90) -> list[dict[str, Any]]:
+    import pandas as pd
+
+    aligned = pd.concat([close_a.rename("a"), close_b.rename("b")], axis=1).dropna()
+    if aligned.empty:
+        return []
+    if len(aligned) > limit:
+        aligned = aligned.iloc[-limit:]
+    base_a = float(aligned["a"].iloc[0])
+    base_b = float(aligned["b"].iloc[0])
+    points: list[dict[str, Any]] = []
+    for idx, row in aligned.iterrows():
+        a_value = float(row["a"])
+        b_value = float(row["b"])
+        ratio = None if b_value == 0 else a_value / b_value
+        points.append({
+            "date": _date_label(idx),
+            "asset_a": round(a_value, 4),
+            "asset_b": round(b_value, 4),
+            "asset_a_index": round(a_value / base_a * 100.0, 4) if base_a else None,
+            "asset_b_index": round(b_value / base_b * 100.0, 4) if base_b else None,
+            "ratio": round(ratio, 6) if ratio is not None else None,
+        })
+    return points
+
+
+def _pair_ratio_return(points: list[dict[str, Any]], periods: int) -> float | None:
+    try:
+        valid = [point for point in points if point.get("ratio") is not None]
+        if len(valid) <= periods:
+            return None
+        current = float(valid[-1]["ratio"])
+        previous = float(valid[-1 - periods]["ratio"])
+        if previous == 0:
+            return None
+        return round((current / previous - 1.0) * 100.0, 2)
+    except Exception:
+        return None
+
+
+def _finite_float(value: Any) -> float | None:
+    try:
+        n = float(value)
+    except Exception:
+        return None
+    if not math.isfinite(n):
+        return None
+    return n
+
+
+def _round_or_none(value: Any, digits: int = 4) -> float | None:
+    n = _finite_float(value)
+    return round(n, digits) if n is not None else None
+
+
+def _pair_engineering_status(z_score: float | None, spread_return: float | None) -> str:
+    z = _finite_float(z_score)
+    spread = _finite_float(spread_return)
+    if z is None and spread is None:
+        return "insufficient_history"
+    if z is not None and z >= 1.5:
+        return "asset_a_rich"
+    if z is not None and z <= -1.5:
+        return "asset_a_cheap"
+    if spread is not None and spread >= 1.0:
+        return "asset_a_beta_leading"
+    if spread is not None and spread <= -1.0:
+        return "asset_b_beta_leading"
+    return "balanced_spread"
+
+
+def _pair_diagnostic_confidence(sample_count: int, correlation: float | None, tracking_error: float | None) -> str:
+    corr = abs(_finite_float(correlation) or 0.0)
+    te = _finite_float(tracking_error)
+    if sample_count >= 60 and corr >= 0.5 and (te is None or te <= 35.0):
+        return "high"
+    if sample_count >= 30:
+        return "medium"
+    return "low"
+
+
+def _pair_half_life_days(values: list[float]) -> float | None:
+    if len(values) < 20:
+        return None
+    lag = values[:-1]
+    delta = [values[idx + 1] - values[idx] for idx in range(len(values) - 1)]
+    mean_lag = sum(lag) / len(lag)
+    mean_delta = sum(delta) / len(delta)
+    denominator = sum((value - mean_lag) ** 2 for value in lag)
+    if denominator <= 0:
+        return None
+    slope = sum((lag[idx] - mean_lag) * (delta[idx] - mean_delta) for idx in range(len(delta))) / denominator
+    if slope >= 0:
+        return None
+    half_life = -math.log(2) / slope
+    if not math.isfinite(half_life) or half_life <= 0 or half_life > 252:
+        return None
+    return round(half_life, 1)
+
+
+def _pair_financial_engineering(
+    close_a: Any,
+    close_b: Any,
+    points: list[dict[str, Any]],
+    *,
+    horizon: str,
+    symbol_a: str,
+    symbol_b: str,
+) -> dict[str, Any]:
+    import pandas as pd
+
+    periods = _horizon_periods(horizon)
+    aligned = pd.concat([close_a.rename("a"), close_b.rename("b")], axis=1).dropna()
+    if aligned.empty or len(aligned) < 3:
+        return {
+            "status": "insufficient_history",
+            "sample_count": int(len(aligned)),
+            "window_days": 0,
+            "diagnostic_confidence": "low",
+            "metrics": {},
+            "levels": {},
+            "scenarios": [],
+            "risk_controls": ["겹치는 일별 가격 이력이 부족해 금융공학 진단을 보류합니다."],
+        }
+
+    window_days = min(126, int(len(aligned)))
+    recent = aligned.tail(window_days).copy()
+    returns = recent.pct_change().dropna()
+    sample_count = int(len(returns))
+    ret_a = returns["a"]
+    ret_b = returns["b"]
+    correlation = _round_or_none(ret_a.corr(ret_b), 4) if sample_count >= 2 else None
+    variance_b = _finite_float(ret_b.var())
+    covariance_ab = _finite_float(ret_a.cov(ret_b)) if sample_count >= 2 else None
+    hedge_ratio = _round_or_none(covariance_ab / variance_b, 4) if variance_b and covariance_ab is not None else None
+
+    beta_spread = None
+    beta_spread_return_pct = None
+    tracking_error = None
+    horizon_noise_pct = None
+    signal_to_noise = None
+    if hedge_ratio is not None and sample_count >= 2:
+        beta_spread = ret_a - (float(hedge_ratio) * ret_b)
+        horizon_slice = beta_spread.tail(max(1, min(periods, len(beta_spread))))
+        beta_spread_return_pct = _round_or_none(float(horizon_slice.sum()) * 100.0, 2)
+        tracking_error = _round_or_none(float(beta_spread.std()) * math.sqrt(252.0) * 100.0, 2)
+        if tracking_error is not None:
+            horizon_noise_pct = _round_or_none(float(tracking_error) * math.sqrt(max(1, periods) / 252.0), 2)
+        if beta_spread_return_pct is not None and horizon_noise_pct not in (None, 0):
+            signal_to_noise = _round_or_none(float(beta_spread_return_pct) / float(horizon_noise_pct), 2)
+
+    log_ratios: list[float] = []
+    for _, row in recent.iterrows():
+        a_value = _finite_float(row.get("a"))
+        b_value = _finite_float(row.get("b"))
+        if a_value is not None and b_value is not None and a_value > 0 and b_value > 0:
+            log_ratios.append(math.log(a_value / b_value))
+    ratio_window = log_ratios[-min(63, len(log_ratios)) :]
+    ratio_zscore = None
+    ratio_percentile = None
+    if len(ratio_window) >= 3:
+        mean_ratio = sum(ratio_window) / len(ratio_window)
+        variance = sum((value - mean_ratio) ** 2 for value in ratio_window) / max(len(ratio_window) - 1, 1)
+        std_ratio = math.sqrt(variance)
+        if std_ratio > 0:
+            ratio_zscore = _round_or_none((ratio_window[-1] - mean_ratio) / std_ratio, 2)
+        ranked = sum(1 for value in ratio_window if value <= ratio_window[-1])
+        ratio_percentile = round(ranked / len(ratio_window) * 100.0, 1)
+
+    latest_ratio = _finite_float(points[-1].get("ratio")) if points else None
+    recent_ratios = [_finite_float(point.get("ratio")) for point in points[-min(63, len(points)) :]]
+    clean_ratios = [value for value in recent_ratios if value is not None]
+    ratio_low = min(clean_ratios) if clean_ratios else None
+    ratio_high = max(clean_ratios) if clean_ratios else None
+    ratio_mid = (ratio_low + ratio_high) / 2.0 if ratio_low is not None and ratio_high is not None else None
+    half_life = _pair_half_life_days(log_ratios)
+    status = _pair_engineering_status(ratio_zscore, beta_spread_return_pct)
+    confidence = _pair_diagnostic_confidence(sample_count, correlation, tracking_error)
+    z_text = "중립권" if ratio_zscore is None else f"z={ratio_zscore:+.2f}"
+    beta_text = "-" if hedge_ratio is None else f"{hedge_ratio:.2f}"
+    spread_text = "-" if beta_spread_return_pct is None else f"{beta_spread_return_pct:+.2f}%"
+    te_text = "-" if tracking_error is None else f"{tracking_error:.2f}%"
+    return {
+        "status": status,
+        "sample_count": sample_count,
+        "window_days": window_days,
+        "diagnostic_confidence": confidence,
+        "metrics": {
+            "correlation": correlation,
+            "hedge_ratio": hedge_ratio,
+            "beta_adjusted_spread_return_pct": beta_spread_return_pct,
+            "tracking_error_annualized_pct": tracking_error,
+            "horizon_noise_pct": horizon_noise_pct,
+            "signal_to_noise": signal_to_noise,
+            "ratio_zscore": ratio_zscore,
+            "ratio_percentile": ratio_percentile,
+            "half_life_days": half_life,
+        },
+        "levels": {
+            "latest_ratio": _round_or_none(latest_ratio, 6),
+            "ratio_low_63d": _round_or_none(ratio_low, 6),
+            "ratio_mid_63d": _round_or_none(ratio_mid, 6),
+            "ratio_high_63d": _round_or_none(ratio_high, 6),
+        },
+        "beta_neutral_expression": f"{symbol_a} - {beta_text} x {symbol_b}",
+        "engineering_read": (
+            f"{symbol_a}/{symbol_b}는 최근 {sample_count}개 수익률 표본 기준 상관 {correlation if correlation is not None else '-'}, "
+            f"헤지 베타 {beta_text}, 베타조정 스프레드 {spread_text}, 연율 추적오차 {te_text}, 비율 {z_text}입니다."
+        ),
+        "scenarios": [
+            {
+                "name": "Continuation",
+                "trigger": f"{symbol_a}가 베타조정 스프레드 플러스와 63D 상단 돌파를 동시에 유지",
+                "implication": f"{symbol_a} 상대 우위가 단순 방향성보다 강한 페어 모멘텀으로 해석됩니다.",
+            },
+            {
+                "name": "Mean reversion",
+                "trigger": "비율 z-score가 절대 1.5 이상에서 되돌림을 시작",
+                "implication": "상대가격이 평균회귀 구간으로 들어가며 추격보다 리밸런싱 감시가 우선입니다.",
+            },
+            {
+                "name": "Breakdown",
+                "trigger": f"{symbol_b}가 방어/헤지 역할을 강화하고 베타조정 스프레드가 음수로 전환",
+                "implication": f"{symbol_a} 우위 논리가 훼손되어 페어 목적 적합성을 다시 확인해야 합니다.",
+            },
+        ],
+        "risk_controls": [
+            "베타 헤지는 과거 일별 수익률 기반이며 구조 변화가 생기면 즉시 재추정해야 합니다.",
+            "z-score는 평균회귀 진단이지 매수·매도 신호가 아닙니다.",
+            "상관이 낮거나 추적오차가 크면 페어보다 독립 자산 두 개로 해석하는 편이 안전합니다.",
+        ],
+    }
+
+
+def _gate(status: str, name: str, evidence: str, implication: str) -> dict[str, str]:
+    return {
+        "status": status,
+        "name": name,
+        "evidence": evidence,
+        "implication": implication,
+    }
+
+
+def _pair_decision_memo(
+    symbol_a: str,
+    symbol_b: str,
+    ratio_return: float | None,
+    horizon: str,
+    engineering: dict[str, Any],
+    topic: str,
+) -> dict[str, Any]:
+    metrics = engineering.get("metrics") if isinstance(engineering.get("metrics"), dict) else {}
+    status = str(engineering.get("status") or "insufficient_history")
+    sample_count = int(engineering.get("sample_count") or 0)
+    confidence = str(engineering.get("diagnostic_confidence") or "low")
+    corr = _finite_float(metrics.get("correlation"))
+    hedge = _finite_float(metrics.get("hedge_ratio"))
+    spread = _finite_float(metrics.get("beta_adjusted_spread_return_pct"))
+    z_score = _finite_float(metrics.get("ratio_zscore"))
+    signal_to_noise = _finite_float(metrics.get("signal_to_noise"))
+    horizon_noise = _finite_float(metrics.get("horizon_noise_pct"))
+    tracking_error = _finite_float(metrics.get("tracking_error_annualized_pct"))
+    half_life = _finite_float(metrics.get("half_life_days"))
+    abs_z = abs(z_score) if z_score is not None else 0.0
+    abs_stn = abs(signal_to_noise) if signal_to_noise is not None else 0.0
+
+    if sample_count < 30:
+        grade = "data_insufficient"
+        bias = "data_first"
+    elif abs_z >= 1.5 and abs_stn >= 1.0:
+        grade = "high_attention"
+        bias = "extended_trend_with_reversion_risk" if spread and spread > 0 else "downside_spread_with_reversion_watch"
+    elif abs_z >= 1.0 or abs_stn >= 0.75:
+        grade = "monitor"
+        bias = "conditional_follow_through"
+    else:
+        grade = "low_conviction"
+        bias = "range_or_noise"
+
+    corr_status = "ok" if corr is not None and abs(corr) >= 0.5 else ("warn" if corr is not None and abs(corr) >= 0.25 else "fail")
+    spread_status = "ok" if signal_to_noise is not None and abs(signal_to_noise) >= 1.0 else ("warn" if signal_to_noise is not None and abs(signal_to_noise) >= 0.5 else "fail")
+    z_status = "warn" if z_score is not None and abs_z >= 1.5 else ("ok" if z_score is not None else "fail")
+    hedge_status = "ok" if hedge is not None and tracking_error is not None and tracking_error <= 25 else ("warn" if hedge is not None else "fail")
+    mean_reversion_status = "ok" if half_life is not None and 3 <= half_life <= 60 else ("warn" if half_life is not None else "fail")
+    ratio_text = "-" if ratio_return is None else f"{ratio_return:+.2f}%"
+    stn_text = "-" if signal_to_noise is None else f"{signal_to_noise:+.2f}x"
+    z_text = "-" if z_score is None else f"{z_score:+.2f}"
+    corr_text = "-" if corr is None else f"{corr:.2f}"
+    hedge_text = "-" if hedge is None else f"{hedge:.2f}"
+    noise_text = "-" if horizon_noise is None else f"{horizon_noise:.2f}%"
+
+    if grade == "high_attention":
+        executive = (
+            f"{symbol_a}/{symbol_b}는 {horizon.upper()} 상대수익률 {ratio_text}, 베타조정 신호대잡음 {stn_text}, "
+            f"비율 z-score {z_text}로 통계적으로 눈에 띄는 구간입니다. 추세 추종과 평균회귀 리스크를 동시에 관리해야 합니다."
+        )
+    elif grade == "monitor":
+        executive = (
+            f"{symbol_a}/{symbol_b}는 방향 신호가 일부 있지만 확증은 부족합니다. {symbol_a} 우위가 이어지려면 "
+            "베타조정 스프레드와 비율 레벨이 같은 방향으로 재확인되어야 합니다."
+        )
+    elif grade == "low_conviction":
+        executive = (
+            f"{symbol_a}/{symbol_b}는 현재 표본에서 유의한 페어 엣지가 약합니다. 단기 변동보다 레벨 돌파와 "
+            "상관 회복 여부를 먼저 확인하는 편이 낫습니다."
+        )
+    else:
+        executive = "겹치는 표본이 부족해 의사결정용 페어 판단을 보류합니다. 데이터 품질과 가격 이력을 먼저 확보해야 합니다."
+
+    gates = [
+        _gate(
+            corr_status,
+            "공동 움직임",
+            f"상관 {corr_text}, 표본 {sample_count}개",
+            "상관이 낮으면 페어 트레이드보다 독립 자산 두 개로 해석합니다.",
+        ),
+        _gate(
+            hedge_status,
+            "헤지 적합도",
+            f"베타 {hedge_text}, 연율 추적오차 {tracking_error if tracking_error is not None else '-'}%",
+            "추적오차가 높으면 베타 중립식의 방어력이 낮습니다.",
+        ),
+        _gate(
+            spread_status,
+            "스프레드 신호",
+            f"베타조정 스프레드 {spread if spread is not None else '-'}%, 예상 노이즈 {noise_text}, S/N {stn_text}",
+            "신호대잡음이 1배 미만이면 확증보다 감시 대상입니다.",
+        ),
+        _gate(
+            z_status,
+            "비율 위치",
+            f"z-score {z_text}, percentile {metrics.get('ratio_percentile') if metrics.get('ratio_percentile') is not None else '-'}",
+            "절대 z-score가 높으면 우위 신호와 과열 리스크를 같이 봅니다.",
+        ),
+        _gate(
+            mean_reversion_status,
+            "평균회귀성",
+            f"반감기 {half_life if half_life is not None else '-'}일",
+            "반감기가 추정되면 되돌림 감시선과 보유 기간을 분리합니다.",
+        ),
+    ]
+
+    data_diagnosis = [
+        f"분석 창: 최근 {engineering.get('window_days') or 0}거래일, 수익률 표본 {sample_count}개",
+        f"상대수익률: {horizon.upper()} {ratio_text}, 베타조정 스프레드 {spread if spread is not None else '-'}%",
+        f"분포 위치: z-score {z_text}, 신호대잡음 {stn_text}",
+    ]
+    if topic:
+        data_diagnosis.insert(0, f"사용자 주제 반영: {topic}")
+
+    next_tests = [
+        f"{symbol_a}/{symbol_b} 비율이 63D 상단을 유지하는지 확인",
+        "베타조정 스프레드가 0 아래로 꺾이는지 확인",
+        "z-score가 +1.0 아래로 되돌아오면 평균회귀 모드로 전환",
+        "상관이 0.25 아래로 내려가면 페어 해석 중단",
+    ]
+    invalidation = [
+        "가격 데이터 최신성이 깨지거나 표본 수가 30개 미만이면 판단 보류",
+        "상관 붕괴와 추적오차 확대가 동시에 나오면 헤지비율 재추정",
+        "비율 돌파는 유지되지만 스프레드가 음수면 단순 방향성 착시 가능성 점검",
+    ]
+    return {
+        "grade": grade,
+        "bias": bias,
+        "confidence": confidence,
+        "executive_summary": executive,
+        "data_diagnosis": data_diagnosis,
+        "decision_gates": gates,
+        "next_tests": next_tests,
+        "invalidation": invalidation,
+        "actionability": "advisory_monitor" if grade in {"high_attention", "monitor"} else "research_only",
+        "method": "beta_adjusted_pair_decision_memo_v1",
+    }
+
+
+def _cross_asset_pair_briefing(
+    symbol_a: str,
+    symbol_b: str,
+    item_a: dict[str, Any],
+    item_b: dict[str, Any],
+    ratio_return: float | None,
+    horizon: str,
+    topic: str,
+    engineering: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    engineering = engineering or {}
+    label_a, role_a = item_a.get("label") or symbol_a, item_a.get("role") or "custom"
+    label_b, role_b = item_b.get("label") or symbol_b, item_b.get("role") or "custom"
+    role_a_label = {"equity": "위험자산", "credit": "신용", "rates": "금리/채권", "commodity": "원자재", "crypto": "크립토", "fx": "FX"}.get(role_a, "사용자 자산")
+    role_b_label = {"equity": "위험자산", "credit": "신용", "rates": "금리/채권", "commodity": "원자재", "crypto": "크립토", "fx": "FX"}.get(role_b, "사용자 자산")
+    pair = f"{symbol_a}/{symbol_b}"
+    horizon_label = horizon.upper()
+    if ratio_return is None:
+        stance = "unavailable"
+        title = f"{pair} 상대 추세 데이터 부족"
+        current = "두 자산의 겹치는 종가가 부족해 상대 차트를 의사결정에 쓰기 어렵습니다."
+        forward = "데이터 공급자 응답과 심볼 매핑을 확인한 뒤 다시 실행해야 합니다."
+    elif ratio_return >= 1.0:
+        stance = "asset_a_leading"
+        title = f"{symbol_a}가 {symbol_b} 대비 우위"
+        current = f"{horizon_label} 기준 {pair} 비율이 {ratio_return:+.2f}% 상승해 {label_a}가 {label_b}보다 강합니다."
+        forward = f"이 흐름이 유지되려면 {symbol_a} 가격 자체의 상승 또는 {symbol_b} 방어 수요 둔화가 이어져야 합니다."
+    elif ratio_return <= -1.0:
+        stance = "asset_b_leading"
+        title = f"{symbol_b}가 {symbol_a} 대비 우위"
+        current = f"{horizon_label} 기준 {pair} 비율이 {ratio_return:+.2f}% 하락해 {label_b}가 {label_a}보다 강합니다."
+        forward = f"반전 확인 전까지는 {symbol_a}보다 {symbol_b} 쪽 상대 강도가 우세하다는 해석이 더 보수적입니다."
+    else:
+        stance = "range_bound"
+        title = f"{pair} 상대 강도는 박스권"
+        current = f"{horizon_label} 기준 {pair} 비율 변화가 {ratio_return:+.2f}%로 뚜렷한 상대 우위를 만들지 못했습니다."
+        forward = "향후 방향은 최근 고점/저점 돌파와 두 자산의 동시 변동성 확대 여부를 확인해야 합니다."
+
+    purpose_fit = (
+        f"{pair}는 {role_a_label}과 {role_b_label}의 상대 선호를 직접 보는 용도입니다. "
+        "절대 매수·매도 신호가 아니라 포트폴리오 기울기, 헤지 강도, 리스크 선호 변화 점검에 맞습니다."
+    )
+    watch_points = [
+        f"{symbol_a} 단독 추세와 거래량이 비율 방향을 확인하는지",
+        f"{symbol_b}가 방어/헤지 역할을 강화하거나 약화하는지",
+        f"{pair} 비율의 최근 고점·저점 돌파 여부",
+    ]
+    if topic:
+        watch_points.insert(0, f"사용자 주제와 연결: {topic}")
+    decision_memo = _pair_decision_memo(symbol_a, symbol_b, ratio_return, horizon, engineering, topic)
+    return {
+        "status": stance,
+        "title": title,
+        "current_interpretation": current,
+        "forward_direction": forward,
+        "purpose_fit": purpose_fit,
+        "watch_points": watch_points,
+        "decision_memo": decision_memo,
+        "engineering_interpretation": engineering.get("engineering_read") or "상관·베타·z-score 진단은 겹치는 가격 이력이 충분할 때 표시됩니다.",
+        "risk_controls": engineering.get("risk_controls") or [
+            "페어 비율은 상대 강도 감시용이며 단독 매수·매도 신호가 아닙니다.",
+        ],
+        "model": "deterministic_cross_asset_pair_brief_v3",
+        "mode": "deterministic_guardrail",
+        "advisory_only": True,
+    }
+
+
+def _collect_cross_asset_pair_analysis(
+    clean_symbols: list[str],
+    items: list[dict[str, Any]],
+    horizon: str,
+    topic: str,
+) -> dict[str, Any] | None:
+    if len(clean_symbols) < 2:
+        return None
+    symbol_a, symbol_b = clean_symbols[0], clean_symbols[1]
+    item_a = next((item for item in items if item.get("symbol") == symbol_a), {})
+    item_b = next((item for item in items if item.get("symbol") == symbol_b), {})
+    try:
+        close_a = _history_close_series(_cross_asset_data_symbol(symbol_a))
+        close_b = _history_close_series(_cross_asset_data_symbol(symbol_b))
+        points = _pair_ratio_points(close_a, close_b)
+        if not points:
+            raise RuntimeError("no overlapping close data")
+        horizon_return = _pair_ratio_return(points, _horizon_periods(horizon))
+        latest = points[-1]
+        engineering = _pair_financial_engineering(
+            close_a,
+            close_b,
+            points,
+            horizon=horizon,
+            symbol_a=symbol_a,
+            symbol_b=symbol_b,
+        )
+        briefing = _cross_asset_pair_briefing(
+            symbol_a,
+            symbol_b,
+            item_a,
+            item_b,
+            horizon_return,
+            horizon,
+            topic,
+            engineering,
+        )
+        return {
+            "status": "ok",
+            "pair": f"{symbol_a}/{symbol_b}",
+            "asset_a": {"symbol": symbol_a, "label": item_a.get("label") or symbol_a, "role": item_a.get("role") or "custom"},
+            "asset_b": {"symbol": symbol_b, "label": item_b.get("label") or symbol_b, "role": item_b.get("role") or "custom"},
+            "horizon": horizon,
+            "horizon_return_pct": horizon_return,
+            "latest_ratio": latest.get("ratio"),
+            "as_of": latest.get("date") or "",
+            "points": points,
+            "financial_engineering": engineering,
+            "ai_briefing": briefing,
+        }
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[DASHBOARD_CROSS_ASSET_PAIR] %s/%s failed: %s", symbol_a, symbol_b, exc)
+        return {
+            "status": "unavailable",
+            "pair": f"{symbol_a}/{symbol_b}",
+            "asset_a": {"symbol": symbol_a, "label": item_a.get("label") or symbol_a, "role": item_a.get("role") or "custom"},
+            "asset_b": {"symbol": symbol_b, "label": item_b.get("label") or symbol_b, "role": item_b.get("role") or "custom"},
+            "horizon": horizon,
+            "horizon_return_pct": None,
+            "latest_ratio": None,
+            "as_of": "",
+            "points": [],
+            "financial_engineering": {
+                "status": "insufficient_history",
+                "sample_count": 0,
+                "window_days": 0,
+                "diagnostic_confidence": "low",
+                "metrics": {},
+                "levels": {},
+                "scenarios": [],
+                "risk_controls": ["페어 분석용 겹치는 가격 이력을 확보하지 못했습니다."],
+            },
+            "ai_briefing": _cross_asset_pair_briefing(symbol_a, symbol_b, item_a, item_b, None, horizon, topic),
             "error": str(exc),
         }
 
@@ -580,19 +1124,35 @@ async def dashboard_cross_asset_analyze(
     items = await asyncio.gather(*(asyncio.to_thread(_collect_cross_asset_item, symbol) for symbol in clean_symbols))
     usable_count = sum(1 for item in items if item.get("is_decision_usable"))
     summary = _cross_asset_summary(list(items), clean_horizon, clean_topic)
+    pair_analysis = await asyncio.to_thread(
+        _collect_cross_asset_pair_analysis,
+        clean_symbols,
+        list(items),
+        clean_horizon,
+        clean_topic,
+    )
     return {
         "status": "ok" if usable_count else "unavailable",
         "symbols": clean_symbols,
         "topic": clean_topic,
         "horizon": clean_horizon,
         "items": items,
+        "pair_analysis": pair_analysis,
         "summary": summary,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "provider": "yfinance",
-        "analysis_engine": "deterministic_cross_asset_v1",
+        "analysis_engine": "deterministic_cross_asset_v4",
         "advisory_only": True,
         "decision_usable_count": usable_count,
-        "guardrails": ["no_buy_sell_recommendation", "freshness_visible", "deterministic_price_inputs"],
+        "guardrails": [
+            "no_buy_sell_recommendation",
+            "freshness_visible",
+            "deterministic_price_inputs",
+            "pair_ratio_not_absolute_signal",
+            "beta_hedge_is_diagnostic_only",
+            "zscore_is_not_trade_signal",
+            "decision_memo_requires_gate_confirmation",
+        ],
     }
 
 

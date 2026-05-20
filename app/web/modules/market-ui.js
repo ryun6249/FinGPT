@@ -28,9 +28,9 @@
 
   function statusClass(value) {
     const key = String(value || "").toLowerCase();
-    if (["ok", "success", "completed", "pass", "available"].includes(key)) return "ok";
+    if (["ok", "success", "completed", "pass", "available", "risk_on", "easing"].includes(key)) return "ok";
     if (["fail", "failed", "error", "unavailable"].includes(key)) return "fail";
-    if (["partial", "warn", "warning", "stale"].includes(key)) return "warn";
+    if (["partial", "warn", "warning", "stale", "risk_off", "watch", "mixed", "hedge_bid"].includes(key)) return "warn";
     return "neutral";
   }
 
@@ -53,6 +53,87 @@
 
   function empty(message) {
     return `<div class="home-news-empty">${escapeHtml(message)}</div>`;
+  }
+
+  function labelFor(value) {
+    const labels = {
+      risk_on: "RISK ON",
+      risk_off: "RISK OFF",
+      hedge_bid: "HEDGE BID",
+      watch: "WATCH",
+      easing: "EASING",
+      mixed: "MIXED",
+      neutral: "NEUTRAL",
+      ok: "OK",
+      unavailable: "UNAVAILABLE",
+    };
+    const key = String(value || "").toLowerCase();
+    return labels[key] || String(value || "UNKNOWN").toUpperCase();
+  }
+
+  function confidenceLabel(value) {
+    const labels = { high: "high confidence", medium: "medium confidence", low: "low confidence" };
+    const key = String(value || "").toLowerCase();
+    return labels[key] || "confidence n/a";
+  }
+
+  function compactList(items, cls) {
+    const rows = Array.isArray(items) ? items.filter(Boolean).slice(0, 4) : [];
+    if (!rows.length) return "";
+    return `<div class="${escapeHtml(cls)}">${rows.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>`;
+  }
+
+  function componentGrid(components) {
+    const rows = Array.isArray(components) ? components.slice(0, 4) : [];
+    if (!rows.length) return "";
+    return `
+      <div class="market-signal-components">
+        ${rows.map((item) => `
+          <div class="market-signal-component ${escapeHtml(statusClass(item.status))}">
+            <span>${escapeHtml(item.label || "")}</span>
+            <strong>${escapeHtml(item.value ?? "-")}</strong>
+            ${item.detail ? `<small>${escapeHtml(item.detail)}</small>` : ""}
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  function signalOverview(signals) {
+    const usable = signals.filter((signal) => signal.is_decision_usable).length;
+    const riskOn = signals.filter((signal) => ["risk_on", "ok", "easing"].includes(String(signal.direction || signal.status || "").toLowerCase())).length;
+    const riskOff = signals.filter((signal) => ["risk_off", "watch", "hedge_bid"].includes(String(signal.direction || signal.status || "").toLowerCase())).length;
+    const mixed = signals.filter((signal) => ["mixed", "neutral"].includes(String(signal.status || "").toLowerCase())).length;
+    const highConfidence = signals.filter((signal) => String(signal.confidence || "").toLowerCase() === "high").length;
+    const regime = riskOn > riskOff + 1 ? "risk_on" : (riskOff > riskOn + 1 ? "risk_off" : "mixed");
+    return `
+      <div class="market-signal-command ${escapeHtml(statusClass(regime))}">
+        <div>
+          <span>Composite market signal</span>
+          <strong>${escapeHtml(labelFor(regime))}</strong>
+        </div>
+        <div>
+          <span>Risk-on checks</span>
+          <strong>${escapeHtml(String(riskOn))}</strong>
+        </div>
+        <div>
+          <span>Risk-off checks</span>
+          <strong>${escapeHtml(String(riskOff))}</strong>
+        </div>
+        <div>
+          <span>Usable</span>
+          <strong>${escapeHtml(`${usable}/${signals.length}`)}</strong>
+        </div>
+        <div>
+          <span>High confidence</span>
+          <strong>${escapeHtml(String(highConfidence))}</strong>
+        </div>
+        <div>
+          <span>Conflict</span>
+          <strong>${escapeHtml(String(mixed))}</strong>
+        </div>
+      </div>
+    `;
   }
 
   function marketTape(overview, options = {}) {
@@ -114,24 +195,48 @@
   function marketSignals(overview) {
     const signals = Array.isArray(overview?.signals) ? overview.signals : [];
     if (!signals.length) return empty("No market signals are available.");
-    return signals.map((signal) => {
+    const cards = signals.map((signal) => {
       const cls = statusClass(signal.status);
       const evidence = Array.isArray(signal.evidence) ? signal.evidence.slice(0, 6) : [];
+      const nextActions = Array.isArray(signal.next_actions) ? signal.next_actions.slice(0, 3) : [];
+      const invalidation = Array.isArray(signal.invalidation) ? signal.invalidation.slice(0, 3) : [];
+      const watchPoints = Array.isArray(signal.watch_points) ? signal.watch_points.slice(0, 3) : [];
       return `
         <article class="market-signal-item ${escapeHtml(cls)}">
-          <div class="decision-status-row">
-            <span class="decision-badge ${escapeHtml(cls)}">${escapeHtml(signal.status || "unknown")}</span>
+          <div class="market-signal-top">
+            <span class="decision-badge ${escapeHtml(cls)}">${escapeHtml(labelFor(signal.status))}</span>
             <span>${escapeHtml(signal.signal_id || "")}</span>
           </div>
-          <h4>${escapeHtml(signal.title || "")}</h4>
+          <div class="market-signal-title-row">
+            <h4>${escapeHtml(signal.title || "")}</h4>
+            <span>${escapeHtml(signal.score === null || signal.score === undefined ? "score -" : `score ${fmtNumber(signal.score, 2)}`)}</span>
+          </div>
+          <div class="market-signal-meta">
+            <span>${escapeHtml(signal.impact || "Market impact")}</span>
+            <span>${escapeHtml(signal.horizon || "1D")}</span>
+            <span>${escapeHtml(confidenceLabel(signal.confidence))}</span>
+          </div>
           <p>${escapeHtml(signal.summary || "")}</p>
+          ${componentGrid(signal.components)}
           <div class="market-signal-evidence">
             ${evidence.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
           </div>
           <div class="market-signal-note">${escapeHtml(signal.interpretation || "")}</div>
+          ${compactList(nextActions, "market-signal-actions")}
+          ${(watchPoints.length || invalidation.length) ? `
+            <details class="market-signal-more">
+              <summary>감시·무효화</summary>
+              ${compactList(watchPoints, "market-signal-watch")}
+              ${compactList(invalidation, "market-signal-invalidation")}
+            </details>
+          ` : ""}
         </article>
       `;
     }).join("");
+    return `
+      ${signalOverview(signals)}
+      <div class="market-signal-grid">${cards}</div>
+    `;
   }
 
   global.FinGPTMarketUi = {

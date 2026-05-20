@@ -47,8 +47,17 @@ const API = {
   dashboardEquityHeatmap: "/api/v1/dashboard/equity-heatmap",
   macroSeriesList: "/api/v1/macro/series",
   macroSeriesSearch: (query, limit = 12) => `/api/v1/macro/series/search?q=${encodeURIComponent(query || "")}&limit=${encodeURIComponent(limit)}`,
-  macroSeriesDetail: (seriesId, observationLimit = 240) => `/api/v1/macro/series/${encodeURIComponent(seriesId || "")}/detail?observation_limit=${encodeURIComponent(observationLimit)}`,
-  macroDashboard: "/api/v1/macro/dashboard?observation_limit=20",
+  macroSeriesDetail: (seriesId, options = {}) => {
+    const opts = typeof options === "number" ? { observationLimit: options } : (options || {});
+    const params = new URLSearchParams({ observation_limit: String(opts.observationLimit ?? opts.observation_limit ?? 240) });
+    if (opts.startDate) params.set("start_date", opts.startDate);
+    if (opts.endDate) params.set("end_date", opts.endDate);
+    return `/api/v1/macro/series/${encodeURIComponent(seriesId || "")}/detail?${params.toString()}`;
+  },
+  macroDashboard: (options = {}) => {
+    const params = new URLSearchParams({ observation_limit: String(options.observationLimit ?? options.observation_limit ?? 20) });
+    return `/api/v1/macro/dashboard?${params.toString()}`;
+  },
   macroProviderHealth: "/api/v1/macro/provider-health",
   macroScenario: "/api/v1/macro/scenario",
   macroResearchContext: (ticker) => `/api/v1/macro/research-context?ticker=${encodeURIComponent(ticker || "")}`,
@@ -476,11 +485,11 @@ const els = {
   homeNewsFocusedList: document.getElementById("homeNewsFocusedList"),
   homeDashboardTabs: document.getElementById("homeDashboardTabs"),
   dashboardContextStrip: document.getElementById("dashboardContextStrip"),
-  dashboardRangeControls: document.getElementById("dashboardRangeControls"),
-  dashboardRangeSelect: document.getElementById("dashboardRangeSelect"),
-  dashboardRangeStart: document.getElementById("dashboardRangeStart"),
-  dashboardRangeEnd: document.getElementById("dashboardRangeEnd"),
-  dashboardRangeSupport: document.getElementById("dashboardRangeSupport"),
+  macroRangeControls: document.getElementById("macroRangeControls"),
+  macroRangeSelect: document.getElementById("macroRangeSelect"),
+  macroRangeStart: document.getElementById("macroRangeStart"),
+  macroRangeEnd: document.getElementById("macroRangeEnd"),
+  macroRangeSupport: document.getElementById("macroRangeSupport"),
   dashboardViewControls: document.getElementById("dashboardViewControls"),
   homeSurfaceGrid: document.getElementById("homeSurfaceGrid"),
   marketDashboardTab: document.getElementById("marketDashboardTab"),
@@ -503,8 +512,6 @@ const els = {
   crossAssetStatus: document.getElementById("crossAssetStatus"),
   crossAssetAnalysisSurface: document.getElementById("crossAssetAnalysisSurface"),
   homeMarketList: document.getElementById("homeMarketList"),
-  dataHealthRefresh: document.getElementById("dataHealthRefresh"),
-  homeDataHealth: document.getElementById("homeDataHealth"),
   macroRefresh: document.getElementById("macroRefresh"),
   macroBriefGenerate: document.getElementById("macroBriefGenerate"),
   macroReportExport: document.getElementById("macroReportExport"),
@@ -806,12 +813,15 @@ const state = {
   marketOverviewLoaded: false,
   marketLoaded: false,
   dataHealthLoaded: false,
+  dataHealth: null,
+  dataHealthError: "",
   dashboardHeatmapLoaded: false,
   tradingViewInitialized: false,
   dashboardNewsItems: [],
   focusedNewsItems: [],
   dashboardNewsCategory: "all",
   crossAssetAnalysis: null,
+  crossAssetRequestKey: "",
   marketOverview: null,
   dashboardMarketItems: [],
   dashboardDecisionCardsByTab: {},
@@ -2196,6 +2206,13 @@ const fmtDate = (iso) => {
   return d.toLocaleString();
 };
 
+const fmtShortTime = (iso) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+};
+
 const escapeHtml = (s) => String(s ?? "")
   .replace(/&/g, "&amp;")
   .replace(/</g, "&lt;")
@@ -3441,6 +3458,7 @@ function renderQualityDataHealth(data) {
   const qualityRows = Array.isArray(data.recent_quality_checks) ? data.recent_quality_checks.slice(0, 5) : [];
   const failedCount = Number(summary.failed_provider_rows || 0);
   const staleCount = Number(summary.stale_or_failed_quality_rows || 0);
+  const coveredEmptyCount = Number(summary.covered_empty_provider_rows || 0);
   const runRows = Number(latest.rows_inserted || 0) + Number(latest.rows_updated || 0);
   return `
     <div class="decision-status-row">
@@ -3450,7 +3468,7 @@ function renderQualityDataHealth(data) {
     <div class="decision-summary ${escapeHtml(decisionStatusClass(status))}">
       ${failedCount || staleCount
         ? `주의 필요: provider 실패 ${escapeHtml(_fmtNumber(failedCount))}건, 품질 경고 ${escapeHtml(_fmtNumber(staleCount))}건`
-        : `업데이트 ${escapeHtml(latest.status || "ok")} · 이번 실행 반영 ${escapeHtml(_fmtNumber(runRows))}행`}
+        : `업데이트 ${escapeHtml(latest.status || "ok")} · 이번 실행 반영 ${escapeHtml(_fmtNumber(runRows))}행${coveredEmptyCount ? ` · 적용 불가 empty ${escapeHtml(_fmtNumber(coveredEmptyCount))}건 정상 처리` : ""}`}
     </div>
     <div class="decision-metric-grid">
       ${decisionMetric("가격 행", _fmtNumber(counts.prices_daily), status)}
@@ -3481,6 +3499,49 @@ function renderQualityDataHealth(data) {
       </div>
     `, qualityRows.length)}
   `;
+}
+
+function dataHealthGlobalQuality(data) {
+  const summary = data?.summary || {};
+  const status = summary.decision_status || data?.status || "unknown";
+  const counts = data?.table_counts || {};
+  const latest = data?.latest_run || {};
+  const failedCount = Number(summary.failed_provider_rows || 0);
+  const staleCount = Number(summary.stale_or_failed_quality_rows || 0);
+  return {
+    status,
+    asOf: latest.finished_at || latest.started_at || data?.as_of || "",
+    updatedAt: latest.finished_at || latest.started_at || "",
+    source: latest.market ? `data mart · ${latest.market}` : "data mart",
+    observations: counts.prices_daily || counts.macro_observations || "",
+    missing: failedCount || staleCount ? `provider ${failedCount} · quality ${staleCount}` : "없음",
+    cache: latest.status || "",
+  };
+}
+
+function applyDataHealthState(data) {
+  state.dataHealth = data || null;
+  state.dataHealthError = "";
+  state.dataHealthLoaded = Boolean(data);
+  if (els.qualityDataHealth) {
+    els.qualityDataHealth.innerHTML = data ? renderQualityDataHealth(data) : decisionEmpty("데이터 마트 상태를 불러오지 못했습니다.");
+  }
+  if (data) updateGlobalQualitySummary(dataHealthGlobalQuality(data));
+}
+
+function renderDataHealthFailure(message) {
+  state.dataHealth = null;
+  state.dataHealthError = message || "unknown";
+  state.dataHealthLoaded = false;
+  if (els.qualityDataHealth) {
+    els.qualityDataHealth.innerHTML = decisionEmpty(`데이터 마트 품질 조회 실패: ${state.dataHealthError}`);
+  }
+  updateGlobalQualitySummary({
+    status: "unknown",
+    source: "data mart",
+    missing: "확인 불가",
+    updatedAt: "",
+  });
 }
 
 function renderQualityMacroData(data = {}, refreshStatus = {}) {
@@ -3674,6 +3735,11 @@ function renderQualityAiPortfolioState() {
 }
 
 function renderLocalQualitySections() {
+  if (els.qualityDataHealth && state.dataHealth) {
+    els.qualityDataHealth.innerHTML = renderQualityDataHealth(state.dataHealth);
+  } else if (els.qualityDataHealth && state.dataHealthError) {
+    els.qualityDataHealth.innerHTML = decisionEmpty(`데이터 마트 품질 조회 실패: ${state.dataHealthError}`);
+  }
   if (els.qualityQuantamentalData) els.qualityQuantamentalData.innerHTML = renderQualityQuantamentalState();
   if (els.qualityForecastData) els.qualityForecastData.innerHTML = renderQualityForecastState();
   if (els.qualityAiPortfolioData) els.qualityAiPortfolioData.innerHTML = renderQualityAiPortfolioState();
@@ -3720,9 +3786,8 @@ function renderQualityDashboard(data, extras = {}) {
   }
   renderLocalQualitySections();
   if (els.qualityDataHealth) {
-    els.qualityDataHealth.innerHTML = extras.dataHealth?.ok
-      ? renderQualityDataHealth(extras.dataHealth.data)
-      : decisionEmpty(`데이터 마트 품질 조회 실패: ${extras.dataHealth?.error || "unknown"}`);
+    if (extras.dataHealth?.ok) applyDataHealthState(extras.dataHealth.data);
+    else renderDataHealthFailure(extras.dataHealth?.error || "unknown");
   }
   if (els.qualityMacroData) {
     els.qualityMacroData.innerHTML = extras.macroQuality?.ok
@@ -4939,7 +5004,6 @@ function normalizeStaticLabels() {
   setText(".home-chart-card .home-card-head h3", "TradingView 단일 차트");
   setText(".home-heatmap-card .home-card-head h3", "미국 주식 5분봉 히트맵");
   setText(".home-market-panel .home-card-head h3", "내부 시장 스냅샷 (시장 테이프에 통합)");
-  setText(".data-mart-card .home-card-head h3", "데이터 마트 상태");
   if (els.marketDashboardTab) els.marketDashboardTab.textContent = "Market Dashboard";
   if (els.macroDashboardTab) els.macroDashboardTab.textContent = "Macro";
   if (els.quantLabTab) els.quantLabTab.textContent = "Quant Lab";
@@ -6472,10 +6536,18 @@ function crossAssetRequestFromControls() {
     .slice(0, 12)
     .join(",");
   return {
-    symbols: symbols || "SPY,QQQ,TLT,HYG,LQD,GLD,BTC-USD,DXY,US10Y",
+    symbols: symbols || "SPY,GLD",
     horizon: els.crossAssetHorizon?.value || "1m",
     topic: textInputValue(els.crossAssetTopic) || "",
   };
+}
+
+function crossAssetRequestKey(request) {
+  return JSON.stringify({
+    symbols: String(request?.symbols || "").toUpperCase(),
+    horizon: String(request?.horizon || "1m").toLowerCase(),
+    topic: String(request?.topic || "").trim(),
+  });
 }
 
 function crossAssetStateLabel(stateKey) {
@@ -6506,6 +6578,323 @@ function crossAssetReturnCell(label, value) {
   return `<span class="${escapeHtml(cls)}"><b>${escapeHtml(label)}</b> ${escapeHtml(fmtPct(value))}</span>`;
 }
 
+function crossAssetPairStanceLabel(status) {
+  const labels = {
+    asset_a_leading: "A 우위",
+    asset_b_leading: "B 우위",
+    range_bound: "중립/박스권",
+    unavailable: "데이터 부족",
+  };
+  return labels[status] || status || "미확인";
+}
+
+function renderCrossAssetPairChart(pair) {
+  const points = Array.isArray(pair?.points) ? pair.points.filter((point) => point?.ratio !== null && point?.ratio !== undefined) : [];
+  if (points.length < 2) return decisionEmpty("페어 차트를 그릴 겹치는 가격 데이터가 부족합니다.");
+  const ratioBase = Number(points[0].ratio);
+  const series = points.map((point, index) => ({
+    date: point.date || "",
+    xIndex: index,
+    assetA: Number(point.asset_a_index),
+    assetB: Number(point.asset_b_index),
+    ratio: ratioBase ? Number(point.ratio) / ratioBase * 100 : null,
+  }));
+  const values = series
+    .flatMap((point) => [point.assetA, point.assetB, point.ratio])
+    .filter((value) => Number.isFinite(value));
+  if (!values.length) return decisionEmpty("페어 차트 값이 없습니다.");
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = Math.max(1, max - min);
+  const pad = span * 0.12;
+  const yMin = min - pad;
+  const yMax = max + pad;
+  const width = 720;
+  const height = 220;
+  const left = 44;
+  const right = 18;
+  const top = 18;
+  const bottom = 34;
+  const chartW = width - left - right;
+  const chartH = height - top - bottom;
+  const xFor = (idx) => left + (series.length <= 1 ? 0 : idx / (series.length - 1) * chartW);
+  const yFor = (value) => top + (yMax - value) / (yMax - yMin || 1) * chartH;
+  const lineFor = (key) => series
+    .filter((point) => Number.isFinite(point[key]))
+    .map((point) => `${xFor(point.xIndex).toFixed(2)},${yFor(point[key]).toFixed(2)}`)
+    .join(" ");
+  const last = series[series.length - 1] || {};
+  const firstDate = series[0]?.date || "";
+  const lastDate = series[series.length - 1]?.date || "";
+  return `
+    <div class="cross-asset-pair-chart" aria-label="${escapeHtml(pair?.pair || "pair")} relative chart">
+      <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(pair?.pair || "pair")} normalized relative chart">
+        <line x1="${left}" y1="${yFor(100).toFixed(2)}" x2="${width - right}" y2="${yFor(100).toFixed(2)}" class="cross-asset-chart-base"></line>
+        <polyline points="${escapeHtml(lineFor("assetA"))}" class="cross-asset-chart-line asset-a"></polyline>
+        <polyline points="${escapeHtml(lineFor("assetB"))}" class="cross-asset-chart-line asset-b"></polyline>
+        <polyline points="${escapeHtml(lineFor("ratio"))}" class="cross-asset-chart-line ratio"></polyline>
+        <text x="${left}" y="${height - 10}" class="cross-asset-chart-axis">${escapeHtml(firstDate)}</text>
+        <text x="${width - right}" y="${height - 10}" text-anchor="end" class="cross-asset-chart-axis">${escapeHtml(lastDate)}</text>
+      </svg>
+      <div class="cross-asset-chart-legend">
+        <span class="asset-a">${escapeHtml(pair?.asset_a?.symbol || "A")} ${escapeHtml(fmtDecimal(last.assetA, 1))}</span>
+        <span class="asset-b">${escapeHtml(pair?.asset_b?.symbol || "B")} ${escapeHtml(fmtDecimal(last.assetB, 1))}</span>
+        <span class="ratio">${escapeHtml(pair?.pair || "A/B")} ${escapeHtml(fmtDecimal(last.ratio, 1))}</span>
+      </div>
+    </div>
+  `;
+}
+
+function crossAssetEngineeringStatusLabel(status) {
+  const labels = {
+    asset_a_rich: "A 고평가권",
+    asset_a_cheap: "A 저평가권",
+    asset_a_beta_leading: "A 베타조정 우위",
+    asset_b_beta_leading: "B 베타조정 우위",
+    balanced_spread: "균형 스프레드",
+    insufficient_history: "표본 부족",
+  };
+  return labels[status] || status || "미확인";
+}
+
+function crossAssetEngineeringMetric(label, value, detail = "", status = "") {
+  return `
+    <div class="cross-asset-engineering-metric ${escapeHtml(decisionStatusClass(status))}">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value ?? "-")}</strong>
+      ${detail ? `<small>${escapeHtml(detail)}</small>` : ""}
+    </div>
+  `;
+}
+
+function crossAssetMetricNumber(value, digits = 2) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toFixed(digits) : "-";
+}
+
+function crossAssetMetricPercent(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? `${n >= 0 ? "+" : ""}${n.toFixed(2)}%` : "-";
+}
+
+function crossAssetMetricDays(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? `${n.toFixed(1)}d` : "-";
+}
+
+function crossAssetDecisionGradeLabel(grade) {
+  const labels = {
+    high_attention: "High attention",
+    monitor: "Monitor",
+    low_conviction: "Low conviction",
+    data_insufficient: "Data insufficient",
+  };
+  return labels[grade] || grade || "Unrated";
+}
+
+function crossAssetDecisionBiasLabel(bias) {
+  const labels = {
+    extended_trend_with_reversion_risk: "추세 연장 + 평균회귀 리스크",
+    downside_spread_with_reversion_watch: "하방 스프레드 + 되돌림 감시",
+    conditional_follow_through: "조건부 추세 확인",
+    range_or_noise: "범위권/노이즈 우위",
+    data_first: "데이터 우선",
+  };
+  return labels[bias] || bias || "미확인";
+}
+
+function crossAssetGateStatusClass(status) {
+  const key = String(status || "").toLowerCase();
+  if (key === "ok") return "ok";
+  if (key === "fail") return "fail";
+  return "warn";
+}
+
+function renderCrossAssetDecisionMemo(pair) {
+  const briefing = pair?.ai_briefing || {};
+  const memo = briefing.decision_memo || {};
+  const gates = Array.isArray(memo.decision_gates) ? memo.decision_gates.slice(0, 5) : [];
+  const diagnosis = Array.isArray(memo.data_diagnosis) ? memo.data_diagnosis.slice(0, 5) : [];
+  const nextTests = Array.isArray(memo.next_tests) ? memo.next_tests.slice(0, 5) : [];
+  const invalidation = Array.isArray(memo.invalidation) ? memo.invalidation.slice(0, 4) : [];
+  if (!memo.executive_summary && !gates.length && !diagnosis.length) return "";
+  return `
+    <div class="cross-asset-decision-memo ${escapeHtml(crossAssetGateStatusClass(memo.grade === "data_insufficient" ? "fail" : memo.grade === "low_conviction" ? "warn" : "ok"))}">
+      <div class="cross-asset-decision-head">
+        <div>
+          <span>데이터 분석 메모</span>
+          <strong>${escapeHtml(crossAssetDecisionGradeLabel(memo.grade))}</strong>
+        </div>
+        <div>
+          <span>해석 편향</span>
+          <strong>${escapeHtml(crossAssetDecisionBiasLabel(memo.bias))}</strong>
+        </div>
+        <div>
+          <span>활용</span>
+          <strong>${escapeHtml(memo.actionability || "research_only")}</strong>
+        </div>
+      </div>
+      ${memo.executive_summary ? `<p class="cross-asset-decision-summary">${escapeHtml(memo.executive_summary)}</p>` : ""}
+      ${gates.length ? `
+        <div class="cross-asset-gate-grid">
+          ${gates.map((gate) => `
+            <article class="${escapeHtml(crossAssetGateStatusClass(gate.status))}">
+              <span>${escapeHtml(gate.status || "warn")}</span>
+              <strong>${escapeHtml(gate.name || "")}</strong>
+              <em>${escapeHtml(gate.evidence || "")}</em>
+              <p>${escapeHtml(gate.implication || "")}</p>
+            </article>
+          `).join("")}
+        </div>
+      ` : ""}
+      <div class="cross-asset-decision-columns">
+        ${diagnosis.length ? `
+          <section>
+            <h4>데이터 진단</h4>
+            ${diagnosis.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+          </section>
+        ` : ""}
+        ${nextTests.length ? `
+          <section>
+            <h4>다음 확인 조건</h4>
+            ${nextTests.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+          </section>
+        ` : ""}
+        ${invalidation.length ? `
+          <section>
+            <h4>무효화 조건</h4>
+            ${invalidation.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+          </section>
+        ` : ""}
+      </div>
+    </div>
+  `;
+}
+
+function renderCrossAssetEngineeringPanel(pair) {
+  const engineering = pair?.financial_engineering || {};
+  const metrics = engineering.metrics || {};
+  const levels = engineering.levels || {};
+  const scenarios = Array.isArray(engineering.scenarios) ? engineering.scenarios.slice(0, 3) : [];
+  const riskControls = Array.isArray(pair?.ai_briefing?.risk_controls)
+    ? pair.ai_briefing.risk_controls
+    : (Array.isArray(engineering.risk_controls) ? engineering.risk_controls : []);
+  const zScore = Number(metrics.ratio_zscore);
+  const zStatus = Number.isFinite(zScore) && Math.abs(zScore) >= 1.5 ? "warn" : "ok";
+  const trackingError = Number(metrics.tracking_error_annualized_pct);
+  const trackingStatus = Number.isFinite(trackingError) && trackingError > 35 ? "warn" : "ok";
+  const confidence = engineering.diagnostic_confidence || "low";
+  return `
+    <div class="cross-asset-engineering">
+      <div class="cross-asset-engineering-head">
+        <div>
+          <span>금융공학 진단</span>
+          <strong>${escapeHtml(crossAssetEngineeringStatusLabel(engineering.status))}</strong>
+        </div>
+        <div>
+          <span>표본/신뢰도</span>
+          <strong>${escapeHtml(_fmtNumber(engineering.sample_count || 0))} · ${escapeHtml(confidence)}</strong>
+        </div>
+        <div>
+          <span>베타 중립식</span>
+          <strong>${escapeHtml(engineering.beta_neutral_expression || "-")}</strong>
+        </div>
+      </div>
+      <div class="cross-asset-engineering-grid">
+        ${crossAssetEngineeringMetric("상관", crossAssetMetricNumber(metrics.correlation, 2), `${_fmtNumber(engineering.window_days || 0)}D window`, Math.abs(Number(metrics.correlation)) >= 0.5 ? "ok" : "warn")}
+        ${crossAssetEngineeringMetric("헤지 베타", crossAssetMetricNumber(metrics.hedge_ratio, 2), "A return vs B", metrics.hedge_ratio === null || metrics.hedge_ratio === undefined ? "warn" : "ok")}
+        ${crossAssetEngineeringMetric("베타조정 스프레드", crossAssetMetricPercent(metrics.beta_adjusted_spread_return_pct), String(pair?.horizon || "").toUpperCase(), Number(metrics.beta_adjusted_spread_return_pct) >= 0 ? "ok" : "warn")}
+        ${crossAssetEngineeringMetric("Ratio z-score", crossAssetMetricNumber(metrics.ratio_zscore, 2), `${crossAssetMetricNumber(metrics.ratio_percentile, 1)} percentile`, zStatus)}
+        ${crossAssetEngineeringMetric("Tracking error", `${crossAssetMetricNumber(metrics.tracking_error_annualized_pct, 2)}%`, "annualized", trackingStatus)}
+        ${crossAssetEngineeringMetric("반감기", crossAssetMetricDays(metrics.half_life_days), "mean reversion", metrics.half_life_days ? "ok" : "warn")}
+      </div>
+      <div class="cross-asset-level-strip">
+        <span>63D low ${escapeHtml(crossAssetMetricNumber(levels.ratio_low_63d, 4))}</span>
+        <span>mid ${escapeHtml(crossAssetMetricNumber(levels.ratio_mid_63d, 4))}</span>
+        <span>high ${escapeHtml(crossAssetMetricNumber(levels.ratio_high_63d, 4))}</span>
+        <span>latest ${escapeHtml(crossAssetMetricNumber(levels.latest_ratio, 4))}</span>
+      </div>
+      ${engineering.engineering_read ? `<p class="cross-asset-engineering-read">${escapeHtml(engineering.engineering_read)}</p>` : ""}
+      ${scenarios.length ? `
+        <div class="cross-asset-scenarios">
+          ${scenarios.map((scenario) => `
+            <article>
+              <strong>${escapeHtml(scenario.name || "Scenario")}</strong>
+              <span>${escapeHtml(scenario.trigger || "")}</span>
+              <p>${escapeHtml(scenario.implication || "")}</p>
+            </article>
+          `).join("")}
+        </div>
+      ` : ""}
+      ${riskControls.length ? `
+        <div class="cross-asset-risk-controls">
+          ${riskControls.slice(0, 4).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+        </div>
+      ` : ""}
+    </div>
+  `;
+}
+
+function renderCrossAssetPairBrief(pair) {
+  if (!pair) return "";
+  const briefing = pair.ai_briefing || {};
+  const status = briefing.status || pair.status || "unknown";
+  const statusClass = status === "unavailable" || pair.status === "unavailable" ? "warn" : "ok";
+  const modeLabel = briefing.mode || briefing.model || "deterministic_guardrail";
+  const warning = pair.status === "unavailable" && pair.error ? `<div class="decision-summary warn">${escapeHtml(pair.error)}</div>` : "";
+  return `
+    <section class="cross-asset-pair-brief ${escapeHtml(statusClass)}">
+      <div class="cross-asset-pair-head">
+        <div>
+          <span>페어 차트</span>
+          <strong>${escapeHtml(pair.pair || "A/B")}</strong>
+        </div>
+        <div>
+          <span>상대 수익률</span>
+          <strong>${escapeHtml(fmtPct(pair.horizon_return_pct))}</strong>
+        </div>
+        <div>
+          <span>최근 비율</span>
+          <strong>${escapeHtml(fmtDecimal(pair.latest_ratio, 4))}</strong>
+        </div>
+        <div>
+          <span>판단</span>
+          <strong>${escapeHtml(crossAssetPairStanceLabel(status))}</strong>
+        </div>
+      </div>
+      <div class="cross-asset-ai-mode">
+        <span>데이터 분석 브리핑</span>
+        <b>${escapeHtml(modeLabel)} · gate-based memo</b>
+      </div>
+      ${renderCrossAssetPairChart(pair)}
+      ${renderCrossAssetDecisionMemo(pair)}
+      ${renderCrossAssetEngineeringPanel(pair)}
+      <div class="cross-asset-pair-narrative">
+        <section>
+          <h4>${escapeHtml(briefing.title || "자동 브리핑")}</h4>
+          <p>${escapeHtml(briefing.current_interpretation || "상대 흐름 해석을 계산하지 못했습니다.")}</p>
+        </section>
+        <section>
+          <h4>공학 해석</h4>
+          <p>${escapeHtml(briefing.engineering_interpretation || "상관·베타·z-score 기반 진단을 준비 중입니다.")}</p>
+        </section>
+        <section>
+          <h4>향후 방향</h4>
+          <p>${escapeHtml(briefing.forward_direction || "추가 가격 확인이 필요합니다.")}</p>
+        </section>
+        <section>
+          <h4>목적 적합성</h4>
+          <p>${escapeHtml(briefing.purpose_fit || "페어 비율은 상대 강도 점검용이며 단독 투자 신호가 아닙니다.")}</p>
+        </section>
+      </div>
+      <div class="cross-asset-watch">
+        ${(Array.isArray(briefing.watch_points) ? briefing.watch_points : []).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+      </div>
+      ${warning}
+    </section>
+  `;
+}
+
 function renderCrossAssetAnalysis(payload) {
   if (!els.crossAssetAnalysisSurface) return;
   const items = Array.isArray(payload?.items) ? payload.items : [];
@@ -6520,6 +6909,7 @@ function renderCrossAssetAnalysis(payload) {
   const roleReturns = summary.role_returns || {};
   const roleKeys = ["equity", "credit", "rates", "defensive", "crypto"].filter((key) => roleReturns[key] !== null && roleReturns[key] !== undefined);
   els.crossAssetAnalysisSurface.innerHTML = `
+    ${renderCrossAssetPairBrief(payload?.pair_analysis)}
     <div class="cross-asset-summary ${escapeHtml(decisionStatusClass(payload?.status))}">
       <div>
         <span>현재 상태</span>
@@ -6581,22 +6971,14 @@ function renderCrossAssetAnalysis(payload) {
     <div class="cross-asset-watch">
       ${(Array.isArray(summary.watch_points) ? summary.watch_points : []).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
     </div>
-    <details class="developer-detail">
-      <summary>개발자 진단</summary>
-      <pre>${escapeHtml(JSON.stringify({
-        provider: payload?.provider,
-        engine: payload?.analysis_engine,
-        generated_at: payload?.generated_at,
-        guardrails: payload?.guardrails,
-        contributors: summary.contributors,
-      }, null, 2))}</pre>
-    </details>
   `;
 }
 
 async function loadCrossAssetAnalysis(force = false) {
   if (!els.crossAssetAnalysisSurface || (state.crossAssetAnalysis && !force)) return;
   const request = crossAssetRequestFromControls();
+  const requestKey = crossAssetRequestKey(request);
+  state.crossAssetRequestKey = requestKey;
   if (els.crossAssetStatus) els.crossAssetStatus.textContent = "교차자산 데이터를 계산하는 중입니다.";
   if (els.crossAssetRun) els.crossAssetRun.disabled = true;
   els.crossAssetAnalysisSurface.innerHTML = '<div class="home-news-empty">교차자산 분석을 불러오는 중입니다.</div>';
@@ -6604,11 +6986,20 @@ async function loadCrossAssetAnalysis(force = false) {
     const res = await fetch(API.dashboardCrossAssetAnalyze(request));
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
+    const currentKey = crossAssetRequestKey(crossAssetRequestFromControls());
+    if (currentKey !== requestKey) {
+      if (state.crossAssetRequestKey === requestKey) {
+        state.crossAssetAnalysis = null;
+        loadCrossAssetAnalysis(true);
+      }
+      return;
+    }
     state.crossAssetAnalysis = data;
     renderCrossAssetAnalysis(data);
     if (els.crossAssetStatus) {
       const usable = Number(data.decision_usable_count || 0);
-      els.crossAssetStatus.textContent = `${_fmtNumber(usable)}개 자산 기준 · ${fmtDate(data.generated_at)}`;
+      const pair = data?.pair_analysis?.pair;
+      els.crossAssetStatus.textContent = `${pair ? `${pair} 상대차트 · ` : ""}${_fmtNumber(usable)}개 자산 기준 · ${fmtDate(data.generated_at)}`;
     }
   } catch (err) {
     els.crossAssetAnalysisSurface.innerHTML = decisionEmpty(`교차자산 분석 실패: ${err.message || err}`);
@@ -7126,22 +7517,64 @@ function globalRangeSupportSummary(rangeState = state.globalRange) {
   const range = normalizeGlobalRange(rangeState?.range);
   const bounds = globalRangeDateBounds(range, rangeState?.startDate, rangeState?.endDate);
   const lookbackDays = globalRangeLookbackDays(range, bounds.startDate, bounds.endDate);
-  const researchDays = Math.max(
-    Number(els.lookback?.min || 1),
-    Math.min(Number(els.lookback?.max || 180), lookbackDays),
-  );
-  const quantamentalBucket = quantamentalLookbackFromRange(range, bounds.startDate, bounds.endDate);
-  const dateTargets = "자산·백테스트·포트폴리오·Forecast";
   const dateWindow = range === "custom" && !bounds.startDate
     ? `Custom 시작일 없음(1Y 기본 기간)~${bounds.endDate || "오늘"}`
     : `${bounds.startDate || "시작 제한 없음"}~${bounds.endDate || "오늘"}`;
   return {
     lookbackDays,
-    researchDays,
-    quantamentalBucket,
-    summary: `${selectedRangeLabel()} · 약 ${_fmtNumber(lookbackDays)}일 기준. 날짜 지원 화면은 직접 반영하고, lookback 기반 화면은 지원 버킷으로 변환합니다.`,
-    detail: `${dateTargets}: ${dateWindow} · Research: ${_fmtNumber(researchDays)}일 · Quantamental: ${_fmtNumber(Number(quantamentalBucket))}일 버킷`,
+    summary: `${selectedRangeLabel()} · 약 ${_fmtNumber(lookbackDays)}일 기준. Macro Explorer 검색과 매크로 차트에만 적용됩니다.`,
+    detail: `Macro Explorer·Macro chart: ${dateWindow} · 요청 관측치 상한 ${_fmtNumber(macroRangeObservationLimit(rangeState))}개`,
   };
+}
+
+function macroRangeBounds(rangeState = state.globalRange) {
+  const range = normalizeGlobalRange(rangeState?.range);
+  const bounds = globalRangeDateBounds(range, rangeState?.startDate, rangeState?.endDate);
+  if (range === "custom" && !bounds.startDate) {
+    return globalRangeDateBounds("1Y", "", bounds.endDate);
+  }
+  return bounds;
+}
+
+function macroRangeObservationLimit(rangeState = state.globalRange) {
+  const range = normalizeGlobalRange(rangeState?.range);
+  const bounds = macroRangeBounds(rangeState);
+  if (range === "MAX") return 5000;
+  const lookbackDays = globalRangeLookbackDays(range, bounds.startDate, bounds.endDate);
+  return Math.min(5000, Math.max(120, Math.ceil(Number(lookbackDays) || 252) + 30));
+}
+
+function macroRangeRequestOptions(rangeState = state.globalRange) {
+  const bounds = macroRangeBounds(rangeState);
+  return {
+    observationLimit: macroRangeObservationLimit(rangeState),
+    startDate: bounds.startDate,
+    endDate: bounds.endDate,
+  };
+}
+
+function macroRangeFilteredObservations(observations = [], rangeState = state.globalRange) {
+  const bounds = macroRangeBounds(rangeState);
+  return (Array.isArray(observations) ? observations : [])
+    .filter((row) => {
+      const date = String(row?.date || "");
+      if (!date) return false;
+      if (bounds.startDate && date < bounds.startDate) return false;
+      if (bounds.endDate && date > bounds.endDate) return false;
+      return true;
+    });
+}
+
+function macroSampleChartObservations(observations = [], maxPoints = 320) {
+  const rows = Array.isArray(observations) ? observations : [];
+  const limit = Math.max(2, Number(maxPoints) || 320);
+  if (rows.length <= limit) return rows;
+  const sampled = [];
+  const step = (rows.length - 1) / (limit - 1);
+  for (let index = 0; index < limit; index += 1) {
+    sampled.push(rows[Math.round(index * step)]);
+  }
+  return sampled;
 }
 
 function setSelectValueIfPresent(select, value) {
@@ -7154,58 +7587,48 @@ function setSelectValueIfPresent(select, value) {
 
 function syncDashboardRangeControls() {
   if (!state.globalRange) state.globalRange = { ...DEFAULT_GLOBAL_RANGE };
-  if (els.dashboardRangeSelect) els.dashboardRangeSelect.value = normalizeGlobalRange(state.globalRange.range);
-  if (els.dashboardRangeStart) els.dashboardRangeStart.value = sanitizeDateInput(state.globalRange.startDate);
-  if (els.dashboardRangeEnd) els.dashboardRangeEnd.value = sanitizeDateInput(state.globalRange.endDate);
+  if (els.macroRangeSelect) els.macroRangeSelect.value = normalizeGlobalRange(state.globalRange.range);
+  if (els.macroRangeStart) els.macroRangeStart.value = sanitizeDateInput(state.globalRange.startDate);
+  if (els.macroRangeEnd) els.macroRangeEnd.value = sanitizeDateInput(state.globalRange.endDate);
   const isCustom = normalizeGlobalRange(state.globalRange.range) === "custom";
   const validationMessage = globalRangeValidationMessage();
-  if (els.dashboardRangeControls) els.dashboardRangeControls.classList.toggle("custom-active", isCustom);
-  if (els.dashboardRangeControls) els.dashboardRangeControls.classList.toggle("range-warning", Boolean(validationMessage));
+  if (els.macroRangeControls) els.macroRangeControls.classList.toggle("custom-active", isCustom);
+  if (els.macroRangeControls) els.macroRangeControls.classList.toggle("range-warning", Boolean(validationMessage));
   const missingCustomStart = isCustom && !state.globalRangeNotice && !sanitizeDateInput(state.globalRange.startDate);
   const missingCustomEnd = isCustom && !state.globalRangeNotice && !sanitizeDateInput(state.globalRange.endDate);
-  if (els.dashboardRangeStart) els.dashboardRangeStart.setAttribute("aria-invalid", missingCustomStart ? "true" : "false");
-  if (els.dashboardRangeEnd) els.dashboardRangeEnd.setAttribute("aria-invalid", missingCustomEnd ? "true" : "false");
-  if (els.dashboardRangeSupport) {
+  if (els.macroRangeStart) els.macroRangeStart.setAttribute("aria-invalid", missingCustomStart ? "true" : "false");
+  if (els.macroRangeEnd) els.macroRangeEnd.setAttribute("aria-invalid", missingCustomEnd ? "true" : "false");
+  if (els.macroRangeSupport) {
     const support = globalRangeSupportSummary();
-    els.dashboardRangeSupport.textContent = validationMessage ? `${validationMessage} · ${support.summary}` : support.summary;
-    els.dashboardRangeSupport.title = support.detail;
-    if (els.dashboardRangeControls) els.dashboardRangeControls.dataset.rangeSupport = support.detail;
+    els.macroRangeSupport.textContent = validationMessage ? `${validationMessage} · ${support.summary}` : support.summary;
+    els.macroRangeSupport.title = support.detail;
+    if (els.macroRangeControls) els.macroRangeControls.dataset.rangeSupport = support.detail;
   }
   renderGlobalQualitySummary();
 }
 
+function ensureMacroRangeControlPlacement() {
+  const controls = els.macroRangeControls || document.getElementById("macroRangeControls");
+  const macroForm = document.querySelector(".macro-search-card .macro-search-form");
+  if (!controls || !macroForm) return;
+  controls.classList.remove("dashboard-range-controls--search");
+  controls.classList.add("dashboard-range-controls--macro-search");
+  controls.setAttribute("aria-label", "Macro Explorer range controls");
+  if (!macroForm.contains(controls)) {
+    const results = els.macroSeriesSearchResults || document.getElementById("macroSeriesSearchResults");
+    macroForm.appendChild(controls);
+    if (results && macroForm.compareDocumentPosition(results) & Node.DOCUMENT_POSITION_PRECEDING) {
+      macroForm.appendChild(controls);
+    }
+  }
+  els.macroRangeControls = controls;
+  els.macroRangeSelect = controls.querySelector("#macroRangeSelect") || els.macroRangeSelect;
+  els.macroRangeStart = controls.querySelector("#macroRangeStart") || els.macroRangeStart;
+  els.macroRangeEnd = controls.querySelector("#macroRangeEnd") || els.macroRangeEnd;
+  els.macroRangeSupport = controls.querySelector("#macroRangeSupport") || els.macroRangeSupport;
+}
+
 function applyGlobalRangeToControls() {
-  const range = normalizeGlobalRange(state.globalRange?.range);
-  const bounds = globalRangeDateBounds(range, state.globalRange?.startDate, state.globalRange?.endDate);
-  const lookbackDays = globalRangeLookbackDays(range, bounds.startDate, bounds.endDate);
-  const cappedResearchLookback = Math.max(
-    Number(els.lookback?.min || 1),
-    Math.min(Number(els.lookback?.max || 180), lookbackDays),
-  );
-  if (els.lookback) {
-    els.lookback.value = String(cappedResearchLookback);
-    els.lookback.dataset.globalRange = range;
-  }
-  setSelectValueIfPresent(els.assetDetailRange, globalRangeToAssetRange(range));
-  if (els.assetDetailStartDate) els.assetDetailStartDate.value = bounds.startDate;
-  if (els.assetDetailEndDate) els.assetDetailEndDate.value = bounds.endDate;
-  if (els.backtestStartDate) els.backtestStartDate.value = bounds.startDate;
-  if (els.backtestEndDate) els.backtestEndDate.value = bounds.endDate;
-  if (els.portfolioStartDate) els.portfolioStartDate.value = bounds.startDate;
-  if (els.portfolioEndDate) els.portfolioEndDate.value = bounds.endDate;
-  if (els.portfolioLookbackDays) els.portfolioLookbackDays.value = String(Math.min(5000, Math.max(1, lookbackDays)));
-  if (els.forecastStartDate) els.forecastStartDate.value = bounds.startDate;
-  if (els.forecastEndDate) els.forecastEndDate.value = bounds.endDate;
-  setSelectValueIfPresent(els.quantamentalLookback, quantamentalLookbackFromRange(range, bounds.startDate, bounds.endDate));
-  if (els.aiPortfolioLookbackMonths) {
-    const months = range === "MAX" ? 120 : Math.max(1, Math.round(lookbackDays / 21));
-    els.aiPortfolioLookbackMonths.value = String(Math.min(120, months));
-  }
-  if (els.crossAssetHorizon) {
-    const horizon = lookbackDays <= 1 ? "1d" : (lookbackDays <= 7 ? "5d" : (lookbackDays <= 63 ? "1m" : "3m"));
-    setSelectValueIfPresent(els.crossAssetHorizon, horizon);
-  }
-  updateRangeLabels();
   syncDashboardRangeControls();
   persistForm();
 }
@@ -7230,8 +7653,8 @@ function updateGlobalRangeUrl() {
 
 function setGlobalRange(range, options = {}) {
   const normalized = normalizeGlobalRange(range);
-  const start = sanitizeDateInput(options.startDate ?? els.dashboardRangeStart?.value ?? state.globalRange?.startDate);
-  const end = sanitizeDateInput(options.endDate ?? els.dashboardRangeEnd?.value ?? state.globalRange?.endDate);
+  const start = sanitizeDateInput(options.startDate ?? els.macroRangeStart?.value ?? state.globalRange?.startDate);
+  const end = sanitizeDateInput(options.endDate ?? els.macroRangeEnd?.value ?? state.globalRange?.endDate);
   state.globalRangeNotice = "";
   if (normalized === "custom") {
     const ordered = normalizeCustomGlobalDateOrder(start, end);
@@ -7774,15 +8197,16 @@ function renderMacroIndicatorTable(items = []) {
 }
 
 function renderMacroSeriesChart(item, title = "") {
-  const observations = (Array.isArray(item?.observations) ? item.observations : [])
-    .slice(-80)
+  const allObservations = Array.isArray(item?.observations) ? item.observations : [];
+  const rangeObservations = macroRangeFilteredObservations(allObservations);
+  const observations = macroSampleChartObservations(rangeObservations)
     .map((row) => ({ date: row.date || "", value: Number(row.value) }))
     .filter((row) => row.date && Number.isFinite(row.value));
   if (observations.length < 2) {
     return `
       <div class="decision-chart">
         <div class="decision-chart-head"><span>${escapeHtml(title || item?.display_name || item?.series_id || "시계열")}</span><strong class="warn">사용 불가</strong></div>
-        ${decisionEmpty("차트를 만들 관측치가 부족합니다.")}
+        ${decisionEmpty(`${escapeHtml(selectedRangeLabel())} 기간에 차트를 만들 관측치가 부족합니다.`)}
       </div>
     `;
   }
@@ -7795,19 +8219,21 @@ function renderMacroSeriesChart(item, title = "") {
   const values = observations.map((row) => row.value);
   const { min, max } = paddedChartDomain(values);
   const points = lineChartPoints(observations, width, height, padLeft, padRight, padTop, padBottom, min, max);
-  const latest = observations[observations.length - 1];
+  const latest = rangeObservations[rangeObservations.length - 1] || observations[observations.length - 1];
+  const latestValue = Number(latest.value);
+  const first = rangeObservations[0] || observations[0];
   return `
     <div class="decision-chart">
       <div class="decision-chart-head">
         <span>${escapeHtml(title || item.display_name || item.series_id)}</span>
-        <strong class="${escapeHtml(decisionStatusClass(item.data_quality?.status))}">${escapeHtml(macroValueText(latest.value, item.unit))}</strong>
+        <strong class="${escapeHtml(decisionStatusClass(item.data_quality?.status))}">${escapeHtml(macroValueText(latestValue, item.unit))}</strong>
       </div>
       <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(item.series_id || "macro series")} chart">
         ${renderChartYAxis({ width, height, padLeft, padRight, padTop, padBottom, min, max, formatter: (value) => fmtDecimal(value, Math.abs(value) >= 100 ? 0 : 2) })}
         <polyline points="${svgPolylinePoints(points)}" fill="none" stroke="currentColor" stroke-width="2.4" vector-effect="non-scaling-stroke"></polyline>
         ${renderChartHoverTargets(points, (point) => `${point.date || "-"} · ${item.series_id || ""} ${fmtDecimal(point.value, 3)}`)}
       </svg>
-      <div class="decision-chart-foot"><span>${escapeHtml(observations[0].date)}</span><span>${escapeHtml(latest.date)}</span></div>
+      <div class="decision-chart-foot"><span>${escapeHtml(selectedRangeLabel())} · ${escapeHtml(first.date)}</span><span>${escapeHtml(latest.date)}</span></div>
     </div>
   `;
 }
@@ -7933,8 +8359,8 @@ function renderMacroSeriesSearchItems(items = [], label = "") {
 }
 
 function renderMacroObservationRows(series = {}) {
-  const observations = Array.isArray(series.observations) ? series.observations.slice(-24).reverse() : [];
-  if (!observations.length) return decisionEmpty("표시할 원자료 관측치가 없습니다.");
+  const observations = macroRangeFilteredObservations(series.observations || []).slice(-24).reverse();
+  if (!observations.length) return decisionEmpty(`${escapeHtml(selectedRangeLabel())} 기간에 표시할 원자료 관측치가 없습니다.`);
   return `
     <div class="decision-table-wrap">
       <table class="decision-table">
@@ -8024,7 +8450,7 @@ async function loadMacroSeriesDetail(seriesId) {
   if (!id || !els.macroSeriesDetailSurface) return;
   els.macroSeriesDetailSurface.innerHTML = decisionEmpty(`${escapeHtml(id)} 상세 데이터를 불러오는 중입니다.`);
   try {
-    const data = await macroFetchJsonWithTimeout(API.macroSeriesDetail(id, 240), {}, MACRO_PANEL_TIMEOUT_MS);
+    const data = await macroFetchJsonWithTimeout(API.macroSeriesDetail(id, macroRangeRequestOptions()), {}, MACRO_PANEL_TIMEOUT_MS);
     state.macroSeriesDetail = data;
     renderMacroSeriesDetail(data);
   } catch (err) {
@@ -8069,10 +8495,14 @@ async function searchMacroSeries() {
   }
 }
 
-async function loadMacroDefaultSeriesDetail(seriesList = {}) {
+async function loadMacroDefaultSeriesDetail(seriesList = {}, options = {}) {
   if (!els.macroSeriesDetailSurface) return;
   const existingId = state.macroSeriesDetail?.series?.series_id || state.macroSeriesDetail?.definition?.series_id;
   const detailText = els.macroSeriesDetailSurface.innerText || "";
+  if (existingId && options.force) {
+    await loadMacroSeriesDetail(existingId);
+    return;
+  }
   if (existingId && !/시계열을 선택하면|Macro series detail|상세 데이터를 불러오는 중/.test(detailText)) return;
   const query = els.macroSeriesSearchInput?.value?.trim?.() || "";
   const cached = macroCachedSeriesSearch(query, 12);
@@ -8601,7 +9031,11 @@ async function loadMacroProgressive(force = false) {
   }
   try {
     macroCategoryHydrationRun += 1;
-    const dashboard = await macroFetchJsonWithTimeout(API.macroDashboard, {}, MACRO_DASHBOARD_TIMEOUT_MS);
+    const dashboard = await macroFetchJsonWithTimeout(
+      API.macroDashboard({ observationLimit: macroRangeObservationLimit() }),
+      {},
+      MACRO_DASHBOARD_TIMEOUT_MS,
+    );
     const overview = dashboard.overview || {};
     const dashboardQuality = dashboard.data_quality || overview.data_quality || {};
     const dashboardRefresh = dashboard.refresh || {};
@@ -8646,7 +9080,7 @@ async function loadMacroProgressive(force = false) {
       state.macroSeriesList = results.seriesList;
       renderMacroCoverage(results.seriesList);
       renderMacroSearchStarter(results.seriesList);
-      await loadMacroDefaultSeriesDetail(results.seriesList);
+      await loadMacroDefaultSeriesDetail(results.seriesList, { force });
     } else {
       renderMacroSearchStarter({ items: [] });
     }
@@ -8841,6 +9275,386 @@ function backtestMetricsWithDerivedTotals(metrics, equityCurve) {
   return out;
 }
 
+function quantCurvePoints(rows, key) {
+  return (Array.isArray(rows) ? rows : [])
+    .map((row) => ({ date: row?.date || "", value: Number(row?.[key] ?? row?.value) }))
+    .filter((row) => Number.isFinite(row.value));
+}
+
+function quantCleanNumbers(values) {
+  return (Array.isArray(values) ? values : []).map(Number).filter(Number.isFinite);
+}
+
+function quantMean(values) {
+  const clean = quantCleanNumbers(values);
+  if (!clean.length) return null;
+  return clean.reduce((sum, value) => sum + value, 0) / clean.length;
+}
+
+function quantile(values, q) {
+  const clean = quantCleanNumbers(values).sort((a, b) => a - b);
+  if (!clean.length) return null;
+  const idx = Math.max(0, Math.min(clean.length - 1, Math.floor((clean.length - 1) * q)));
+  return clean[idx];
+}
+
+function equityCurveReturns(equityCurve) {
+  const points = quantCurvePoints(equityCurve, "equity");
+  const returns = [];
+  for (let i = 1; i < points.length; i += 1) {
+    const prev = points[i - 1]?.value;
+    const current = points[i]?.value;
+    if (Number.isFinite(prev) && prev > 0 && Number.isFinite(current)) {
+      returns.push({ date: points[i].date, value: current / prev - 1 });
+    }
+  }
+  return returns;
+}
+
+function monthlyReturnsFromEquityCurve(equityCurve, limit = 36) {
+  const points = quantCurvePoints(equityCurve, "equity").filter((row) => row.date && row.value > 0);
+  const byMonth = new Map();
+  points.forEach((row) => {
+    const month = String(row.date).slice(0, 7);
+    if (!month || month.length < 7) return;
+    const current = byMonth.get(month) || { month, first: row.value, last: row.value };
+    current.last = row.value;
+    byMonth.set(month, current);
+  });
+  return Array.from(byMonth.values())
+    .map((row) => ({ month: row.month, value: row.first > 0 ? row.last / row.first - 1 : null }))
+    .filter((row) => Number.isFinite(row.value))
+    .slice(-limit);
+}
+
+function backtestPathStats(data = {}, metrics = {}) {
+  const equity = quantCurvePoints(data.equity_curve, "equity").filter((row) => row.value > 0);
+  const drawdown = quantCurvePoints(data.drawdown_curve, "drawdown");
+  const returns = equityCurveReturns(data.equity_curve);
+  const returnValues = returns.map((row) => row.value);
+  const firstEquity = equity[0]?.value;
+  const latestEquity = equity[equity.length - 1]?.value;
+  const metricTotalReturn = Number(metrics.total_return);
+  const totalReturn = Number.isFinite(metricTotalReturn)
+    ? metricTotalReturn
+    : Number.isFinite(firstEquity) && firstEquity > 0 && Number.isFinite(latestEquity)
+      ? latestEquity / firstEquity - 1
+      : null;
+  const drawdownValues = drawdown.map((row) => row.value).filter(Number.isFinite);
+  const metricMaxDrawdown = Number(metrics.max_drawdown);
+  const maxDrawdown = Number.isFinite(metricMaxDrawdown)
+    ? metricMaxDrawdown
+    : drawdownValues.length
+      ? Math.min(...drawdownValues)
+      : null;
+  const latestDrawdown = drawdownValues.length ? drawdownValues[drawdownValues.length - 1] : null;
+  const underwaterShare = drawdownValues.length
+    ? drawdownValues.filter((value) => value < -0.01).length / drawdownValues.length
+    : null;
+  const recoveryRatio = Number.isFinite(totalReturn) && Number.isFinite(maxDrawdown) && Math.abs(maxDrawdown) > 0.0001
+    ? totalReturn / Math.abs(maxDrawdown)
+    : null;
+  const worstReturn = returnValues.length ? Math.min(...returnValues) : null;
+  const bestReturn = returnValues.length ? Math.max(...returnValues) : null;
+  const hitRate = returnValues.length ? returnValues.filter((value) => value > 0).length / returnValues.length : null;
+  const tailVar95 = quantile(returnValues, 0.05);
+  const positiveMean = quantMean(returnValues.filter((value) => value > 0));
+  const negativeMean = quantMean(returnValues.filter((value) => value < 0));
+  return {
+    equityPoints: equity.length,
+    returnPoints: returnValues.length,
+    totalReturn,
+    maxDrawdown,
+    latestDrawdown,
+    underwaterShare,
+    recoveryRatio,
+    worstReturn,
+    bestReturn,
+    hitRate,
+    tailVar95,
+    positiveMean,
+    negativeMean,
+  };
+}
+
+function renderBacktestRiskTape(stats) {
+  const segments = [
+    {
+      label: "경로 효율",
+      value: Math.max(0, Math.min(1, Number(stats.recoveryRatio || 0) / 3)),
+      text: Number.isFinite(stats.recoveryRatio) ? fmtDecimal(stats.recoveryRatio, 2) : "-",
+      status: Number(stats.recoveryRatio) >= 1 ? "ok" : "warn",
+    },
+    {
+      label: "상승일 빈도",
+      value: Number.isFinite(stats.hitRate) ? stats.hitRate : 0,
+      text: Number.isFinite(stats.hitRate) ? fmtPct(stats.hitRate * 100) : "-",
+      status: Number(stats.hitRate) >= 0.5 ? "ok" : "warn",
+    },
+    {
+      label: "수중 구간",
+      value: Number.isFinite(stats.underwaterShare) ? 1 - stats.underwaterShare : 0,
+      text: Number.isFinite(stats.underwaterShare) ? fmtPct(stats.underwaterShare * 100) : "-",
+      status: Number(stats.underwaterShare) <= 0.35 ? "ok" : "warn",
+    },
+    {
+      label: "5% 꼬리",
+      value: Number.isFinite(stats.tailVar95) ? Math.max(0, Math.min(1, 1 + stats.tailVar95 / 0.05)) : 0,
+      text: Number.isFinite(stats.tailVar95) ? fmtMetricRatio(stats.tailVar95) : "-",
+      status: Number(stats.tailVar95) > -0.03 ? "ok" : "warn",
+    },
+  ];
+  return `
+    <div class="quant-risk-tape" data-testid="quant-backtest-risk-tape">
+      ${segments.map((item) => `
+        <div class="quant-risk-tape-row ${escapeHtml(decisionStatusClass(item.status))}">
+          <span>${escapeHtml(item.label)}</span>
+          <div><i style="width:${Math.max(2, Math.min(100, item.value * 100))}%"></i></div>
+          <strong>${escapeHtml(item.text)}</strong>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderBacktestEngineeringPanel(data, metrics, request = {}) {
+  const stats = backtestPathStats(data, metrics);
+  const diagnostics = data.diagnostics || {};
+  const costBps = request.transaction_cost_bps ?? data.config?.transaction_cost_bps ?? "-";
+  const slippageBps = request.slippage_bps ?? data.config?.slippage_bps ?? "-";
+  const lookaheadStatus = diagnostics.lookahead_safe === false ? "fail" : "ok";
+  const pathStatus = Number(stats.recoveryRatio) >= 1 && Number(stats.tailVar95) > -0.04 ? "ok" : "warn";
+  const underwaterStatus = Number.isFinite(stats.underwaterShare) && stats.underwaterShare > 0.45 ? "warn" : "ok";
+  const tradeFriction = Number(costBps || 0) + Number(slippageBps || 0);
+  return `
+    <div class="quant-engineering-panel" data-testid="quant-backtest-engineering">
+      <div class="quant-engineering-head">
+        <div>
+          <strong>경로 리스크 분석</strong>
+          <span>${escapeHtml(_fmtNumber(stats.equityPoints))}개 NAV 관측치 · 체결비용 ${escapeHtml(String(costBps))}/${escapeHtml(String(slippageBps))} bps</span>
+        </div>
+        <span class="table-status ${escapeHtml(decisionStatusClass(pathStatus))}">${pathStatus === "ok" ? "path robust" : "path review"}</span>
+      </div>
+      <div class="decision-practical-grid quant-engineering-grid">
+        ${decisionMetric("Recovery / MDD", fmtDecimal(stats.recoveryRatio, 2), pathStatus)}
+        ${decisionMetric("현재 DD", fmtMetricRatio(stats.latestDrawdown), Number(stats.latestDrawdown) < -0.08 ? "warn" : "ok")}
+        ${decisionMetric("수중 체류율", Number.isFinite(stats.underwaterShare) ? fmtPct(stats.underwaterShare * 100) : "-", underwaterStatus)}
+        ${decisionMetric("일간 5% VaR", fmtMetricRatio(stats.tailVar95), Number(stats.tailVar95) < -0.03 ? "warn" : "ok")}
+        ${decisionMetric("최악 일간", fmtMetricRatio(stats.worstReturn), Number(stats.worstReturn) < -0.05 ? "warn" : "ok")}
+        ${decisionMetric("상승일 비율", Number.isFinite(stats.hitRate) ? fmtPct(stats.hitRate * 100) : "-", Number(stats.hitRate) >= 0.5 ? "ok" : "warn")}
+        ${decisionMetric("룩어헤드", diagnostics.lookahead_safe === false ? "점검 필요" : "safe", lookaheadStatus)}
+        ${decisionMetric("마찰 비용", `${Number.isFinite(tradeFriction) ? fmtDecimal(tradeFriction, 1) : "-"} bps`, Number(tradeFriction) > 25 ? "warn" : "ok")}
+      </div>
+      ${renderBacktestRiskTape(stats)}
+      <div class="decision-action-list quant-action-brief">
+        <div><strong>경로 판단</strong><span>${Number(stats.recoveryRatio) >= 1 ? "누적 수익이 최대 낙폭을 보상하는 구조입니다. 다만 월별 수익 분포와 꼬리 손실이 같은 방향인지 함께 확인하세요." : "수익 대비 낙폭 보상이 약합니다. Top N, 리밸런싱 주기, 거래비용 민감도를 다시 비교해야 합니다."}</span></div>
+        <div><strong>리스크 판단</strong><span>${Number(stats.underwaterShare) > 0.45 ? "수중 체류율이 높아 심리적·자본효율 부담이 큽니다. 절대수익 목적이면 변동성 타깃이나 방어자산 혼합이 필요합니다." : "낙폭 체류가 과도하지 않습니다. 현재 DD가 확대되는 구간인지 최근 신호와 같이 점검하세요."}</span></div>
+        <div><strong>실행 판단</strong><span>신호일과 체결일을 분리하고 비용을 반영한 산출물입니다. 실거래 전에는 동일 조건의 재현 비교와 포트폴리오 위험예산을 확인하세요.</span></div>
+      </div>
+    </div>
+  `;
+}
+
+function renderBacktestReturnHeatmap(equityCurve) {
+  const months = monthlyReturnsFromEquityCurve(equityCurve);
+  if (months.length < 3) return "";
+  return `
+    <div class="quant-return-heatmap-card" data-testid="quant-return-heatmap">
+      <div class="decision-section-title">월별 경로 분해</div>
+      <div class="quant-return-heatmap">
+        ${months.map((row) => {
+          const value = Number(row.value);
+          const abs = Math.min(Math.abs(value) / 0.08, 1);
+          const cls = value > 0.002 ? "pos" : value < -0.002 ? "neg" : "flat";
+          return `
+            <span class="quant-return-cell ${cls}" style="opacity:${(0.46 + abs * 0.54).toFixed(2)}" title="${escapeHtml(row.month)} ${escapeHtml(fmtMetricRatio(value))}">
+              <em>${escapeHtml(row.month.slice(2))}</em>
+              <strong>${escapeHtml(fmtMetricRatio(value))}</strong>
+            </span>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function rebalanceWeightEntries(row) {
+  const raw = row?.target_weights || row?.weights || {};
+  return Object.entries(raw)
+    .map(([ticker, weight]) => [ticker, Number(weight)])
+    .filter(([, weight]) => Number.isFinite(weight) && weight > 0)
+    .sort((a, b) => b[1] - a[1]);
+}
+
+function renderAllocationSegments(entries, limit = 6) {
+  const clean = (Array.isArray(entries) ? entries : [])
+    .map(([ticker, weight]) => [ticker, Number(weight)])
+    .filter(([, weight]) => Number.isFinite(weight) && weight > 0);
+  if (!clean.length) return "";
+  const total = clean.reduce((sum, [, weight]) => sum + weight, 0) || 1;
+  const shown = clean.slice(0, limit);
+  const residual = clean.slice(limit).reduce((sum, [, weight]) => sum + weight, 0);
+  const segments = residual > 0 ? [...shown, ["기타", residual]] : shown;
+  return segments.map(([ticker, weight], index) => {
+    const width = Math.max(2, (weight / total) * 100);
+    const hue = (index * 53 + 152) % 360;
+    return `<i style="width:${width.toFixed(2)}%;--segment-color:hsl(${hue}, 64%, 56%)" title="${escapeHtml(ticker)} ${escapeHtml(fmtPct(weight * 100))}"></i>`;
+  }).join("");
+}
+
+function renderRebalanceAllocationMap(snapshots) {
+  const rows = (Array.isArray(snapshots) ? snapshots : [])
+    .map((row) => ({ row, entries: rebalanceWeightEntries(row) }))
+    .filter((item) => item.entries.length)
+    .slice(-5);
+  if (!rows.length) return "";
+  return `
+    <div class="quant-allocation-map" data-testid="quant-rebalance-allocation-map">
+      ${rows.map(({ row, entries }) => `
+        <div class="quant-allocation-row">
+          <span>${escapeHtml(row.execution_date || row.signal_date || row.date || "-")}</span>
+          <div class="quant-allocation-stack">${renderAllocationSegments(entries)}</div>
+          <strong>${escapeHtml(entries.slice(0, 3).map(([ticker]) => ticker).join(" / "))}</strong>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function portfolioCorrelationStats(matrix) {
+  const assets = Object.keys(matrix || {});
+  const values = [];
+  for (let i = 0; i < assets.length; i += 1) {
+    for (let j = i + 1; j < assets.length; j += 1) {
+      const value = Number(matrix?.[assets[i]]?.[assets[j]]);
+      if (Number.isFinite(value)) values.push(value);
+    }
+  }
+  return {
+    count: values.length,
+    average: quantMean(values),
+    max: values.length ? Math.max(...values) : null,
+    min: values.length ? Math.min(...values) : null,
+  };
+}
+
+function renderCorrelationHeatmap(matrix) {
+  const assets = Object.keys(matrix || {}).slice(0, 8);
+  if (!assets.length) return "";
+  return `
+    <div class="correlation-heatmap" data-testid="portfolio-correlation-heatmap">
+      ${assets.map((rowAsset) => `
+        <div class="correlation-heatmap-row">
+          <span>${escapeHtml(rowAsset)}</span>
+          ${assets.map((colAsset) => {
+            const value = Number(matrix?.[rowAsset]?.[colAsset]);
+            const cls = !Number.isFinite(value)
+              ? "flat"
+              : value >= 0.65
+                ? "hot"
+                : value <= -0.2
+                  ? "cold"
+                  : Math.abs(value) < 0.2
+                    ? "flat"
+                    : "warm";
+            return `<strong class="correlation-cell ${cls}" title="${escapeHtml(rowAsset)} / ${escapeHtml(colAsset)}">${escapeHtml(fmtDecimal(value, 2))}</strong>`;
+          }).join("")}
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderPortfolioAllocationMap(entries, riskContributions = {}) {
+  const clean = (Array.isArray(entries) ? entries : [])
+    .map(([ticker, weight]) => [ticker, Number(weight), Number(riskContributions?.[ticker])])
+    .filter(([, weight]) => Number.isFinite(weight) && weight > 0);
+  if (!clean.length) return '<div class="muted small">사용 가능한 비중 결과가 없습니다.</div>';
+  return `
+    <div class="portfolio-allocation-map" data-testid="portfolio-risk-budget-map">
+      <div class="portfolio-allocation-head">
+        <span>자산</span><span>목표 비중 / 위험 기여</span><strong>집행 비중</strong>
+      </div>
+      ${clean.map(([ticker, weight, risk]) => `
+        <div class="portfolio-risk-budget-row">
+          <span>${escapeHtml(ticker)}</span>
+          <div class="portfolio-dual-bars">
+            <b title="목표 비중"><i style="width:${Math.max(2, Math.min(100, weight * 100))}%"></i></b>
+            <b class="risk" title="위험 기여"><i style="width:${Math.max(2, Math.min(100, Number.isFinite(risk) ? risk * 100 : 0))}%"></i></b>
+          </div>
+          <strong>${escapeHtml(fmtPct(weight * 100))}${Number.isFinite(risk) ? ` / ${escapeHtml(fmtPct(risk * 100))}` : ""}</strong>
+        </div>
+      `).join("")}
+      <div class="quant-allocation-stack portfolio-stack">${renderAllocationSegments(clean.map(([ticker, weight]) => [ticker, weight]))}</div>
+    </div>
+  `;
+}
+
+function renderPortfolioEngineeringPanel({ entries, portfolioMetrics, diagnostics, riskContributions, correlationMatrix, method, benchmark, maxWeight }) {
+  const weights = (Array.isArray(entries) ? entries : []).map(([, weight]) => Number(weight)).filter(Number.isFinite);
+  const hhi = weights.reduce((sum, weight) => sum + weight ** 2, 0);
+  const effectivePositions = Number(diagnostics.effective_number_of_positions);
+  const effective = Number.isFinite(effectivePositions) ? effectivePositions : (hhi > 0 ? 1 / hhi : null);
+  const largest = entries[0] || ["-", 0];
+  const largestWeight = Number(largest[1] || 0);
+  const riskValues = Object.values(riskContributions || {}).map(Number).filter(Number.isFinite);
+  const maxRisk = riskValues.length ? Math.max(...riskValues) : null;
+  const riskHhi = riskValues.reduce((sum, value) => sum + value ** 2, 0);
+  const effectiveRiskBudgets = riskHhi > 0 ? 1 / riskHhi : null;
+  const corrStats = portfolioCorrelationStats(correlationMatrix);
+  const beta = Number(portfolioMetrics.beta_to_benchmark);
+  const trackingError = Number(portfolioMetrics.tracking_error);
+  const utilization = Number(maxWeight) > 0 ? largestWeight / Number(maxWeight) : null;
+  return `
+    <div class="portfolio-engineering-panel" data-testid="portfolio-engineering-panel">
+      <div class="quant-engineering-head">
+        <div>
+          <strong>포트폴리오 공학 요약</strong>
+          <span>${escapeHtml(portfolioMethodLabel(method))} · ${escapeHtml(diagnostics.covariance_method || "sample")} covariance · ${escapeHtml(benchmark || "benchmark")} 기준</span>
+        </div>
+        <span class="table-status ${escapeHtml(decisionStatusClass(Number(maxRisk) > 0.5 || Number(utilization) > 0.95 ? "warn" : "ok"))}">${Number(maxRisk) > 0.5 ? "risk concentrated" : "risk budgeted"}</span>
+      </div>
+      <div class="decision-practical-grid portfolio-practical-grid">
+        ${decisionMetric("HHI 집중도", fmtDecimal(hhi, 3), hhi > 0.35 ? "warn" : "ok")}
+        ${decisionMetric("효과 포지션", fmtDecimal(effective, 2), Number(effective) >= 2 ? "ok" : "warn")}
+        ${decisionMetric("위험예산 수", fmtDecimal(effectiveRiskBudgets, 2), Number(effectiveRiskBudgets) >= 2 ? "ok" : "warn")}
+        ${decisionMetric("최대 위험기여", Number.isFinite(maxRisk) ? fmtPct(maxRisk * 100) : "-", Number(maxRisk) > 0.5 ? "warn" : "ok")}
+        ${decisionMetric("상관 평균", fmtDecimal(corrStats.average, 2), Number(corrStats.average) > 0.55 ? "warn" : "ok")}
+        ${decisionMetric("상관 최대", fmtDecimal(corrStats.max, 2), Number(corrStats.max) > 0.8 ? "warn" : "ok")}
+        ${decisionMetric(`${benchmark} 베타`, fmtDecimal(beta, 2), Number.isFinite(beta) && beta > 1.1 ? "warn" : "ok")}
+        ${decisionMetric("제약 사용률", Number.isFinite(utilization) ? fmtPct(utilization * 100) : "-", Number(utilization) > 0.95 ? "warn" : "ok")}
+      </div>
+      <div class="decision-action-list quant-action-brief">
+        <div><strong>집중도</strong><span>${hhi > 0.35 ? `${escapeHtml(largest[0])} 비중이 전체 위험 구조를 주도합니다. 최대 비중 또는 리스크 패리티 목적함수를 비교하세요.` : "비중 집중도는 과도하지 않습니다. 위험기여도가 비중보다 높게 치우친 자산만 점검하세요."}</span></div>
+        <div><strong>상관구조</strong><span>${Number(corrStats.max) > 0.8 ? "상관이 높은 자산군이 있어 분산효과가 제한됩니다. 같은 방향 베팅을 줄이거나 대체 방어자산을 추가 검토하세요." : "상관구조가 단일 방향으로만 몰리지는 않습니다. 추정 기간과 공분산 축소 강도에 대한 민감도를 같이 보세요."}</span></div>
+        <div><strong>벤치마크</strong><span>${Number.isFinite(trackingError) ? `${escapeHtml(benchmark)} 대비 추적오차 ${fmtMetricRatio(trackingError)}, 베타 ${fmtDecimal(beta, 2)}입니다. 액티브 목적이면 정보비율과 하방 스트레스를 같이 확인하세요.` : "벤치마크 민감도 계산값이 부족합니다. 기준 티커 가격 이력과 수익률 샘플을 확인하세요."}</span></div>
+      </div>
+    </div>
+  `;
+}
+
+function renderPortfolioStressPanel(portfolioMetrics = {}, benchmark = "SPY") {
+  const expected = Number(portfolioMetrics.expected_annual_return);
+  const vol = Number(portfolioMetrics.annualized_volatility);
+  const beta = Number(portfolioMetrics.beta_to_benchmark);
+  const oneSigma = Number.isFinite(expected) && Number.isFinite(vol) ? expected - vol : null;
+  const twoSigma = Number.isFinite(expected) && Number.isFinite(vol) ? expected - (2 * vol) : null;
+  const benchmarkShock = Number.isFinite(beta) ? beta * -0.1 : null;
+  if (![oneSigma, twoSigma, benchmarkShock].some(Number.isFinite)) return "";
+  return `
+    <div class="portfolio-stress-panel" data-testid="portfolio-stress-panel">
+      <div class="decision-section-title">하방 스트레스 근사</div>
+      <div class="decision-metric-grid dense">
+        ${decisionMetric("1σ 연율 하방", fmtMetricRatio(oneSigma), Number(oneSigma) < -0.08 ? "warn" : "ok")}
+        ${decisionMetric("2σ 연율 하방", fmtMetricRatio(twoSigma), Number(twoSigma) < -0.2 ? "warn" : "ok")}
+        ${decisionMetric(`${benchmark} -10% 충격`, fmtMetricRatio(benchmarkShock), Number(benchmarkShock) < -0.12 ? "warn" : "ok")}
+        ${decisionMetric("변동성 예산", fmtMetricRatio(vol), Number(vol) > 0.18 ? "warn" : "ok")}
+      </div>
+      <div class="decision-assumption">단순 variance-covariance 근사입니다. 실제 위기구간 검증은 동일 유니버스의 백테스트/재현 산출물과 함께 보세요.</div>
+    </div>
+  `;
+}
+
 function backtestRequestFromControls() {
   const tickers = parseTickerInput(els.backtestTicker?.value || "");
   const benchmark = normalizeTickerToken(els.backtestBenchmark?.value || "SPY") || "SPY";
@@ -8889,76 +9703,22 @@ function enableStrictFreshnessFromUi() {
 }
 
 async function loadDataHealth(force = false) {
-  if (!els.homeDataHealth || (state.dataHealthLoaded && !force)) return;
-  els.homeDataHealth.innerHTML = decisionEmpty("가격·거시·뉴스·공시 업데이트 상태를 확인하는 중입니다.");
+  if (state.dataHealthLoaded && !force) {
+    renderLocalQualitySections();
+    return state.dataHealth;
+  }
+  if (els.qualityDataHealth) {
+    els.qualityDataHealth.innerHTML = decisionEmpty("가격·거시·뉴스·공시 업데이트 상태를 확인하는 중입니다.");
+  }
   try {
     const res = await fetch(API.dataHealth);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    const summary = data.summary || {};
-    const status = summary.decision_status || data.status || "unknown";
-    const counts = data.table_counts || {};
-    const latest = data.latest_run || {};
-    const providerRows = Array.isArray(data.recent_provider_status) ? data.recent_provider_status.slice(0, 6) : [];
-    const qualityRows = Array.isArray(data.recent_quality_checks) ? data.recent_quality_checks.slice(0, 6) : [];
-    const failedCount = Number(summary.failed_provider_rows || 0);
-    const staleCount = Number(summary.stale_or_failed_quality_rows || 0);
-    const coveredEmptyCount = Number(summary.covered_empty_provider_rows || 0);
-    const runRows = Number(latest.rows_inserted || 0) + Number(latest.rows_updated || 0);
-    els.homeDataHealth.innerHTML = `
-      <div class="decision-status-row">
-        <span class="decision-badge ${escapeHtml(decisionStatusClass(status))}">${escapeHtml(decisionStatusLabel(status))}</span>
-        <span>${escapeHtml(latest.finished_at || latest.started_at || "업데이트 실행 이력 없음")} · ${escapeHtml(latest.market || "all")}</span>
-      </div>
-      <div class="decision-summary ${escapeHtml(decisionStatusClass(status))}">
-        ${failedCount || staleCount
-          ? `주의 필요: provider 실패 ${failedCount}건, 품질 경고 ${staleCount}건`
-          : `업데이트 ${escapeHtml(latest.status || "ok")} · 이번 실행 반영 ${escapeHtml(_fmtNumber(runRows))}행${coveredEmptyCount ? ` · 적용 불가 empty ${escapeHtml(_fmtNumber(coveredEmptyCount))}건 정상 처리` : ""}`}
-      </div>
-      <div class="decision-metric-grid">
-        ${decisionMetric("가격 행", _fmtNumber(counts.prices_daily), status)}
-        ${decisionMetric("재무 스냅샷", _fmtNumber(counts.fundamentals_snapshots || 0), counts.fundamentals_snapshots ? "ok" : "warn")}
-        ${decisionMetric("거시 관측치", _fmtNumber(counts.macro_observations), status)}
-        ${decisionMetric("뉴스 evidence", _fmtNumber(counts.news_articles), counts.news_articles ? "ok" : "warn")}
-        ${decisionMetric("공시 evidence", _fmtNumber(counts.filings), counts.filings ? "ok" : "warn")}
-      </div>
-      <div class="decision-section-title">최근 공급자 상태</div>
-      <div class="decision-list">
-        ${providerRows.length ? providerRows.map((row) => `
-          <div class="decision-list-row">
-            <span>${escapeHtml(row.provider || "provider")}${row.ticker ? ` · ${escapeHtml(row.ticker)}` : ""}${row.raw_status === "empty" ? " · empty 보강" : ""}</span>
-            <strong class="${escapeHtml(decisionStatusClass(row.status))}">${escapeHtml(decisionStatusLabel(row.status || "unknown"))}</strong>
-          </div>
-        `).join("") : '<div class="muted small">No provider status rows yet.</div>'}
-      </div>
-      <div class="decision-section-title">최근 품질 점검</div>
-      <div class="decision-list compact">
-        ${qualityRows.length ? qualityRows.map((row) => `
-          <div class="decision-list-row">
-            <span>${escapeHtml(row.check_name || "quality")}${row.entity_id ? ` · ${escapeHtml(row.entity_id)}` : ""}</span>
-            <strong class="${escapeHtml(decisionStatusClass(row.status))}">${escapeHtml(row.status || "unknown")}</strong>
-          </div>
-        `).join("") : '<div class="muted small">No quality checks recorded yet.</div>'}
-      </div>
-    `;
-    updateGlobalQualitySummary({
-      status,
-      asOf: latest.finished_at || latest.started_at || data.as_of || "",
-      updatedAt: latest.finished_at || latest.started_at || "",
-      source: latest.market ? `data mart · ${latest.market}` : "data mart",
-      observations: counts.prices_daily || counts.macro_observations || "",
-      missing: failedCount || staleCount ? `provider ${failedCount} · quality ${staleCount}` : "없음",
-      cache: latest.status || "",
-    });
-    state.dataHealthLoaded = true;
+    applyDataHealthState(data);
+    return data;
   } catch (err) {
-    els.homeDataHealth.innerHTML = decisionEmpty(`데이터 마트 상태 조회 실패: ${err.message || err}`);
-    updateGlobalQualitySummary({
-      status: "unknown",
-      source: "data mart",
-      missing: "확인 불가",
-      updatedAt: "",
-    });
+    renderDataHealthFailure(err.message || String(err));
+    return null;
   }
 }
 
@@ -9124,6 +9884,145 @@ function renderDiagnosticsChips(values) {
   return items.slice(0, 6).map((item) => `<span>${escapeHtml(String(item))}</span>`).join("");
 }
 
+function quantFeatureNumber(row, key) {
+  const value = row?.features?.[key];
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function quantScoreClamp(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+  return Math.max(0, Math.min(100, num));
+}
+
+function quantFeatureSubScores(row) {
+  const momentum = quantFeatureNumber(row, "momentum_63d");
+  const riskAdjusted = quantFeatureNumber(row, "risk_adjusted_momentum_63d");
+  const vol = quantFeatureNumber(row, "realized_vol_21d");
+  const drawdown = quantFeatureNumber(row, "drawdown_current");
+  const trend = quantFeatureNumber(row, "ma_ratio_20_50");
+  const relative = quantFeatureNumber(row, "relative_strength_spy_63d");
+  return {
+    momentum: quantScoreClamp(momentum === null ? null : 50 + momentum * 260),
+    riskAdjusted: quantScoreClamp(riskAdjusted === null ? null : 50 + riskAdjusted * 340),
+    volatility: quantScoreClamp(vol === null ? null : 100 - vol * 220),
+    drawdown: quantScoreClamp(drawdown === null ? null : 100 + drawdown * 260),
+    trend: quantScoreClamp(trend === null ? null : 50 + trend * 520),
+    relative: quantScoreClamp(relative === null ? null : 50 + relative * 260),
+  };
+}
+
+function quantFeatureCompositeScore(row) {
+  const scores = quantFeatureSubScores(row);
+  const values = Object.values(scores).filter(Number.isFinite);
+  if (!values.length) return null;
+  const weighted = [
+    [scores.momentum, 1.15],
+    [scores.riskAdjusted, 1.25],
+    [scores.volatility, 0.9],
+    [scores.drawdown, 1.0],
+    [scores.trend, 0.95],
+    [scores.relative, 1.05],
+  ].filter(([score]) => Number.isFinite(score));
+  const totalWeight = weighted.reduce((sum, [, weight]) => sum + weight, 0);
+  if (!totalWeight) return null;
+  return weighted.reduce((sum, [score, weight]) => sum + score * weight, 0) / totalWeight;
+}
+
+function quantFeatureDecision(row) {
+  const score = quantFeatureCompositeScore(row);
+  const vol = quantFeatureNumber(row, "realized_vol_21d");
+  const drawdown = quantFeatureNumber(row, "drawdown_current");
+  const stale = !["fresh", "ok", "success"].includes(String(row?.freshness_status || "").toLowerCase());
+  if (score === null) return { label: "데이터 부족", status: "warn", reason: "핵심 팩터 결측" };
+  if (stale) return { label: "신선도 점검", status: "warn", reason: "최신 가격 확인 필요" };
+  if (drawdown !== null && drawdown < -0.25) return { label: "낙폭 주의", status: "warn", reason: "현재 낙폭이 큼" };
+  if (vol !== null && vol > 0.35) return { label: "변동성 주의", status: "warn", reason: "단기 변동성 과다" };
+  if (score >= 70) return { label: "후보 유지", status: "ok", reason: "모멘텀/위험 보상 양호" };
+  if (score >= 52) return { label: "관찰", status: "warn", reason: "방향성 혼재" };
+  return { label: "제외 우선", status: "fail", reason: "상대 강도 또는 경로 품질 약함" };
+}
+
+function renderQuantFeatureScoreBar(label, value, status = "") {
+  const score = Number(value);
+  const width = Number.isFinite(score) ? Math.max(2, Math.min(100, score)) : 2;
+  return `
+    <div class="quant-factor-score-row ${escapeHtml(decisionStatusClass(status))}">
+      <span>${escapeHtml(label)}</span>
+      <div><i style="width:${width}%"></i></div>
+      <strong>${escapeHtml(Number.isFinite(score) ? fmtDecimal(score, 1) : "-")}</strong>
+    </div>
+  `;
+}
+
+function renderQuantFeatureDiagnosticPanel(rows, diagnostics = {}, request = {}) {
+  const ranked = (Array.isArray(rows) ? rows : [])
+    .map((row) => ({ row, score: quantFeatureCompositeScore(row), decision: quantFeatureDecision(row) }))
+    .sort((a, b) => Number(b.score || -1) - Number(a.score || -1));
+  const scores = ranked.map((item) => item.score).filter(Number.isFinite);
+  const best = ranked[0];
+  const highVolCount = ranked.filter(({ row }) => Number(quantFeatureNumber(row, "realized_vol_21d")) > 0.30).length;
+  const deepDrawdownCount = ranked.filter(({ row }) => Number(quantFeatureNumber(row, "drawdown_current")) < -0.20).length;
+  const staleCount = (diagnostics.stale_assets || []).length || ranked.filter(({ row }) => !["fresh", "ok", "success"].includes(String(row?.freshness_status || "").toLowerCase())).length;
+  const avgScore = scores.length ? scores.reduce((sum, value) => sum + value, 0) / scores.length : null;
+  const bestScores = best ? quantFeatureSubScores(best.row) : {};
+  return `
+    <div class="quant-factor-cockpit" data-testid="quant-factor-cockpit">
+      <div class="quant-engineering-head">
+        <div>
+          <strong>독립 팩터 진단</strong>
+          <span>${escapeHtml((request.tickers || []).join(", ") || "-")} · 벤치마크 ${escapeHtml(request.benchmark || "SPY")} · ${escapeHtml(request.freshness_profile || "research_default")}</span>
+        </div>
+        <span class="table-status ${escapeHtml(decisionStatusClass(best?.decision?.status || "warn"))}">${escapeHtml(best?.decision?.label || "no candidate")}</span>
+      </div>
+      <div class="decision-practical-grid quant-engineering-grid">
+        ${decisionMetric("진단 종목", _fmtNumber(ranked.length), ranked.length ? "ok" : "warn")}
+        ${decisionMetric("평균 후보점수", fmtDecimal(avgScore, 1), Number(avgScore) >= 60 ? "ok" : "warn")}
+        ${decisionMetric("상위 후보", best ? `${best.row.ticker} ${fmtDecimal(best.score, 1)}` : "-", best?.decision?.status || "warn")}
+        ${decisionMetric("신선도 점검", `${_fmtNumber(staleCount)}개`, staleCount ? "warn" : "ok")}
+        ${decisionMetric("고변동성", `${_fmtNumber(highVolCount)}개`, highVolCount ? "warn" : "ok")}
+        ${decisionMetric("깊은 낙폭", `${_fmtNumber(deepDrawdownCount)}개`, deepDrawdownCount ? "warn" : "ok")}
+        ${decisionMetric("제외 자산", `${_fmtNumber((diagnostics.excluded_assets || []).length)}개`, (diagnostics.excluded_assets || []).length ? "warn" : "ok")}
+        ${decisionMetric("가격 행", _fmtNumber(Object.values(diagnostics.price_counts || {}).reduce((sum, value) => sum + Number(value || 0), 0)), "ok")}
+      </div>
+      ${best ? `
+        <div class="quant-factor-focus">
+          <div>
+            <strong>${escapeHtml(best.row.ticker || "-")} · ${escapeHtml(best.decision.label)}</strong>
+            <span>${escapeHtml(best.decision.reason)} · 기준일 ${escapeHtml(best.row.as_of || "-")}</span>
+          </div>
+          <div class="quant-factor-score-grid">
+            ${renderQuantFeatureScoreBar("Momentum", bestScores.momentum, Number(bestScores.momentum) >= 60 ? "ok" : "warn")}
+            ${renderQuantFeatureScoreBar("Risk adjusted", bestScores.riskAdjusted, Number(bestScores.riskAdjusted) >= 60 ? "ok" : "warn")}
+            ${renderQuantFeatureScoreBar("Low vol", bestScores.volatility, Number(bestScores.volatility) >= 55 ? "ok" : "warn")}
+            ${renderQuantFeatureScoreBar("Drawdown", bestScores.drawdown, Number(bestScores.drawdown) >= 60 ? "ok" : "warn")}
+            ${renderQuantFeatureScoreBar("Trend", bestScores.trend, Number(bestScores.trend) >= 55 ? "ok" : "warn")}
+            ${renderQuantFeatureScoreBar("Relative", bestScores.relative, Number(bestScores.relative) >= 55 ? "ok" : "warn")}
+          </div>
+        </div>
+      ` : ""}
+      <div class="quant-factor-card-grid">
+        ${ranked.slice(0, 12).map(({ row, score, decision }) => `
+          <article class="quant-factor-card ${escapeHtml(decisionStatusClass(decision.status))}">
+            <div>
+              <strong>${escapeHtml(row.ticker || "-")}</strong>
+              <span>${escapeHtml(decision.label)} · ${escapeHtml(decision.reason)}</span>
+            </div>
+            <b>${escapeHtml(fmtDecimal(score, 1))}</b>
+            <small>mom ${escapeHtml(formatQuantValue(quantFeatureNumber(row, "momentum_63d")))} · vol ${escapeHtml(formatQuantValue(quantFeatureNumber(row, "realized_vol_21d")))} · dd ${escapeHtml(formatQuantValue(quantFeatureNumber(row, "drawdown_current")))}</small>
+          </article>
+        `).join("")}
+      </div>
+      <div class="decision-action-list quant-action-brief">
+        <div><strong>선별 기준</strong><span>후보점수는 모멘텀, 위험조정 모멘텀, 추세, 상대강도를 올리고 변동성·현재 낙폭을 차감한 UI 진단 점수입니다.</span></div>
+        <div><strong>사용법</strong><span>백테스트 전 유니버스 품질을 독립적으로 확인하고, stale/고변동/깊은 낙폭 자산은 전략 조건에 넣기 전에 별도 검토하세요.</span></div>
+        <div><strong>주의</strong><span>팩터 점수는 매수 신호가 아닙니다. 실제 편입은 백테스트 내부 시그널과 포트폴리오 위험예산으로 확인합니다.</span></div>
+      </div>
+    </div>
+  `;
+}
+
 function formatQuantWarning(value) {
   const text = String(value || "").trim();
   if (!text) return "";
@@ -9243,6 +10142,7 @@ function renderRebalanceSnapshots(weights) {
   if (!snapshots.length) return "";
   return `
     <div class="decision-section-title">리밸런싱 귀속</div>
+    ${renderRebalanceAllocationMap(snapshots)}
     <div class="decision-table-wrap">
       <table class="decision-table">
         <thead><tr><th>신호일</th><th>체결일</th><th>선정</th><th>제외</th><th>회전율</th></tr></thead>
@@ -9289,6 +10189,7 @@ function renderCorrelationPreview(matrix) {
   if (!assets.length) return "";
   return `
     <div class="decision-section-title">상관관계 행렬</div>
+    ${renderCorrelationHeatmap(matrix)}
     <div class="decision-table-wrap">
       <table class="decision-table">
         <thead><tr><th></th>${assets.map((asset) => `<th>${escapeHtml(asset)}</th>`).join("")}</tr></thead>
@@ -9600,28 +10501,8 @@ function renderQuantDiagnosticsPanel(data) {
 
 function renderQuantBacktestTables(data) {
   const trades = Array.isArray(data.trades) ? data.trades.slice(-8) : [];
-  const signals = Array.isArray(data.signals) ? data.signals.slice(0, 8) : [];
   const weights = Array.isArray(data.weights) ? data.weights : [];
   return `
-    ${signals.length ? `
-      <div class="decision-section-title">최근 시그널</div>
-      <div class="decision-table-wrap">
-        <table class="decision-table">
-          <thead><tr><th>종목</th><th>일자</th><th>점수</th><th>신호</th><th>체결일</th></tr></thead>
-          <tbody>
-            ${signals.map((row) => `
-              <tr>
-                <td>${escapeHtml(row.ticker || "")}</td>
-                <td>${escapeHtml(row.date || "")}</td>
-                <td>${escapeHtml(fmtDecimal(row.final_score, 3))}</td>
-                <td><span class="table-status ${Number(row.signal || 0) > 0 ? "ok" : "warn"}">${escapeHtml(fmtDecimal(row.signal, 2))}</span></td>
-                <td>${escapeHtml(row.execution_date || "")}</td>
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>
-      </div>
-    ` : ""}
     ${trades.length ? `
       <div class="decision-section-title">최근 거래</div>
       <div class="decision-table-wrap">
@@ -9700,6 +10581,9 @@ function renderQuantBacktestResult(data, request = {}) {
     </div>
     ${renderQuantRunContext(data, request)}
     ${renderMetricGrid(metrics, status)}
+    ${renderBacktestEngineeringPanel(data, metrics, request)}
+    ${renderBacktestReturnHeatmap(data.equity_curve)}
+    ${renderBacktestSignalMatrixPanel(data, request)}
     <div class="decision-chart-grid">
       ${renderDecisionLineChart(data.equity_curve, "equity", "수익 곡선", status)}
       ${renderDecisionLineChart(data.drawdown_curve, "drawdown", "MDD", Number(metrics.max_drawdown || 0) < -0.2 ? "warn" : status)}
@@ -10147,16 +11031,21 @@ async function runQuantFeaturePreview() {
         <span>${escapeHtml(data.as_of || "알 수 없음")} · ${escapeHtml(request.benchmark)} 벤치마크 · 데이터 마트</span>
       </div>
       ${(resolution.data?.unavailable || []).length ? renderUniverseResolutionNotice(resolution.data) : ""}
+      ${renderQuantFeatureDiagnosticPanel(rows, diagnostics, request)}
       <div class="decision-table-wrap">
         <table class="decision-table">
-          <thead><tr><th>종목</th><th>기준일</th><th>신선도</th><th>모멘텀</th><th>위험조정</th><th>변동성</th><th>낙폭</th><th>추세</th><th>상대강도</th></tr></thead>
+          <thead><tr><th>종목</th><th>기준일</th><th>판정</th><th>후보점수</th><th>신선도</th><th>모멘텀</th><th>위험조정</th><th>변동성</th><th>낙폭</th><th>추세</th><th>상대강도</th></tr></thead>
           <tbody>
             ${rows.map((row) => {
               const features = row.features || {};
+              const decision = quantFeatureDecision(row);
+              const score = quantFeatureCompositeScore(row);
               return `
                 <tr>
                   <td>${escapeHtml(row.ticker || "")}</td>
                   <td>${escapeHtml(row.as_of || "알 수 없음")}</td>
+                  <td><span class="table-status ${escapeHtml(decisionStatusClass(decision.status))}" title="${escapeHtml(decision.reason)}">${escapeHtml(decision.label)}</span></td>
+                  <td>${escapeHtml(fmtDecimal(score, 1))}</td>
                   <td><span class="table-status ${escapeHtml(decisionStatusClass(row.freshness_status))}">${escapeHtml(row.freshness_status || "알 수 없음")}</span></td>
                   <td>${escapeHtml(formatQuantValue(features.momentum_63d))}</td>
                   <td>${escapeHtml(formatQuantValue(features.risk_adjusted_momentum_63d))}</td>
@@ -10215,6 +11104,68 @@ function renderSignalDecisionBrief(rows, diagnostics, template) {
       ${active
         ? `현재 조건에서는 ${escapeHtml(selected || "선정 종목")}에만 포지션을 부여합니다. 신호일과 체결일을 분리해 look-ahead를 피하고, 다음 백테스트/포트폴리오 입력으로 바로 검증하세요.`
         : "현재 조건에서는 매수 후보가 없습니다. 모멘텀 기간, Top N, 리서치 점수 사용 여부, 데이터 신선도 조건을 완화해 재검토하세요."}
+    </div>
+  `;
+}
+
+function renderBacktestSignalMatrixPanel(data = {}, request = {}) {
+  const rows = Array.isArray(data.signals) ? data.signals : [];
+  if (!rows.length) return "";
+  const diagnostics = data.diagnostics || {};
+  const template = data.template || request.template || quantSignalTemplateFromStrategy(request.strategy || "");
+  const sorted = rows.slice().sort((a, b) => Number(b.final_score || 0) - Number(a.final_score || 0));
+  const selectedRows = sorted.filter((row) => Number(row.signal || 0) > 0);
+  const rejectedRows = sorted.filter((row) => Number(row.signal || 0) <= 0);
+  const scoreValues = sorted.map((row) => Number(row.final_score)).filter(Number.isFinite);
+  const scoreSpread = scoreValues.length ? Math.max(...scoreValues) - Math.min(...scoreValues) : null;
+  const latestSignalDate = sorted.map((row) => row.date).filter(Boolean).sort().slice(-1)[0] || "";
+  const executionDates = selectedRows.map((row) => row.execution_date).filter(Boolean);
+  const nextExecution = executionDates.sort()[0] || "다음 가용 봉";
+  return `
+    <div class="quant-backtest-signal-panel" data-testid="quant-backtest-signal-matrix">
+      <div class="quant-engineering-head">
+        <div>
+          <strong>백테스트 연동 시그널 매트릭스</strong>
+          <span>${escapeHtml(quantTemplateLabel(template))} · signal ${escapeHtml(latestSignalDate || "-")} · execution ${escapeHtml(nextExecution)}</span>
+        </div>
+        <span class="table-status ${escapeHtml(decisionStatusClass(selectedRows.length ? "ok" : "warn"))}">${selectedRows.length ? `${selectedRows.length} selected` : "no candidate"}</span>
+      </div>
+      ${renderSignalDecisionBrief(sorted, diagnostics, template)}
+      <div class="decision-metric-grid dense">
+        ${decisionMetric("편입 후보", `${_fmtNumber(selectedRows.length)}개`, selectedRows.length ? "ok" : "warn")}
+        ${decisionMetric("비후보", `${_fmtNumber(rejectedRows.length)}개`, rejectedRows.length ? "warn" : "ok")}
+        ${decisionMetric("점수 스프레드", fmtDecimal(scoreSpread, 3), Number(scoreSpread) > 0.05 ? "ok" : "warn")}
+        ${decisionMetric("체결 기준", diagnostics.execution_assumption || "next_bar_close", "ok")}
+      </div>
+      <div class="quant-signal-lane">
+        <div>
+          <strong>편입</strong>
+          <span>${escapeHtml(selectedRows.map((row) => row.ticker).filter(Boolean).join(", ") || "-")}</span>
+        </div>
+        <div>
+          <strong>제외/관찰</strong>
+          <span>${escapeHtml(rejectedRows.slice(0, 12).map((row) => row.ticker).filter(Boolean).join(", ") || "-")}</span>
+        </div>
+      </div>
+      <div class="decision-table-wrap">
+        <table class="decision-table">
+          <thead><tr><th>순위</th><th>종목</th><th>신호일</th><th>체결일</th><th>점수</th><th>신호</th><th>주요 진단</th></tr></thead>
+          <tbody>
+            ${sorted.slice(0, 16).map((row, index) => `
+              <tr>
+                <td>${escapeHtml(String(index + 1))}</td>
+                <td>${escapeHtml(row.ticker || "")}</td>
+                <td>${escapeHtml(row.date || "-")}</td>
+                <td>${escapeHtml(row.execution_date || "다음 가용 봉")}</td>
+                <td>${escapeHtml(fmtDecimal(row.final_score, 3))}</td>
+                <td><span class="table-status ${Number(row.signal || 0) > 0 ? "ok" : "warn"}">${escapeHtml(fmtDecimal(row.signal, 2))}</span></td>
+                <td><div class="decision-chip-row compact">${renderDiagnosticsChips(row.diagnostics)}</div></td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+      ${renderResearchProvenancePanel(diagnostics.research_score_provenance)}
     </div>
   `;
 }
@@ -10917,13 +11868,53 @@ function syncQuantRunCompareSelectionState() {
   const status = els.quantRunHistorySurface.querySelector('[data-testid="quant-run-compare-status"]');
   if (status) {
     status.textContent = selected.length
-      ? `비교 선택 ${selected.length}/2 · ${selected.map((item) => item.slice(0, 24)).join(" vs ")}`
-      : "비교할 실행 2개를 선택하세요.";
+      ? `비교 ${selected.length}/2 · ${selected.map((item) => compactIdentifier(item, 10, 4)).join(" vs ")}`
+      : "비교 0/2";
   }
   const button = els.quantRunHistorySurface.querySelector('[data-testid="quant-run-compare-selected"]');
   if (button) {
     button.disabled = selected.length !== 2;
   }
+}
+
+function renderQuantRunHistorySummary(data, items, startedAt) {
+  const count = Array.isArray(items) ? items.length : 0;
+  const generatedAt = new Date().toISOString();
+  const statusLabel = {
+    success: "정상",
+    ok: "정상",
+    partial: "부분",
+    fail: "실패",
+    failed: "실패",
+    error: "오류",
+  }[String(data?.status || "success").toLowerCase()] || String(data?.status || "success");
+  return `
+    <div class="quant-history-summary" role="status" aria-live="polite" data-testid="quant-run-history-summary">
+      <strong>${escapeHtml(_fmtNumber(count))}개 실행</strong>
+      <span>${escapeHtml(statusLabel)} · ${escapeHtml(elapsedText(startedAt))} · ${escapeHtml(fmtShortTime(generatedAt))}</span>
+    </div>
+  `;
+}
+
+function compactQuantUniverse(tickers = []) {
+  const text = (Array.isArray(tickers) ? tickers : []).join(",");
+  if (!text) return { label: "-", title: "" };
+  return {
+    label: text.length > 22 ? `${text.slice(0, 22)}...` : text,
+    title: text,
+  };
+}
+
+function renderQuantHistoryDataCell(item = {}) {
+  const diagnostics = item.diagnostics || {};
+  const lookaheadSafe = !!diagnostics.lookahead_safe;
+  const freshness = renderSnapshotFreshnessBadge(item.snapshot_freshness || item.data_snapshot?.snapshot_freshness || {});
+  return `
+    <div class="quant-history-data-cell">
+      ${freshness}
+      <span class="table-status ${lookaheadSafe ? "ok" : "fail"}">${lookaheadSafe ? "LA ok" : "LA check"}</span>
+    </div>
+  `;
 }
 
 function renderQuantRunComparison(data) {
@@ -11033,42 +12024,34 @@ async function loadQuantRunHistory(force = false) {
     const items = Array.isArray(data.items) ? data.items : [];
     state.quantRunHistoryLoaded = true;
     if (!items.length) {
-      els.quantRunHistorySurface.innerHTML = `${renderActionCompletion("실행 이력 갱신 완료", startedAt, "0개 실행")}${decisionEmpty("아직 저장된 퀀트 랩 백테스트 산출물이 없습니다.")}`;
+      els.quantRunHistorySurface.innerHTML = `${renderQuantRunHistorySummary(data, items, startedAt)}${decisionEmpty("아직 저장된 퀀트 랩 백테스트 산출물이 없습니다.")}`;
       return;
     }
     els.quantRunHistorySurface.innerHTML = `
-      ${renderActionCompletion("실행 이력 갱신 완료", startedAt, `${_fmtNumber(items.length)}개 실행`)}
-      <div class="decision-status-row">
-        <span class="decision-badge ok">${escapeHtml(data.status || "success")}</span>
-        <span>${escapeHtml(_fmtNumber(data.count))} saved runs</span>
-      </div>
-      <div class="decision-chip-row" data-testid="quant-run-compare-controls">
+      ${renderQuantRunHistorySummary(data, items, startedAt)}
+      <div class="quant-history-toolbar" data-testid="quant-run-compare-controls">
         <span data-testid="quant-run-compare-status">비교할 실행 2개를 선택하세요.</span>
         <button type="button" class="linkish decision-inline-action" data-testid="quant-run-compare-selected" data-action="run-compare-selected" disabled>선택 비교</button>
       </div>
-      <div class="decision-table-wrap">
-        <table class="decision-table">
-          <thead><tr><th>Compare</th><th>Run</th><th>Template</th><th>Universe</th><th>Sharpe</th><th>MDD</th><th>Context</th><th>Data</th><th>Lookahead</th><th>Actions</th></tr></thead>
+      <div class="decision-table-wrap quant-history-table-wrap">
+        <table class="decision-table quant-history-table">
+          <thead><tr><th>선택</th><th>실행</th><th>전략</th><th>유니버스</th><th>Sharpe</th><th>MDD</th><th>데이터</th><th>작업</th></tr></thead>
           <tbody>
             ${items.map((item) => {
               const metrics = item.metrics || {};
-              const diagnostics = item.diagnostics || {};
-              const policy = item.freshness_policy || item.data_snapshot?.freshness_policy || {};
-              const configHash = String(item.config_hash || "").slice(0, 10);
+              const universe = compactQuantUniverse(item.tickers || []);
               return `
                 <tr>
                   <td><input type="checkbox" data-testid="quant-run-compare" aria-label="Compare ${escapeHtml(item.run_id || "")}" data-action="toggle-run-compare" data-run-id="${escapeHtml(item.run_id || "")}" ${state.quantRunCompareSelection.includes(item.run_id) ? "checked" : ""} /></td>
-                  <td>${escapeHtml(item.run_id || "")}</td>
-                  <td>${escapeHtml(item.template || "")}</td>
-                  <td>${escapeHtml((item.tickers || []).join(","))}</td>
+                  <td>${compactIdentifierCell(item.run_id || "", 12, 4)}</td>
+                  <td>${compactIdentifierCell(item.template || "", 18, 4)}</td>
+                  <td><span title="${escapeHtml(universe.title)}">${escapeHtml(universe.label)}</span></td>
                   <td>${escapeHtml(fmtDecimal(metrics.sharpe, 2))}</td>
                   <td>${escapeHtml(fmtMetricRatio(metrics.max_drawdown))}</td>
-                  <td>${escapeHtml(policy.profile || "-")}${configHash ? ` · ${escapeHtml(configHash)}` : ""}</td>
-                  <td>${renderSnapshotFreshnessBadge(item.snapshot_freshness || item.data_snapshot?.snapshot_freshness || {})}</td>
-                  <td><span class="table-status ${diagnostics.lookahead_safe ? "ok" : "fail"}">${diagnostics.lookahead_safe ? "safe" : "check"}</span></td>
+                  <td>${renderQuantHistoryDataCell(item)}</td>
                   <td>
                     <details class="row-action-menu">
-                      <summary>Actions</summary>
+                      <summary>열기</summary>
                       <div class="row-action-list">
                         <button type="button" class="linkish" data-testid="quant-replay-reports" aria-label="Replay reports ${escapeHtml(item.run_id || "")}" data-quant-replay-reports-id="${escapeHtml(item.run_id || "")}">reports ${escapeHtml(_fmtNumber(item.replay_reports?.count || 0))}</button>
                         <button type="button" class="linkish" data-testid="quant-run-open" aria-label="Open quant run ${escapeHtml(item.run_id || "")}" data-quant-run-id="${escapeHtml(item.run_id || "")}">open</button>
@@ -11083,9 +12066,6 @@ async function loadQuantRunHistory(force = false) {
             }).join("")}
           </tbody>
         </table>
-      </div>
-      <div class="decision-chip-row">
-        ${items.slice(0, 3).map((item) => `<span>${escapeHtml(fmtDate(item.generated_at))} · ${escapeHtml(compactArtifactPath(item.manifest))}</span>`).join("")}
       </div>
     `;
     els.quantRunHistorySurface.querySelectorAll("[data-quant-run-id]").forEach((button) => {
@@ -11182,15 +12162,18 @@ async function runPortfolioOptimize() {
         benchmark: data.benchmark || benchmark,
         maxWeight,
       })}
-      <div class="portfolio-weight-list">
-        ${entries.length ? entries.map(([ticker, weight]) => `
-          <div class="portfolio-weight-row">
-            <span>${escapeHtml(ticker)}</span>
-            <div><i style="width:${Math.max(2, Math.min(100, Number(weight) * 100))}%"></i></div>
-            <strong>${escapeHtml(fmtPct(Number(weight) * 100))}</strong>
-          </div>
-        `).join("") : '<div class="muted small">사용 가능한 비중 결과가 없습니다.</div>'}
-      </div>
+      ${renderPortfolioEngineeringPanel({
+        entries,
+        portfolioMetrics,
+        diagnostics,
+        riskContributions,
+        correlationMatrix,
+        method: data.method || els.portfolioMethod?.value,
+        benchmark: data.benchmark || benchmark,
+        maxWeight,
+      })}
+      ${renderPortfolioAllocationMap(entries, riskContributions)}
+      ${renderPortfolioStressPanel(portfolioMetrics, data.benchmark || benchmark)}
       <div class="decision-metric-grid dense">
         ${decisionMetric("자산 수", _fmtNumber(diagnostics.asset_count || entries.length), status)}
         ${decisionMetric("최대 비중", fmtPct(Number(data.max_weight || maxWeight) * 100), status)}
@@ -16963,17 +17946,17 @@ function bindInputs() {
       setDashboardPanelView(nextView);
     });
   }
-  if (els.dashboardRangeSelect) {
-    els.dashboardRangeSelect.addEventListener("change", () => {
-      setGlobalRange(els.dashboardRangeSelect.value, { persist: true, updateUrl: true, reload: true });
+  if (els.macroRangeSelect) {
+    els.macroRangeSelect.addEventListener("change", () => {
+      setGlobalRange(els.macroRangeSelect.value, { persist: true, updateUrl: true, reload: true });
     });
   }
-  [els.dashboardRangeStart, els.dashboardRangeEnd].forEach((input) => {
+  [els.macroRangeStart, els.macroRangeEnd].forEach((input) => {
     if (!input) return;
     input.addEventListener("change", () => {
       setGlobalRange("custom", {
-        startDate: els.dashboardRangeStart?.value || "",
-        endDate: els.dashboardRangeEnd?.value || "",
+        startDate: els.macroRangeStart?.value || "",
+        endDate: els.macroRangeEnd?.value || "",
         persist: true,
         updateUrl: true,
         reload: true,
@@ -16997,7 +17980,6 @@ function bindInputs() {
     }
   });
   if (els.homeHeatmapRefresh) els.homeHeatmapRefresh.addEventListener("click", () => loadDashboardEquityHeatmap(true));
-  if (els.dataHealthRefresh) els.dataHealthRefresh.addEventListener("click", () => loadDataHealth(true));
   if (els.macroRefresh) els.macroRefresh.addEventListener("click", () => refreshMacroData());
   if (els.macroBriefGenerate) els.macroBriefGenerate.addEventListener("click", () => generateMacroBrief());
   if (els.macroReportExport) els.macroReportExport.addEventListener("click", () => exportMacroReport());
@@ -17499,6 +18481,7 @@ function bindInputs() {
   bindTvChartControls();
   initChartTooltips();
   restoreForm();
+  ensureMacroRangeControlPlacement();
   syncDashboardRangeControls();
   applyGlobalRangeToControls();
   renderGlobalQualitySummary();

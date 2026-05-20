@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FinGPT Local Research Assistant</title>
-  <link rel="stylesheet" href="styles.css?v=20260520-purpose-layout-v13" />
+  <link rel="stylesheet" href="styles.css?v=20260521-quant-decision-v26" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='48' font-size='48'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E" />
 </head>
 <body>
@@ -348,33 +348,6 @@
           <span><strong>Runtime</strong> Local only</span>
           <span><strong>Execution</strong> Advisory</span>
         </div>
-        <div id="dashboardRangeControls" class="dashboard-range-controls" aria-label="Global dashboard range controls">
-          <label>
-            <span>분석 기간</span>
-            <select id="dashboardRangeSelect" aria-label="Global analysis range">
-              <option value="1D">1D</option>
-              <option value="1W">1W</option>
-              <option value="1M">1M</option>
-              <option value="3M">3M</option>
-              <option value="6M">6M</option>
-              <option value="YTD">YTD</option>
-              <option value="1Y" selected>1Y</option>
-              <option value="3Y">3Y</option>
-              <option value="5Y">5Y</option>
-              <option value="MAX">MAX</option>
-              <option value="custom">Custom range</option>
-            </select>
-          </label>
-          <label class="custom-range-field">
-            <span>시작일</span>
-            <input id="dashboardRangeStart" type="date" aria-label="Global range start date" />
-          </label>
-          <label class="custom-range-field">
-            <span>종료일</span>
-            <input id="dashboardRangeEnd" type="date" aria-label="Global range end date" />
-          </label>
-          <span id="dashboardRangeSupport" class="dashboard-range-support">날짜 지원 화면은 직접 반영하고, lookback 기반 화면은 지원 기간 버킷으로 변환합니다.</span>
-        </div>
         <div id="dashboardViewControls" class="dashboard-view-controls" aria-label="Dashboard panel view" hidden>
           <button type="button" data-panel-view="overview" aria-pressed="false">Core</button>
           <button type="button" data-panel-view="details" aria-pressed="false">Diagnostics</button>
@@ -393,13 +366,13 @@
           </section>
           <section class="home-card market-signals-card market-surface" data-panel-tier="primary">
             <div class="home-card-head">
-              <h3>교차자산 신호</h3>
-              <span>user-controlled regime analysis</span>
+              <h3>교차자산 페어 브리핑</h3>
+              <span>pair ratio · beta hedge · decision memo</span>
             </div>
             <div class="cross-asset-workbench">
               <label class="wide">
                 <span>자산 입력</span>
-                <input id="crossAssetSymbols" type="text" value="SPY, QQQ, TLT, HYG, LQD, GLD, BTC-USD, DXY, US10Y" aria-label="Cross asset symbols" />
+                <input id="crossAssetSymbols" type="text" value="SPY, GLD" aria-label="Cross asset symbols" />
               </label>
               <button type="button" id="crossAssetSymbolOpen" class="ghost-btn">찾기</button>
               <label>
@@ -413,15 +386,15 @@
               </label>
               <label class="wide">
                 <span>주제</span>
-                <input id="crossAssetTopic" type="text" maxlength="160" placeholder="예: 금리 상승, AI 반도체, 달러 강세" aria-label="Cross asset topic" />
+                <input id="crossAssetTopic" type="text" maxlength="160" placeholder="예: 위험선호, 금리 상승, 인플레이션 헤지" aria-label="Cross asset topic" />
               </label>
               <button type="button" id="crossAssetRun" class="primary-btn" data-testid="cross-asset-run">분석</button>
               <div id="crossAssetStatus" class="cross-asset-status" role="status" aria-live="polite"></div>
             </div>
             <div id="crossAssetAnalysisSurface" class="decision-surface cross-asset-analysis-surface">
-              <div class="home-news-empty">자산과 주제를 입력하면 교차자산 상태와 향후 동향 해석이 여기에 표시됩니다.</div>
+              <div class="home-news-empty">두 자산을 입력하면 A/B 상대 차트, 데이터 분석 메모, 베타 헤지·z-score 진단이 여기에 표시됩니다. 예: SPY, GLD.</div>
             </div>
-            <div class="market-signal-subhead">기본 교차자산 스냅샷</div>
+            <div class="market-signal-subhead">전체 교차자산 스냅샷</div>
             <div id="marketSignalSurface" class="decision-surface market-signal-surface">
               <div class="home-news-empty">시장 신호를 불러오는 중입니다.</div>
             </div>
@@ -506,15 +479,6 @@
               <div class="home-news-empty">시장 데이터를 불러오는 중입니다.</div>
             </div>
           </section>
-          <section class="home-card data-mart-card market-surface" data-panel-tier="operations">
-            <div class="home-card-head">
-              <h3>데이터 마트 상태</h3>
-              <button type="button" id="dataHealthRefresh" class="linkish" data-testid="data-health-refresh">새로고침</button>
-            </div>
-            <div id="homeDataHealth" class="decision-surface">
-              <div class="home-news-empty">가격·거시·뉴스·공시 업데이트 상태를 불러오는 중입니다.</div>
-            </div>
-          </section>
           <section id="macroSurface" class="home-card macro-card macro-overview-card macro-surface" data-panel-tier="primary">
             <div class="home-card-head">
               <h3>Macro Regime Summary</h3>
@@ -568,6 +532,33 @@
                   <option value="">전체 공급자</option>
                 </select>
               </label>
+              <div id="macroRangeControls" class="dashboard-range-controls macro-range-controls dashboard-range-controls--macro-search" aria-label="Macro Explorer range controls">
+                <label>
+                  <span>분석 기간</span>
+                  <select id="macroRangeSelect" aria-label="Macro Explorer analysis range">
+                    <option value="1D">1D</option>
+                    <option value="1W">1W</option>
+                    <option value="1M">1M</option>
+                    <option value="3M">3M</option>
+                    <option value="6M">6M</option>
+                    <option value="YTD">YTD</option>
+                    <option value="1Y" selected>1Y</option>
+                    <option value="3Y">3Y</option>
+                    <option value="5Y">5Y</option>
+                    <option value="MAX">MAX</option>
+                    <option value="custom">Custom range</option>
+                  </select>
+                </label>
+                <label class="custom-range-field">
+                  <span>시작일</span>
+                  <input id="macroRangeStart" type="date" aria-label="Macro range start date" />
+                </label>
+                <label class="custom-range-field">
+                  <span>종료일</span>
+                  <input id="macroRangeEnd" type="date" aria-label="Macro range end date" />
+                </label>
+                <span id="macroRangeSupport" class="dashboard-range-support">Macro Explorer와 매크로 차트에만 적용됩니다.</span>
+              </div>
             </div>
             <div id="macroSeriesSearchResults" class="decision-surface compact-surface">
               <div class="home-news-empty">검색어를 입력하면 연결 가능한 매크로 시계열이 표시됩니다.</div>
@@ -753,35 +744,35 @@
           <section class="home-card feature-card quant-surface" data-panel-tier="primary">
             <div class="home-card-head">
               <h3>팩터 진단</h3>
-              <span>전략 실행 전 데이터 검증</span>
+              <span>독립 유니버스 품질 · 후보 점검</span>
             </div>
             <div class="signal-guide-grid">
-              <div><strong>무엇을 보나</strong><span>선택 종목의 모멘텀, 변동성, 낙폭, 상대강도, 최신 가격 여부를 한 번에 계산합니다.</span></div>
-              <div><strong>어떻게 쓰나</strong><span>백테스트 전에 데이터가 충분한지, 극단적 변동성 종목을 제외해야 하는지 판단합니다.</span></div>
-              <div><strong>결과 활용</strong><span>점수가 높아도 매수 신호가 아니라 후보군 품질 점검용입니다. 실행 판단은 시그널 매트릭스와 백테스트에서 확인합니다.</span></div>
+              <div><strong>무엇을 보나</strong><span>모멘텀, 위험조정 모멘텀, 변동성, 낙폭, 추세, 상대강도를 종합해 후보점수와 제외 사유를 계산합니다.</span></div>
+              <div><strong>어떻게 쓰나</strong><span>백테스트와 독립적으로 유니버스 품질, stale 가격, 고변동성, 깊은 낙폭 종목을 먼저 걸러냅니다.</span></div>
+              <div><strong>결과 활용</strong><span>후보점수는 매수 신호가 아니라 입력 품질 진단입니다. 실제 편입은 백테스트 통합 시그널과 포트폴리오 위험예산에서 확인합니다.</span></div>
             </div>
             <div class="decision-form quant-action-form">
               <button type="button" id="quantFeatureRun" class="ghost-btn" data-testid="quant-feature-run">팩터 진단 실행</button>
             </div>
             <div id="quantFeatureSurface" class="decision-surface">
-              <div class="home-news-empty">백테스트 종목과 기간을 먼저 정한 뒤 실행하면, 어떤 종목이 후보로 남을 만한지와 제외해야 할 데이터 문제를 표시합니다.</div>
+              <div class="home-news-empty">백테스트 종목과 기간을 먼저 정한 뒤 실행하면 후보점수, 제외 사유, 신선도 게이트, 변동성·낙폭 페널티를 독립적으로 표시합니다.</div>
             </div>
           </section>
           <section class="home-card signal-card quant-surface" data-panel-tier="primary">
             <div class="home-card-head">
               <h3>시그널 매트릭스</h3>
-              <span>다음 봉 체결 기준</span>
+              <span>백테스트 결과에 자동 통합</span>
             </div>
             <div class="signal-guide-grid">
-              <div><strong>후보 선정</strong><span>백테스트 종목·기간·전략·Top N 조건을 그대로 가져와 현재 시점의 후보와 비후보를 나눕니다.</span></div>
-              <div><strong>판정 근거</strong><span>각 종목의 점수, 사용된 팩터, 제외 사유, 데이터 신선도 경고를 함께 보여줍니다.</span></div>
+              <div><strong>후보 선정</strong><span>백테스트를 실행하면 같은 종목·기간·전략·Top N 조건의 후보/비후보가 결과 안에 같이 표시됩니다.</span></div>
+              <div><strong>판정 근거</strong><span>단독 실행은 빠른 조건 점검용이고, 최종 판단은 백테스트의 성과·경로 리스크·시그널 매트릭스를 함께 봅니다.</span></div>
               <div><strong>체결 기준</strong><span>신호 발생일과 다음 봉 체결일을 분리해 룩어헤드 없이 실행 가능한지 확인합니다.</span></div>
             </div>
             <div class="decision-form quant-action-form">
               <button type="button" id="quantSignalRun" class="ghost-btn" data-testid="quant-signal-run">시그널 생성</button>
             </div>
             <div id="quantSignalSurface" class="decision-surface">
-              <div class="home-news-empty">시그널을 생성하면 매수 후보, 보류 종목, 제외 사유, 다음 봉 체결일, 데이터 경고를 표로 확인합니다.</div>
+              <div class="home-news-empty">백테스트 결과에는 시그널 매트릭스가 자동 포함됩니다. 여기서는 실행 전 같은 조건의 후보/비후보를 빠르게 점검합니다.</div>
             </div>
           </section>
           <section class="home-card strategy-governance-card quant-surface" data-panel-tier="operations">
@@ -829,7 +820,7 @@
           <section class="home-card backtest-card quant-surface" data-panel-tier="primary">
             <div class="home-card-head">
               <h3>백테스트</h3>
-              <span>다중 종목 · 기간 지정</span>
+              <span>경로 리스크 · 벤치마크 · 리밸런싱</span>
             </div>
             <div class="decision-form backtest-form">
               <label>
@@ -924,16 +915,16 @@
             </div>
             <div class="decision-note">같은 종목/기간 조건을 포트폴리오 최적화에 바로 넘길 수 있습니다.</div>
             <div id="backtestSurface" class="decision-surface">
-              <div class="home-news-empty">저장 가격 기준으로 CAGR, 변동성, Sharpe, Sortino, MDD, Calmar, 회전율을 계산합니다.</div>
+              <div class="home-news-empty">저장 가격 기준으로 성과, 경로 리스크, 월별 수익 분해, 벤치마크 비교, 리밸런싱 귀속을 계산합니다.</div>
             </div>
           </section>
           <section class="home-card quant-run-history-card quant-surface" data-panel-tier="operations">
             <div class="home-card-head">
               <h3>실행 이력</h3>
               <div class="block-actions">
-                <button type="button" id="quantExportStorageReport" class="linkish" data-testid="quant-export-storage-report">저장소 리포트</button>
-                <button type="button" id="quantCrossRunCleanupPreview" class="linkish" data-testid="quant-cross-run-cleanup-preview">정리 미리보기</button>
-                <button type="button" id="quantRunHistoryRefresh" class="linkish" data-testid="quant-run-history-refresh">새로고침</button>
+                <button type="button" id="quantExportStorageReport" class="linkish" data-testid="quant-export-storage-report" title="내보내기 저장소 리포트">리포트</button>
+                <button type="button" id="quantCrossRunCleanupPreview" class="linkish" data-testid="quant-cross-run-cleanup-preview" title="실행 간 내보내기 정리 미리보기">정리</button>
+                <button type="button" id="quantRunHistoryRefresh" class="linkish" data-testid="quant-run-history-refresh" title="실행 이력 새로고침">갱신</button>
               </div>
             </div>
             <div id="quantRunHistorySurface" class="decision-surface">
@@ -943,7 +934,7 @@
           <section class="home-card portfolio-card quant-surface" data-panel-tier="primary">
             <div class="home-card-head">
               <h3>포트폴리오</h3>
-              <span>백테스트 조건 연동</span>
+              <span>위험예산 · 상관 · 실행 비중</span>
             </div>
             <div class="decision-form portfolio-form">
               <label>
@@ -1007,7 +998,7 @@
               <button type="button" id="portfolioOptimize" class="ghost-btn" data-testid="portfolio-optimize">최적화</button>
             </div>
             <div id="portfolioSurface" class="decision-surface">
-              <div class="home-news-empty">백테스트와 같은 유니버스/기간으로 목표 비중, 위험 기여도, 벤치마크 민감도, 리밸런싱 초안을 계산합니다. 누락 종목과 오래된 데이터는 숨기지 않고 표시합니다.</div>
+              <div class="home-news-empty">백테스트와 같은 유니버스/기간으로 목표 비중, 위험예산, 집중도, 상관구조, 벤치마크 민감도, 하방 스트레스를 계산합니다. 누락 종목과 오래된 데이터는 숨기지 않고 표시합니다.</div>
             </div>
           </section>
           <section id="mlForecastSurface" class="home-card forecast-card forecast-setup-card forecast-surface" data-panel-tier="primary">
@@ -1634,12 +1625,12 @@
     </div>
   </div>
 
-  <script src="modules/market-ui.js?v=20260514-domain-modules"></script>
-  <script src="modules/macro-ui.js?v=20260514-domain-modules"></script>
-  <script src="modules/forecast-ui.js?v=20260514-domain-modules"></script>
-  <script src="modules/quant-ui.js?v=20260514-domain-modules"></script>
+  <script src="modules/market-ui.js?v=20260521-market-signals-v1"></script>
+  <script src="modules/macro-ui.js?v=20260521-market-signals-v1"></script>
+  <script src="modules/forecast-ui.js?v=20260521-market-signals-v1"></script>
+  <script src="modules/quant-ui.js?v=20260521-market-signals-v1"></script>
   <script src="modules/ai-portfolio-ui.js?v=20260520-ai-portfolio-ops-v1"></script>
-  <script src="modules/quantamental-ui.js?v=20260519-quantamental-v22"></script>
-  <script src="app.js?v=20260520-purpose-layout-v13"></script>
+  <script src="modules/quantamental-ui.js?v=20260521-quantamental-decision-v23"></script>
+  <script src="app.js?v=20260521-quant-decision-v29"></script>
 </body>
 </html>

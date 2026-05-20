@@ -52,7 +52,7 @@ def build_macro_dashboard(
     engine: str = "rules",
     observation_limit: int = 20,
 ) -> MacroDashboardResponse:
-    limit = min(120, max(0, int(observation_limit or 0)))
+    limit = min(5000, max(0, int(observation_limit or 0)))
     registry = macro_service.list_macro_series(include_disabled=False)
     overview_model = macro_service.get_macro_overview(regime_engine=engine)
     overview = macro_service.compact_macro_payload(

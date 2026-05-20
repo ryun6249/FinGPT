@@ -173,7 +173,7 @@ class DashboardApiTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         body = resp.json()
         self.assertEqual(body["provider"], "yfinance")
-        self.assertEqual(body["analysis_engine"], "deterministic_cross_asset_v1")
+        self.assertEqual(body["analysis_engine"], "deterministic_cross_asset_v4")
         self.assertTrue(body["advisory_only"])
         self.assertEqual(body["horizon"], "1m")
         self.assertEqual(body["topic"], "rates")
@@ -182,6 +182,45 @@ class DashboardApiTests(unittest.TestCase):
         self.assertIn(body["summary"]["state"], {"risk_on", "risk_off", "mixed"})
         self.assertIn("current_state", body["summary"])
         self.assertIn("forward_bias", body["summary"])
+        pair = body["pair_analysis"]
+        self.assertEqual(pair["pair"], "SPY/TLT")
+        self.assertEqual(pair["asset_a"]["symbol"], "SPY")
+        self.assertEqual(pair["asset_b"]["symbol"], "TLT")
+        self.assertGreaterEqual(len(pair["points"]), 2)
+        self.assertIn("ratio", pair["points"][-1])
+        engineering = pair["financial_engineering"]
+        self.assertIn(engineering["status"], {
+            "asset_a_rich",
+            "asset_a_cheap",
+            "asset_a_beta_leading",
+            "asset_b_beta_leading",
+            "balanced_spread",
+            "insufficient_history",
+        })
+        self.assertIn("hedge_ratio", engineering["metrics"])
+        self.assertIn("ratio_zscore", engineering["metrics"])
+        self.assertIn("tracking_error_annualized_pct", engineering["metrics"])
+        self.assertIn("signal_to_noise", engineering["metrics"])
+        self.assertIn("horizon_noise_pct", engineering["metrics"])
+        self.assertIn("beta_neutral_expression", engineering)
+        self.assertTrue(engineering["scenarios"])
+        self.assertIn(pair["ai_briefing"]["status"], {"asset_a_leading", "asset_b_leading", "range_bound", "unavailable"})
+        self.assertIn("forward_direction", pair["ai_briefing"])
+        self.assertIn("purpose_fit", pair["ai_briefing"])
+        memo = pair["ai_briefing"]["decision_memo"]
+        self.assertIn(memo["grade"], {"high_attention", "monitor", "low_conviction", "data_insufficient"})
+        self.assertIn("executive_summary", memo)
+        self.assertTrue(memo["decision_gates"])
+        self.assertTrue(memo["next_tests"])
+        self.assertTrue(memo["invalidation"])
+        self.assertEqual(memo["method"], "beta_adjusted_pair_decision_memo_v1")
+        self.assertIn("engineering_interpretation", pair["ai_briefing"])
+        self.assertTrue(pair["ai_briefing"]["risk_controls"])
+        self.assertEqual(pair["ai_briefing"]["mode"], "deterministic_guardrail")
+        self.assertEqual(pair["ai_briefing"]["model"], "deterministic_cross_asset_pair_brief_v3")
+        self.assertIn("pair_ratio_not_absolute_signal", body["guardrails"])
+        self.assertIn("beta_hedge_is_diagnostic_only", body["guardrails"])
+        self.assertIn("decision_memo_requires_gate_confirmation", body["guardrails"])
 
     def test_dashboard_market_returns_as_of_quant_snapshot(self):
         fake_yf = types.SimpleNamespace(Ticker=lambda symbol: _FakeTicker(symbol))
@@ -313,7 +352,16 @@ class DashboardApiTests(unittest.TestCase):
         self.assertIn("equity_momentum", signal_ids)
         self.assertIn("rates_pressure", signal_ids)
         self.assertIn("credit_tone", signal_ids)
+        self.assertIn("dollar_liquidity", signal_ids)
+        self.assertIn("defensive_hedge_bid", signal_ids)
+        self.assertIn("crypto_beta", signal_ids)
         self.assertIn("cross_asset_confirmation", signal_ids)
+        equity_signal = next(item for item in body["signals"] if item["signal_id"] == "equity_momentum")
+        self.assertIn(equity_signal["confidence"], {"high", "medium", "low"})
+        self.assertTrue(equity_signal["components"])
+        self.assertTrue(equity_signal["watch_points"])
+        self.assertTrue(equity_signal["next_actions"])
+        self.assertTrue(equity_signal["invalidation"])
 
     def test_dashboard_decision_cards_returns_common_contract(self):
         client = TestClient(api_server.app)

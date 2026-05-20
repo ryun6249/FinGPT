@@ -126,14 +126,14 @@ class UiRoutingContractTests(unittest.TestCase):
         html = INDEX_HTML.read_text(encoding="utf-8")
         css = STYLES_CSS.read_text(encoding="utf-8")
         module_source = AI_PORTFOLIO_UI_JS.read_text(encoding="utf-8")
-        self.assertIn('src="modules/market-ui.js?v=20260514-domain-modules"', html)
-        self.assertIn('src="modules/macro-ui.js?v=20260514-domain-modules"', html)
-        self.assertIn('src="modules/forecast-ui.js?v=20260514-domain-modules"', html)
-        self.assertIn('src="modules/quant-ui.js?v=20260514-domain-modules"', html)
+        self.assertIn('src="modules/market-ui.js?v=20260521-market-signals-v1"', html)
+        self.assertIn('src="modules/macro-ui.js?v=20260521-market-signals-v1"', html)
+        self.assertIn('src="modules/forecast-ui.js?v=20260521-market-signals-v1"', html)
+        self.assertIn('src="modules/quant-ui.js?v=20260521-market-signals-v1"', html)
         self.assertIn('src="modules/ai-portfolio-ui.js?v=20260520-ai-portfolio-ops-v1"', html)
-        self.assertIn('src="modules/quantamental-ui.js?v=20260519-quantamental-v22"', html)
-        self.assertIn('href="styles.css?v=20260520-purpose-layout-v13"', html)
-        self.assertIn('src="app.js?v=20260520-purpose-layout-v13"', html)
+        self.assertIn('src="modules/quantamental-ui.js?v=20260521-quantamental-decision-v23"', html)
+        self.assertIn('href="styles.css?v=20260521-quant-decision-v26"', html)
+        self.assertIn('src="app.js?v=20260521-quant-decision-v29"', html)
         self.assertIn('id="dashboardContextStrip"', html)
         self.assertIn("dashboardDecisionCards", self.source)
         self.assertIn("function loadDashboardDecisionCards", self.source)
@@ -154,10 +154,10 @@ class UiRoutingContractTests(unittest.TestCase):
 
     def test_cross_dashboard_smoke_tracks_current_bundle_and_quantamental(self):
         smoke_source = AI_PORTFOLIO_UI_SMOKE.read_text(encoding="utf-8")
-        self.assertIn('DOMAIN_BUNDLE_VERSION = "20260514-domain-modules"', smoke_source)
+        self.assertIn('DOMAIN_BUNDLE_VERSION = "20260521-market-signals-v1"', smoke_source)
         self.assertIn('AI_PORTFOLIO_BUNDLE_VERSION = "20260520-ai-portfolio-ops-v1"', smoke_source)
-        self.assertIn('QUANTAMENTAL_BUNDLE_VERSION = "20260519-quantamental-v22"', smoke_source)
-        self.assertIn('APP_BUNDLE_VERSION = "20260520-purpose-layout-v13"', smoke_source)
+        self.assertIn('QUANTAMENTAL_BUNDLE_VERSION = "20260521-quantamental-decision-v23"', smoke_source)
+        self.assertIn('APP_BUNDLE_VERSION = "20260521-quant-decision-v29"', smoke_source)
         self.assertIn("def _normalize_base_url", smoke_source)
         self.assertIn("modules/quantamental-ui.js", smoke_source)
         self.assertIn("FinGPTQuantamentalUi?.topSignals", smoke_source)
@@ -254,11 +254,14 @@ class UiRoutingContractTests(unittest.TestCase):
             self.assertIn(marker, self.source)
         self.assertIn("global.FinGPTQuantamentalUi", module_source)
         self.assertIn("signalCard", module_source)
+        self.assertIn("quantamentalDecisionMemo", module_source)
+        self.assertIn("quantamental-decision-memo", module_source)
         self.assertIn("mainPanel", module_source)
         self.assertIn("qaAnswer", module_source)
         self.assertIn("snapshotDiff", module_source)
         self.assertIn("snapshotRetention", module_source)
         self.assertIn(".quantamental-signal-card", css)
+        self.assertIn(".quantamental-decision-memo", css)
         self.assertIn(".quantamental-factor-grid", css)
 
     def test_domain_ui_modules_are_connected(self):
@@ -374,7 +377,11 @@ class UiRoutingContractTests(unittest.TestCase):
             'id="marketTapeSurface"',
             'id="marketSignalSurface"',
             'id="crossAssetSymbols"',
+            'value="SPY, GLD"',
             'id="crossAssetAnalysisSurface"',
+            '데이터 분석 메모',
+            '베타 헤지·z-score 진단',
+            'pair ratio · beta hedge · decision memo',
             'data-testid="cross-asset-run"',
             'id="homeNewsFocusedList"',
             'data-testid="market-news-search-run"',
@@ -385,12 +392,36 @@ class UiRoutingContractTests(unittest.TestCase):
             "dashboardCrossAssetAnalyze",
             "function renderMarketTape",
             "function renderMarketSignals",
+            "function crossAssetRequestKey",
+            "function renderCrossAssetPairChart",
+            "function renderCrossAssetDecisionMemo",
+            "function crossAssetDecisionGradeLabel",
+            "function renderCrossAssetEngineeringPanel",
+            "function crossAssetEngineeringStatusLabel",
+            "function renderCrossAssetPairBrief",
             "function renderCrossAssetAnalysis",
             "function loadFocusedDashboardNews",
             "function loadDashboardMarketOverview",
             "loadDashboardMarketOverview(force)",
         ]:
             self.assertIn(marker, self.source)
+        css = STYLES_CSS.read_text(encoding="utf-8")
+        self.assertIn(".cross-asset-pair-brief", css)
+        self.assertIn(".cross-asset-decision-memo", css)
+        self.assertIn(".cross-asset-gate-grid", css)
+        self.assertIn(".cross-asset-decision-columns", css)
+        self.assertIn(".cross-asset-engineering", css)
+        self.assertIn(".cross-asset-engineering-grid", css)
+        self.assertIn(".cross-asset-scenarios", css)
+        self.assertIn(".cross-asset-chart-line.ratio", css)
+        self.assertIn(".cross-asset-ai-mode", css)
+        self.assertIn(".market-signal-command", css)
+        self.assertIn(".market-signal-components", css)
+        self.assertIn("function signalOverview", MARKET_UI_JS.read_text(encoding="utf-8"))
+        self.assertIn("function componentGrid", MARKET_UI_JS.read_text(encoding="utf-8"))
+        self.assertNotIn("개발자 진단", self.source)
+        self.assertNotIn("developer-detail", self.source)
+        self.assertNotIn(".developer-detail", css)
 
     def test_internal_market_chart_has_horizontal_scroll_contract(self):
         css = STYLES_CSS.read_text(encoding="utf-8")
@@ -621,13 +652,14 @@ class UiRoutingContractTests(unittest.TestCase):
             '<section class="home-card home-chart-card market-surface" data-panel-tier="primary">',
             '<section class="home-card home-heatmap-card market-surface" data-panel-tier="primary">',
             '<section class="home-card home-market-panel market-surface" data-panel-tier="details">',
-            '<section class="home-card data-mart-card market-surface" data-panel-tier="operations">',
             '<section class="home-card home-news-card market-surface" data-panel-tier="details">',
             'id="globalQualitySummary"',
-            'id="dashboardRangeControls"',
-            'id="dashboardRangeSelect"',
-            'id="dashboardRangeStart"',
-            'id="dashboardRangeEnd"',
+            'id="macroRangeControls"',
+            'aria-label="Macro Explorer range controls"',
+            'dashboard-range-controls--macro-search',
+            'id="macroRangeSelect"',
+            'id="macroRangeStart"',
+            'id="macroRangeEnd"',
             'id="quantamentalAiModel"',
             'id="quantamentalAiModelStatus"',
             'data-testid="quantamental-ai-model-control"',
@@ -637,6 +669,7 @@ class UiRoutingContractTests(unittest.TestCase):
             'id="qualityContextSummary"',
             'id="qualityArtifactPaths"',
             'class="quality-detail-list quality-eval-detail"',
+            'id="qualityDataHealth"',
             'id="qualityQuantamentalData"',
             'id="qualityForecastData"',
             'id="qualityAiPortfolioData"',
@@ -649,6 +682,7 @@ class UiRoutingContractTests(unittest.TestCase):
             '<button type="button" id="macroBriefGenerate"',
         ]:
             self.assertIn(marker, html)
+        self.assertNotIn('<section class="home-card data-mart-card', html)
         module_source = QUANTAMENTAL_UI_JS.read_text(encoding="utf-8")
         self.assertIn('.dashboard-surface-grid[data-panel-view="overview"]', css)
         self.assertIn('.dashboard-view-controls', css)
@@ -659,10 +693,27 @@ class UiRoutingContractTests(unittest.TestCase):
         self.assertIn(".quality-artifact-paths", css)
         self.assertIn(".quality-eval-detail", css)
         self.assertIn(".dashboard-range-controls", css)
+        self.assertIn(".dashboard-range-controls--macro-search", css)
+        self.assertIn(".empty-state > .dashboard-range-controls:not(.dashboard-range-controls--macro-search)", css)
         self.assertIn(".quantamental-ai-control", css)
         self.assertIn('.dashboard-surface-grid[data-panel-view="all"] [data-panel-tier="primary"] .home-card-head::before', css)
         self.assertIn(".dashboard-range-controls.range-warning", css)
-        self.assertIn('.dashboard-surface-grid[data-dashboard-tab="market"][data-panel-view="operations"] .data-mart-card', css)
+        self.assertNotIn(".data-mart-card", css)
+        self.assertLess(html.index('id="macroProviderFilter"'), html.index('id="macroRangeControls"'))
+        self.assertLess(html.index('id="macroRangeControls"'), html.index('id="macroSeriesSearchResults"'))
+        self.assertGreater(html.index('id="macroRangeControls"'), html.index('class="decision-form macro-search-form"'))
+        self.assertLess(html.index('id="dashboardContextStrip"'), html.index('id="dashboardViewControls"'))
+        self.assertGreater(html.index('id="macroRangeControls"'), html.index('id="macroSeriesSearchInput"'))
+        self.assertGreater(html.index('id="macroRangeControls"'), html.index('id="macroCategoryFilter"'))
+        self.assertNotIn('id="macroRangeControls"', html[
+            html.index('id="dashboardContextStrip"') : html.index('id="dashboardViewControls"')
+        ])
+        self.assertNotIn('id="macroRangeControls"', html[
+            html.index('id="analysisForm"') : html.index('id="model"')
+        ])
+        self.assertNotIn('id="dashboardRangeControls"', html)
+        self.assertIn("Macro Explorer 검색과 매크로 차트에만 적용됩니다", self.source)
+        self.assertNotIn("els.crossAssetHorizon", self.source[self.source.index("function applyGlobalRangeToControls") : self.source.index("function updateGlobalRangeUrl")])
         self.assertIn('.dashboard-surface-grid[data-dashboard-tab="market"][data-panel-view="details"] .home-market-panel', css)
         self.assertIn("DEFAULT_DASHBOARD_PANEL_VIEWS", self.source)
         self.assertIn("function renderLocalQualitySections", self.source)
@@ -721,6 +772,12 @@ class UiRoutingContractTests(unittest.TestCase):
         self.assertIn("function displayMissingSummary", self.source)
         self.assertIn("AI 기준:", self.source)
         self.assertIn("globalRangeLookbackDays", self.source)
+        self.assertIn("function ensureMacroRangeControlPlacement", self.source)
+        self.assertIn("function macroRangeRequestOptions", self.source)
+        self.assertIn("function macroRangeFilteredObservations", self.source)
+        self.assertIn("API.macroSeriesDetail(id, macroRangeRequestOptions())", self.source)
+        self.assertIn("API.macroDashboard({ observationLimit: macroRangeObservationLimit() })", self.source)
+        self.assertIn("loadMacroDefaultSeriesDetail(results.seriesList, { force })", self.source)
         self.assertLess(
             html.index('class="home-card macro-card macro-hints-card macro-surface"'),
             html.index('class="home-card macro-card macro-brief-card macro-surface"'),
@@ -794,6 +851,34 @@ class UiRoutingContractTests(unittest.TestCase):
             'data-testid="portfolio-optimize"',
         ]:
             self.assertIn(marker, html)
+        for marker in [
+            "function renderQuantRunHistorySummary",
+            "function renderQuantHistoryDataCell",
+            "function renderQuantFeatureDiagnosticPanel",
+            "function renderBacktestSignalMatrixPanel",
+            "function renderBacktestEngineeringPanel",
+            "function renderBacktestReturnHeatmap",
+            "function renderPortfolioEngineeringPanel",
+            "function renderPortfolioAllocationMap",
+            "function renderPortfolioStressPanel",
+            "비교 0/2",
+            "quant-history-summary",
+            "quant-history-toolbar",
+            "quant-history-table",
+            "quant-history-data-cell",
+            "quant-factor-cockpit",
+            "quant-backtest-signal-panel",
+            "quant-engineering-panel",
+            "quant-return-heatmap",
+            "portfolio-engineering-panel",
+            "portfolio-risk-budget-row",
+            "correlation-heatmap",
+        ]:
+            self.assertIn(marker, self.source if marker.startswith("function") or marker == "비교 0/2" else STYLES_CSS.read_text(encoding="utf-8"))
+        self.assertIn('title="내보내기 저장소 리포트">리포트</button>', html)
+        self.assertIn('title="실행 간 내보내기 정리 미리보기">정리</button>', html)
+        self.assertIn('title="실행 이력 새로고침">갱신</button>', html)
+        self.assertNotIn("renderActionCompletion(\"실행 이력 갱신 완료\"", self.source)
         for marker in [
             'data-testid="quant-export-verify-latest"',
             'data-testid="quant-export-verify-row"',
@@ -943,7 +1028,7 @@ class UiRoutingContractTests(unittest.TestCase):
             'data-testid="quantamental-score-screen-run"',
             'id="quantamentalScoreScreenStatus"',
             'id="quantamentalScoreScreenSurface"',
-            'src="modules/quantamental-ui.js?v=20260519-quantamental-v22"',
+            'src="modules/quantamental-ui.js?v=20260521-quantamental-decision-v23"',
         ]:
             self.assertIn(marker, html)
         for marker in [
@@ -982,6 +1067,8 @@ class UiRoutingContractTests(unittest.TestCase):
             "global.FinGPTQuantamentalUi",
             "companyHeader",
             "signalCard",
+            "quantamentalDecisionMemo",
+            "quantamental-decision-memo",
             "scoreDashboard",
             "factorGrid",
             "mainPanel",

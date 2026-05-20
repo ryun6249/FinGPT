@@ -18,6 +18,7 @@ from app.api.routers.portfolio import router as portfolio_router
 from app.api.routers.quantamental import router as quantamental_router
 from app.api.routers.quant_lab import router as quant_lab_router
 from app.api.routers.research import router as research_router
+from app.api.routers.risk import router as risk_router
 from app.api.routers.system import router as system_router
 from app.api.routers.watchlist import router as watchlist_router
 from core.config.settings import load_settings
@@ -127,6 +128,8 @@ app.include_router(ai_portfolio_router, prefix="/api/ai-portfolio")
 app.include_router(watchlist_router)
 app.include_router(macro_router, prefix="/api/v1/macro")
 app.include_router(macro_router, prefix="/api/macro")
+app.include_router(risk_router, prefix="/api/v1/risk")
+app.include_router(risk_router, prefix="/api/risk")
 app.include_router(quant_lab_router)
 app.include_router(forecast_router, prefix="/api/v1/forecast")
 app.include_router(forecast_router, prefix="/api/forecast")

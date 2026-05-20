@@ -23,8 +23,16 @@ class MarketDashboardSignal(BaseModel):
     title: str
     status: str = "neutral"
     score: float | None = None
+    direction: str = "neutral"
+    confidence: str = "medium"
+    horizon: str = "1D"
+    impact: str = ""
     summary: str = ""
     evidence: list[str] = Field(default_factory=list)
+    components: list[dict[str, Any]] = Field(default_factory=list)
+    watch_points: list[str] = Field(default_factory=list)
+    next_actions: list[str] = Field(default_factory=list)
+    invalidation: list[str] = Field(default_factory=list)
     interpretation: str = ""
     is_decision_usable: bool = False
 

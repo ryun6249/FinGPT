@@ -82,9 +82,17 @@ async def get_series(series_id: str, start_date: str | None = None, end_date: st
 async def get_series_detail(
     series_id: str,
     observation_limit: int = Query(default=240, ge=0, le=5000),
+    start_date: str | None = None,
+    end_date: str | None = None,
 ) -> dict[str, Any]:
     try:
-        result = await _run_blocking(service.get_macro_series_detail, series_id, observation_limit=observation_limit)
+        result = await _run_blocking(
+            service.get_macro_series_detail,
+            series_id,
+            observation_limit=observation_limit,
+            start_date=start_date,
+            end_date=end_date,
+        )
         return result.model_dump(mode="json")
     except KeyError:
         raise _not_found("macro_series", series_id)
@@ -94,7 +102,7 @@ async def get_series_detail(
 async def get_overview(
     engine: str = Query(default="rules", pattern="^(rules|factor)$"),
     compact: bool = False,
-    observation_limit: int = Query(default=120, ge=0, le=1000),
+    observation_limit: int = Query(default=120, ge=0, le=5000),
 ) -> dict[str, Any]:
     overview = await _run_blocking(service.get_macro_overview, regime_engine=engine)
     if compact:
@@ -105,7 +113,7 @@ async def get_overview(
 @router.get("/dashboard")
 async def get_dashboard(
     engine: str = Query(default="rules", pattern="^(rules|factor)$"),
-    observation_limit: int = Query(default=20, ge=0, le=120),
+    observation_limit: int = Query(default=20, ge=0, le=5000),
 ) -> dict[str, Any]:
     refresh_status = await _run_blocking(_scheduler_status)
     result = await _run_blocking(
