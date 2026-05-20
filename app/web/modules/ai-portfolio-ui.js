@@ -34,9 +34,22 @@
     return escapeHtml(value ?? "-");
   }
 
+  function compactIdentifier(value, head = 12, tail = 6) {
+    const raw = String(value || "").trim();
+    if (!raw) return "-";
+    if (raw.length <= head + tail + 3) return raw;
+    return `${raw.slice(0, head)}...${raw.slice(-tail)}`;
+  }
+
   function detailRow(label, value) {
     if (value === undefined || value === null || value === "") return "";
     return `<div class="ai-operation-detail-row"><span>${escapeHtml(label)}</span><strong>${compactValue(value)}</strong></div>`;
+  }
+
+  function identifierRow(label, value) {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    return `<div class="ai-operation-detail-row"><span>${escapeHtml(label)}</span><strong title="${escapeHtml(raw)}">${escapeHtml(compactIdentifier(raw))}</strong></div>`;
   }
 
   function dashboardMeta(dashboard) {
@@ -69,7 +82,8 @@
 
   function operationSummary(operation) {
     const parts = [
-      detailRow("request", operation.request_id),
+      identifierRow("operation", operation.operation_id),
+      identifierRow("request", operation.request_id),
       detailRow("created", operation.created_at),
       detailRow("source", operation.source?.label || operation.source?.universe_id || operation.source?.policy_id),
       detailRow("assets", operation.processed_asset_count ?? operation.asset_count ?? operation.ticker_count),
@@ -90,12 +104,15 @@
       <div class="ai-operation-list">
         ${items.slice(0, 8).map((item) => {
           const status = String(item.status || "unknown");
+          const operationId = String(item.operation_id || "");
+          const operationLabel = compactIdentifier(operationId);
+          const summaryText = [item.created_at || "", operationLabel].filter(Boolean).join(" / ");
           return `
             <details class="ai-operation-item">
               <summary>
                 <span>
                   <strong>${escapeHtml(item.operation_type || "operation")}</strong>
-                  <small>${escapeHtml(item.created_at || "")} / ${escapeHtml(item.operation_id || "")}</small>
+                  <small title="${escapeHtml(operationId)}">${escapeHtml(summaryText)}</small>
                 </span>
                 <em class="${escapeHtml(status)}">${escapeHtml(status)}</em>
               </summary>

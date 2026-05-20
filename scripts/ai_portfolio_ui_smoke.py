@@ -17,14 +17,15 @@ from urllib.request import urlopen
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 REPORTS_DIR = PROJECT_ROOT / "reports"
 DOMAIN_BUNDLE_VERSION = "20260514-domain-modules"
+AI_PORTFOLIO_BUNDLE_VERSION = "20260520-ai-portfolio-ops-v1"
 QUANTAMENTAL_BUNDLE_VERSION = "20260519-quantamental-v22"
-APP_BUNDLE_VERSION = "20260520-universe-v1"
+APP_BUNDLE_VERSION = "20260520-purpose-layout-v13"
 VERSIONED_SCRIPT_SELECTORS = [
     f'script[src="modules/market-ui.js?v={DOMAIN_BUNDLE_VERSION}"]',
     f'script[src="modules/macro-ui.js?v={DOMAIN_BUNDLE_VERSION}"]',
     f'script[src="modules/forecast-ui.js?v={DOMAIN_BUNDLE_VERSION}"]',
     f'script[src="modules/quant-ui.js?v={DOMAIN_BUNDLE_VERSION}"]',
-    f'script[src="modules/ai-portfolio-ui.js?v={DOMAIN_BUNDLE_VERSION}"]',
+    f'script[src="modules/ai-portfolio-ui.js?v={AI_PORTFOLIO_BUNDLE_VERSION}"]',
     f'script[src="modules/quantamental-ui.js?v={QUANTAMENTAL_BUNDLE_VERSION}"]',
     f'script[src="app.js?v={APP_BUNDLE_VERSION}"]',
 ]

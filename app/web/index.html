@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FinGPT Local Research Assistant</title>
-  <link rel="stylesheet" href="styles.css?v=20260519-continuous-enhancement-v5" />
+  <link rel="stylesheet" href="styles.css?v=20260520-purpose-layout-v13" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='48' font-size='48'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E" />
 </head>
 <body>
@@ -87,6 +87,10 @@
       </div>
     </div>
     <div id="qualitySummary" class="quality-summary"></div>
+    <details id="qualityArtifactPaths" class="quality-artifact-paths quality-detail-list hidden">
+      <summary>평가 산출물 경로</summary>
+      <ul></ul>
+    </details>
     <div id="qualityContextSummary" class="quality-context-summary unknown" data-quality-context="global" aria-live="polite">
       <div class="quality-context-head">
         <strong>현재 분석 신뢰도: 확인 불가</strong>
@@ -115,12 +119,34 @@
       </div>
     </section>
     <section class="quality-section">
-      <h4>카테고리</h4>
-      <ul id="qualityCategories" class="quality-category-list"></ul>
+      <h4>Quantamental 품질</h4>
+      <div id="qualityQuantamentalData" class="decision-surface compact-surface">
+        <div class="home-news-empty">Quantamental 분석 실행 후 점수, 신선도, 결측 요약이 표시됩니다.</div>
+      </div>
     </section>
     <section class="quality-section">
-      <h4>최근 케이스 <span id="qualityCasesNote" class="muted small"></span></h4>
-      <ul id="qualityCases" class="quality-cases"></ul>
+      <h4>Forecast 데이터/모델 품질</h4>
+      <div id="qualityForecastData" class="decision-surface compact-surface">
+        <div class="home-news-empty">ML Forecast 실험 실행 후 데이터, leakage, 모델 품질 요약이 표시됩니다.</div>
+      </div>
+    </section>
+    <section class="quality-section">
+      <h4>AI Portfolio 커버리지</h4>
+      <div id="qualityAiPortfolioData" class="decision-surface compact-surface">
+        <div class="home-news-empty">AI Portfolio 대시보드 또는 추천 실행 후 coverage와 운영 품질 요약이 표시됩니다.</div>
+      </div>
+    </section>
+    <section class="quality-section quality-evaluation-section">
+      <details class="quality-detail-list quality-eval-detail">
+        <summary>평가 카테고리</summary>
+        <ul id="qualityCategories" class="quality-category-list"></ul>
+      </details>
+    </section>
+    <section class="quality-section quality-evaluation-section">
+      <details class="quality-detail-list quality-eval-detail">
+        <summary>최근 케이스 <span id="qualityCasesNote" class="muted small"></span></summary>
+        <ul id="qualityCases" class="quality-cases"></ul>
+      </details>
     </section>
     <details class="quality-report">
       <summary>최근 평가 리포트 (markdown)</summary>
@@ -356,7 +382,7 @@
           <button type="button" data-panel-view="all" aria-pressed="true" class="active">All</button>
         </div>
         <div id="homeSurfaceGrid" class="home-grid dashboard-surface-grid" data-dashboard-tab="market" data-panel-view="all">
-          <section class="home-card market-overview-card market-surface">
+          <section class="home-card market-overview-card market-surface" data-panel-tier="primary">
             <div class="home-card-head">
               <h3>시장 테이프</h3>
               <span id="marketOverviewMeta">freshness, source, decision usability</span>
@@ -365,7 +391,7 @@
               <div class="home-news-empty">시장 테이프를 불러오는 중입니다.</div>
             </div>
           </section>
-          <section class="home-card market-signals-card market-surface">
+          <section class="home-card market-signals-card market-surface" data-panel-tier="primary">
             <div class="home-card-head">
               <h3>교차자산 신호</h3>
               <span>user-controlled regime analysis</span>
@@ -400,7 +426,7 @@
               <div class="home-news-empty">시장 신호를 불러오는 중입니다.</div>
             </div>
           </section>
-          <section class="home-card home-chart-card market-surface">
+          <section class="home-card home-chart-card market-surface" data-panel-tier="primary">
             <div class="home-card-head">
               <h3>TradingView 단일 차트</h3>
               <span id="tvOverviewMeta">SPY · Daily</span>
@@ -457,7 +483,7 @@
             </div>
             <div id="tvOverviewFallback" class="tv-fallback hidden">TradingView 단일 차트를 불러오는 중입니다.</div>
           </section>
-          <section class="home-card home-heatmap-card market-surface">
+          <section class="home-card home-heatmap-card market-surface" data-panel-tier="primary">
             <div class="home-card-head">
               <h3>미국 주식 5분봉 히트맵</h3>
               <span id="homeHeatmapMeta" class="home-heatmap-meta-bar">Yahoo/yfinance · 최신/지연 데이터만 표시</span>
@@ -471,7 +497,7 @@
             <div id="tvHeatmapWidgetDisabled" class="hidden" aria-hidden="true"></div>
             <div id="tvHeatmapFallback" class="tv-fallback hidden">TradingView 히트맵은 공개 임베드에서 EOD로 표시될 수 있어 의사결정용 표시에서 제외했습니다.</div>
           </section>
-          <section class="home-card home-market-panel market-surface">
+          <section class="home-card home-market-panel market-surface" data-panel-tier="details">
             <div class="home-card-head">
               <h3>내부 시장 스냅샷</h3>
               <span>Yahoo/yfinance · 기준일 포함</span>
@@ -480,7 +506,7 @@
               <div class="home-news-empty">시장 데이터를 불러오는 중입니다.</div>
             </div>
           </section>
-          <section class="home-card data-mart-card market-surface">
+          <section class="home-card data-mart-card market-surface" data-panel-tier="operations">
             <div class="home-card-head">
               <h3>데이터 마트 상태</h3>
               <button type="button" id="dataHealthRefresh" class="linkish" data-testid="data-health-refresh">새로고침</button>
@@ -511,7 +537,7 @@
               <div class="home-news-empty">Macro overview is loading.</div>
             </div>
           </section>
-          <section class="home-card macro-card macro-coverage-card macro-surface" data-panel-tier="primary">
+          <section class="home-card macro-card macro-coverage-card macro-surface" data-panel-tier="details">
             <div class="home-card-head"><h3>Macro Data Coverage</h3><span>registry, providers, categories</span></div>
             <div id="macroCoverageSurface" class="decision-surface compact-surface">
               <div class="home-news-empty">Macro coverage is loading.</div>
@@ -565,49 +591,49 @@
               <div class="home-news-empty">Macro indicators are loading.</div>
             </div>
           </section>
-          <section class="home-card macro-card macro-chart-card macro-surface" data-panel-tier="details">
+          <section class="home-card macro-card macro-chart-card macro-surface" data-panel-tier="primary">
             <div class="home-card-head"><h3>Macro Charts</h3><span>observed data only</span></div>
             <div id="macroChartSurface" class="decision-surface">
               <div class="home-news-empty">Macro charts are loading.</div>
             </div>
           </section>
-          <section class="home-card macro-card macro-category-card macro-surface" data-panel-tier="details">
+          <section class="home-card macro-card macro-category-card macro-rates-card macro-surface" data-panel-tier="primary">
             <div class="home-card-head"><h3>Interest Rates</h3><span>policy, curve, real yields</span></div>
             <div id="macroInterestRatesSurface" class="decision-surface compact-surface"><div class="home-news-empty">Loading rates.</div></div>
           </section>
-          <section class="home-card macro-card macro-category-card macro-surface" data-panel-tier="details">
+          <section class="home-card macro-card macro-category-card macro-inflation-card macro-surface" data-panel-tier="primary">
             <div class="home-card-head"><h3>Inflation</h3><span>CPI, PCE, breakevens</span></div>
             <div id="macroInflationSurface" class="decision-surface compact-surface"><div class="home-news-empty">Loading inflation.</div></div>
           </section>
-          <section class="home-card macro-card macro-category-card macro-surface" data-panel-tier="details">
+          <section class="home-card macro-card macro-category-card macro-growth-card macro-surface" data-panel-tier="primary">
             <div class="home-card-head"><h3>Growth &amp; Labor</h3><span>activity, jobs, claims</span></div>
             <div id="macroGrowthLaborSurface" class="decision-surface compact-surface"><div class="home-news-empty">Loading growth and labor.</div></div>
           </section>
-          <section class="home-card macro-card macro-category-card macro-surface" data-panel-tier="details">
+          <section class="home-card macro-card macro-category-card macro-housing-card macro-surface" data-panel-tier="details">
             <div class="home-card-head"><h3>Housing &amp; Consumer</h3><span>housing, income, credit</span></div>
             <div id="macroHousingConsumerSurface" class="decision-surface compact-surface"><div class="home-news-empty">Loading housing and consumer data.</div></div>
           </section>
-          <section class="home-card macro-card macro-category-card macro-surface" data-panel-tier="details">
+          <section class="home-card macro-card macro-category-card macro-yield-card macro-surface" data-panel-tier="primary">
             <div class="home-card-head"><h3>Yield Curve</h3><span>duration and inversion</span></div>
             <div id="macroYieldCurveSurface" class="decision-surface compact-surface"><div class="home-news-empty">Loading yield curve.</div></div>
           </section>
-          <section class="home-card macro-card macro-category-card macro-surface" data-panel-tier="details">
+          <section class="home-card macro-card macro-category-card macro-credit-card macro-surface" data-panel-tier="primary">
             <div class="home-card-head"><h3>Liquidity &amp; Credit</h3><span>money, Fed balance sheet, spreads</span></div>
             <div id="macroLiquidityCreditSurface" class="decision-surface compact-surface"><div class="home-news-empty">Loading liquidity and credit.</div></div>
           </section>
-          <section class="home-card macro-card macro-category-card macro-surface" data-panel-tier="details">
+          <section class="home-card macro-card macro-category-card macro-financial-card macro-surface" data-panel-tier="details">
             <div class="home-card-head"><h3>Financial Conditions</h3><span>stress, lending, bank credit</span></div>
             <div id="macroFinancialConditionsSurface" class="decision-surface compact-surface"><div class="home-news-empty">Loading financial conditions.</div></div>
           </section>
-          <section class="home-card macro-card macro-category-card macro-surface" data-panel-tier="details">
+          <section class="home-card macro-card macro-category-card macro-fx-card macro-surface" data-panel-tier="details">
             <div class="home-card-head"><h3>FX &amp; Dollar</h3><span>future provider hook</span></div>
             <div id="macroFxDollarSurface" class="decision-surface compact-surface"><div class="home-news-empty">FX data source is not connected.</div></div>
           </section>
-          <section class="home-card macro-card macro-category-card macro-surface" data-panel-tier="details">
+          <section class="home-card macro-card macro-category-card macro-commodities-card macro-surface" data-panel-tier="details">
             <div class="home-card-head"><h3>Commodities</h3><span>future provider hook</span></div>
             <div id="macroCommoditiesSurface" class="decision-surface compact-surface"><div class="home-news-empty">Commodity data source is not connected.</div></div>
           </section>
-          <section class="home-card macro-card macro-regime-card macro-surface" data-panel-tier="details">
+          <section class="home-card macro-card macro-regime-card macro-surface" data-panel-tier="primary">
             <div class="home-card-head"><h3>Macro Regime</h3><span>rule-based MVP</span></div>
             <div id="macroRegimeSurface" class="decision-surface"><div class="home-news-empty">Loading regime.</div></div>
           </section>
@@ -656,7 +682,7 @@
             </div>
             <div id="macroBriefSurface" class="decision-surface"><div class="home-news-empty">Brief has not been generated yet.</div></div>
           </section>
-          <section class="home-card macro-card macro-quality-card macro-surface" data-panel-tier="primary">
+          <section class="home-card macro-card macro-quality-card macro-surface" data-panel-tier="details">
             <div class="home-card-head"><h3>Data Quality</h3><span>missing, stale, provider errors</span></div>
             <div id="macroDataQualitySurface" class="decision-surface compact-surface"><div class="home-news-empty">Loading data quality.</div></div>
           </section>
@@ -724,7 +750,7 @@
               <div class="home-news-empty">종목, 날짜 범위, 보기 옵션을 선택하면 저장 가격 기반 수익률 곡선, 낙폭, 변동성, 데이터 품질을 확인합니다.</div>
             </div>
           </section>
-          <section class="home-card feature-card quant-surface" data-panel-tier="details">
+          <section class="home-card feature-card quant-surface" data-panel-tier="primary">
             <div class="home-card-head">
               <h3>팩터 진단</h3>
               <span>전략 실행 전 데이터 검증</span>
@@ -741,7 +767,7 @@
               <div class="home-news-empty">백테스트 종목과 기간을 먼저 정한 뒤 실행하면, 어떤 종목이 후보로 남을 만한지와 제외해야 할 데이터 문제를 표시합니다.</div>
             </div>
           </section>
-          <section class="home-card signal-card quant-surface" data-panel-tier="details">
+          <section class="home-card signal-card quant-surface" data-panel-tier="primary">
             <div class="home-card-head">
               <h3>시그널 매트릭스</h3>
               <span>다음 봉 체결 기준</span>
@@ -758,7 +784,7 @@
               <div class="home-news-empty">시그널을 생성하면 매수 후보, 보류 종목, 제외 사유, 다음 봉 체결일, 데이터 경고를 표로 확인합니다.</div>
             </div>
           </section>
-          <section class="home-card strategy-governance-card quant-surface" data-panel-tier="details">
+          <section class="home-card strategy-governance-card quant-surface" data-panel-tier="operations">
             <div class="home-card-head">
               <h3>전략 거버넌스</h3>
               <button type="button" id="quantStrategyRefresh" class="linkish" data-testid="quant-strategy-refresh">새로고침</button>
@@ -1034,7 +1060,7 @@
             <div class="home-card-head"><h3>Forecast Result</h3><span>수익률, 확률, 신뢰도</span></div>
             <div id="forecastResultSurface" class="decision-surface"><div class="home-news-empty">Train / Forecast를 실행하면 OOS 검증 기반 예측 결과가 표시됩니다.</div></div>
           </section>
-          <section class="home-card forecast-card forecast-surface forecast-signal-card" data-panel-tier="details">
+          <section class="home-card forecast-card forecast-surface forecast-signal-card" data-panel-tier="primary">
             <div class="home-card-head"><h3>Signal Generator</h3><span>advisory-only</span></div>
             <div id="forecastSignalSurface" class="decision-surface"><div class="home-news-empty">예측을 threshold, confidence, volatility filter로 advisory signal로 변환합니다.</div></div>
           </section>
@@ -1042,7 +1068,7 @@
             <div class="home-card-head"><h3>Signal Quality</h3><span>out-of-sample signal 평가</span></div>
             <div id="forecastSignalQualitySurface" class="decision-surface"><div class="home-news-empty">OOS 신호 품질이 표시됩니다.</div></div>
           </section>
-          <section class="home-card forecast-card forecast-viz-card forecast-surface" data-panel-tier="details">
+          <section class="home-card forecast-card forecast-viz-card forecast-surface" data-panel-tier="primary">
             <div class="home-card-head"><h3>Visualization Dashboard</h3><span>진단 차트</span></div>
             <div id="forecastVizSurface" class="decision-surface"><div class="home-news-empty">가격/신호, forecast interval, actual vs predicted, residual, equity, drawdown, fold 성능을 표시합니다.</div></div>
           </section>
@@ -1352,7 +1378,7 @@
             <div id="quantamentalCompareSurface" class="decision-surface compact-surface"><div class="home-news-empty">두 개 이상 티커를 입력하면 비교 결과가 여기에 표시됩니다.</div></div>
           </section>
 
-          <section class="home-card home-news-card market-surface">
+          <section class="home-card home-news-card market-surface" data-panel-tier="details">
             <div class="home-card-head">
               <h3>주요 뉴스</h3>
               <button type="button" id="homeNewsRefresh" class="linkish" data-testid="market-news-refresh">새로고침</button>
@@ -1612,8 +1638,8 @@
   <script src="modules/macro-ui.js?v=20260514-domain-modules"></script>
   <script src="modules/forecast-ui.js?v=20260514-domain-modules"></script>
   <script src="modules/quant-ui.js?v=20260514-domain-modules"></script>
-  <script src="modules/ai-portfolio-ui.js?v=20260514-domain-modules"></script>
+  <script src="modules/ai-portfolio-ui.js?v=20260520-ai-portfolio-ops-v1"></script>
   <script src="modules/quantamental-ui.js?v=20260519-quantamental-v22"></script>
-  <script src="app.js?v=20260520-universe-v1"></script>
+  <script src="app.js?v=20260520-purpose-layout-v13"></script>
 </body>
 </html>

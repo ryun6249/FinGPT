@@ -144,6 +144,22 @@ def _find_ungrounded_numeric_tokens(output: str, prompt: str) -> list[str]:
     return out
 
 
+def _safe_rejection_reason(exc: Exception) -> str:
+    raw = str(exc or "")
+    lowered = raw.lower()
+    if "direct trading language" in lowered:
+        return "Macro brief guard rejected direct trading language."
+    if "ungrounded numeric" in lowered or "grounding guard" in lowered:
+        return "Macro brief grounding guard rejected ungrounded numeric token(s)."
+    if "language guard" in lowered:
+        return "Macro brief language guard rejected provider output."
+    if "empty" in lowered:
+        return "Macro brief provider returned empty output."
+    if "timeout" in lowered or "timed out" in lowered:
+        return "Macro brief provider timed out."
+    return f"Macro brief provider unavailable or rejected output: {type(exc).__name__}"
+
+
 def _korean_language_issue(output: str) -> str:
     text = " ".join(str(output or "").split())
     if not text:
@@ -370,6 +386,6 @@ def generate_brief(
         return _fallback_brief(
             overview,
             include_prompt=include_prompt,
-            extra_warnings=[f"로컬 LLM 매크로 브리프를 사용할 수 없어 구조화 브리프를 사용했습니다: {exc}"],
+            extra_warnings=[f"로컬 LLM 매크로 브리프를 사용할 수 없어 구조화 브리프를 사용했습니다: {_safe_rejection_reason(exc)}"],
             llm_attempted=True,
         )

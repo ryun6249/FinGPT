@@ -496,13 +496,16 @@ assert.match(aiMeta, /cache hit/);
 const aiOps = context.window.FinGPTAiPortfolioUi.operationList([{
   operation_type: "hydrate",
   created_at: "2026-05-14T00:00:00Z",
-  operation_id: "op-1",
+  operation_id: "op_20260520_internal_operation_identifier_ABCDEF",
   status: "completed",
-  request_id: "req-1",
+  request_id: "req_20260520_internal_request_identifier_XYZ123",
   price_result: { created: 3 },
 }]);
 assert.match(aiOps, /ai-operation-item/);
 assert.match(aiOps, /hydrate/);
+assert.match(aiOps, /op_20260520_\.\.\.ABCDEF/);
+assert.match(aiOps, /title="op_20260520_internal_operation_identifier_ABCDEF"/);
+assert.match(aiOps, /req_20260520\.\.\.XYZ123/);
 
 console.log(JSON.stringify({
   ok: true,

@@ -392,9 +392,13 @@ const els = {
   qualityPanel: document.getElementById("qualityPanel"),
   qualitySubtitle: document.getElementById("qualitySubtitle"),
   qualitySummary: document.getElementById("qualitySummary"),
+  qualityArtifactPaths: document.getElementById("qualityArtifactPaths"),
   qualityContextSummary: document.getElementById("qualityContextSummary"),
   qualityDataHealth: document.getElementById("qualityDataHealth"),
   qualityMacroData: document.getElementById("qualityMacroData"),
+  qualityQuantamentalData: document.getElementById("qualityQuantamentalData"),
+  qualityForecastData: document.getElementById("qualityForecastData"),
+  qualityAiPortfolioData: document.getElementById("qualityAiPortfolioData"),
   qualityCategories: document.getElementById("qualityCategories"),
   qualityCases: document.getElementById("qualityCases"),
   qualityCasesNote: document.getElementById("qualityCasesNote"),
@@ -853,6 +857,11 @@ const state = {
   forecastLoaded: false,
   forecastModelsLoaded: false,
   forecastModels: [],
+  forecastModelsError: "",
+  forecastDatasetPreview: null,
+  forecastFeaturePayload: null,
+  forecastLeakageCheck: null,
+  forecastAiProviderStatus: null,
   lastForecastPayload: null,
   forecastJobPollTimer: null,
   chartTooltipBound: false,
@@ -3341,6 +3350,8 @@ function renderQdrantInfo(info) {
 }
 
 // ---------- Quality / Evaluation dashboard ----------
+const QUALITY_DASHBOARD_TIMEOUT_MS = 45000;
+
 async function openQualityPanel() {
   if (!els.qualityPanel) return;
   els.qualityPanel.classList.remove("hidden");
@@ -3352,17 +3363,72 @@ function closeQualityPanel() {
   if (els.qualityPanel) els.qualityPanel.classList.add("hidden");
 }
 
-async function qualityFetchJson(url) {
+async function qualityFetchJson(url, timeoutMs = QUALITY_DASHBOARD_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const effectiveTimeoutMs = Math.max(1000, Number(timeoutMs) || QUALITY_DASHBOARD_TIMEOUT_MS);
+  const timeoutId = window.setTimeout(() => controller.abort(), effectiveTimeoutMs);
   try {
-    const res = await fetch(url);
-    const data = await res.json();
+    const res = await fetch(url, { signal: controller.signal });
+    const raw = await res.text();
+    let data = null;
+    try {
+      data = raw ? JSON.parse(raw) : null;
+    } catch (_) {
+      data = null;
+    }
     if (!res.ok) {
-      return { ok: false, error: data.detail || `HTTP ${res.status}`, data };
+      const detail = data?.detail || raw.slice(0, 160).trim();
+      return { ok: false, error: detail ? `HTTP ${res.status}: ${detail}` : `HTTP ${res.status}`, data };
+    }
+    if (!data) {
+      return { ok: false, error: `HTTP ${res.status}: invalid_json_response`, data: null };
     }
     return { ok: true, data };
   } catch (err) {
-    return { ok: false, error: String(err.message || err), data: null };
+    const message = err?.name === "AbortError"
+      ? `timeout_after_${effectiveTimeoutMs}ms`
+      : String(err.message || err);
+    return { ok: false, error: message, data: null };
+  } finally {
+    window.clearTimeout(timeoutId);
   }
+}
+
+function qualityDetailBlock(title, innerHtml, count = null) {
+  const body = String(innerHtml || "").trim();
+  if (!body) return "";
+  const countLabel = count === null || count === undefined ? "" : ` (${escapeHtml(_fmtNumber(count))})`;
+  return `
+    <details class="quality-detail-list quality-detail-block">
+      <summary>${escapeHtml(title)}${countLabel}</summary>
+      ${body}
+    </details>
+  `;
+}
+
+function qualityDetailTable(title, tableHtml, count = null) {
+  const body = String(tableHtml || "").trim();
+  if (!body) return "";
+  return qualityDetailBlock(title, `<div class="decision-table-wrap">${body}</div>`, count);
+}
+
+function renderQualityArtifactPaths(data) {
+  if (!els.qualityArtifactPaths) return;
+  const rows = [];
+  if (data?.results_path) rows.push(["results", data.results_path]);
+  if (data?.report_path) rows.push(["report", data.report_path]);
+  if (!rows.length) {
+    els.qualityArtifactPaths.classList.add("hidden");
+    els.qualityArtifactPaths.innerHTML = "<summary>평가 산출물 경로</summary><ul></ul>";
+    return;
+  }
+  els.qualityArtifactPaths.classList.remove("hidden");
+  els.qualityArtifactPaths.innerHTML = `
+    <summary>평가 산출물 경로 (${escapeHtml(String(rows.length))})</summary>
+    <ul>
+      ${rows.map(([label, path]) => `<li><strong>${escapeHtml(label)}</strong> <span>${escapeHtml(path)}</span></li>`).join("")}
+    </ul>
+  `;
 }
 
 function renderQualityDataHealth(data) {
@@ -3394,24 +3460,26 @@ function renderQualityDataHealth(data) {
       ${decisionMetric("거시 관측치", _fmtNumber(counts.macro_observations || 0), status)}
       ${decisionMetric("뉴스 evidence", _fmtNumber(counts.news_articles || 0), counts.news_articles ? "ok" : "warn")}
     </div>
-    <div class="decision-section-title">최근 공급자 상태</div>
-    <div class="decision-list compact">
+    ${qualityDetailBlock("최근 공급자 상태", `
+      <div class="decision-list compact">
       ${providerRows.length ? providerRows.map((row) => `
         <div class="decision-list-row">
           <span>${escapeHtml(row.provider || "provider")}${row.ticker ? ` · ${escapeHtml(row.ticker)}` : ""}</span>
           <strong class="${escapeHtml(decisionStatusClass(row.status))}">${escapeHtml(decisionStatusLabel(row.status || "unknown"))}</strong>
         </div>
       `).join("") : '<div class="muted small">No provider status rows yet.</div>'}
-    </div>
-    <div class="decision-section-title">최근 품질 점검</div>
-    <div class="decision-list compact">
+      </div>
+    `, providerRows.length)}
+    ${qualityDetailBlock("최근 품질 점검", `
+      <div class="decision-list compact">
       ${qualityRows.length ? qualityRows.map((row) => `
         <div class="decision-list-row">
           <span>${escapeHtml(row.check_name || "quality")}${row.entity_id ? ` · ${escapeHtml(row.entity_id)}` : ""}</span>
           <strong class="${escapeHtml(decisionStatusClass(row.status))}">${escapeHtml(row.status || "unknown")}</strong>
         </div>
       `).join("") : '<div class="muted small">No quality checks recorded yet.</div>'}
-    </div>
+      </div>
+    `, qualityRows.length)}
   `;
 }
 
@@ -3435,46 +3503,222 @@ function renderQualityMacroData(data = {}, refreshStatus = {}) {
       ${decisionMetric("최근 갱신", macroJob.status || "대기", decisionStatusClass(macroJob.status || "unknown"))}
       ${decisionMetric("저장 행", _fmtNumber(Number(macroJob.rows_inserted || 0) + Number(macroJob.rows_updated || 0)), "ok")}
     </div>
-    ${(quality.errors || []).length ? `<div class="macro-warning">${escapeHtml(quality.errors.slice(0, 6).join("; "))}</div>` : ""}
-    <div class="decision-table-wrap">
+    ${qualityDetailList("Macro 오류", quality.errors || [])}
+    ${qualityDetailTable("Macro 시계열 상세 품질", `
       <table class="decision-table">
         <thead><tr><th>시계열</th><th>상태</th><th>최근일</th><th>공급자</th></tr></thead>
         <tbody>
-          ${rows.map((row) => `
+          ${rows.length ? rows.map((row) => `
             <tr>
               <td>${escapeHtml(row.series_id || "")}</td>
               <td><span class="table-status ${escapeHtml(decisionStatusClass(row.status))}">${escapeHtml(row.status || "unknown")}</span></td>
               <td>${escapeHtml(row.latest_date || "사용 불가")}</td>
               <td>${escapeHtml(row.provider || "unknown")}</td>
             </tr>
-          `).join("")}
+          `).join("") : '<tr><td colspan="4" class="muted">시계열 상세 데이터가 없습니다.</td></tr>'}
         </tbody>
       </table>
-    </div>
+    `, rows.length)}
   `;
+}
+
+function qualityDetailList(title, items) {
+  const rows = Array.isArray(items) ? items.filter((item) => item !== null && item !== undefined && String(item).trim() !== "") : [];
+  if (!rows.length) return "";
+  return `
+    <details class="quality-detail-list">
+      <summary>${escapeHtml(title)} (${escapeHtml(String(rows.length))})</summary>
+      <ul>${rows.slice(0, 16).map((item) => `<li>${escapeHtml(String(item))}</li>`).join("")}</ul>
+    </details>
+  `;
+}
+
+function renderQualityQuantamentalState(data = state.quantamentalAnalysis) {
+  if (!data) {
+    return decisionEmpty("Quantamental 분석이 아직 실행되지 않았습니다. 단일 ticker 분석 후 품질, 신선도, AI used_data가 여기에 요약됩니다.");
+  }
+  const quality = data.data_quality || {};
+  const freshness = data.freshness || quality.freshness || {};
+  const usedData = data.ai_report?.report?.used_data || data.ai_report?.used_data || {};
+  const composite = data.composite || {};
+  const signal = data.signal || {};
+  const missing = [
+    ...(quality.missing_sections || []),
+    ...((Array.isArray(usedData.missing_data) ? usedData.missing_data : []) || []),
+  ];
+  const warnings = [
+    ...(quality.warnings || []),
+    ...(freshness.warnings || []),
+    ...(data.warnings || []),
+  ];
+  const status = quality.quality_level || freshness.status || data.status || "unknown";
+  return `
+    <div class="decision-status-row">
+      <span class="decision-badge ${escapeHtml(decisionStatusClass(status))}">${escapeHtml(status)}</span>
+      <span>${escapeHtml(data.ticker || "ticker 없음")} · ${escapeHtml(signal.signal_label || "signal unavailable")} · source ${escapeHtml(usedData.data_source || freshness.source || "확인 불가")}</span>
+    </div>
+    <div class="decision-metric-grid dense">
+      ${decisionMetric("최종 점수", composite.final_score ?? "확인 불가", "ok")}
+      ${decisionMetric("기준일", usedData.data_basis_date || freshness.as_of || quality.as_of || "확인 불가", "ok")}
+      ${decisionMetric("관측치", usedData.observation_count ?? data.observation_count ?? "확인 불가", usedData.observation_count ? "ok" : "warn")}
+      ${decisionMetric("결측", missing.length ? `${missing.length}개` : "없음", missing.length ? "warn" : "ok")}
+      ${decisionMetric("Freshness", freshness.status || "unknown", freshness.status || "unknown")}
+      ${decisionMetric("AI 기준", usedData.ai_snapshot_at || "확인 불가", usedData.ai_snapshot_at ? "ok" : "warn")}
+    </div>
+    ${qualityDetailList("결측/누락 상세", missing)}
+    ${qualityDetailList("경고", warnings)}
+  `;
+}
+
+function forecastQualityPayload() {
+  const base = state.lastForecastPayload ? { ...state.lastForecastPayload } : {};
+  if (state.forecastDatasetPreview && !base.dataset_preview) base.dataset_preview = state.forecastDatasetPreview;
+  if (state.forecastFeaturePayload && !base.feature_payload) base.feature_payload = state.forecastFeaturePayload;
+  if (state.forecastLeakageCheck && !base.leakage_check) base.leakage_check = state.forecastLeakageCheck;
+  if (!base.model_config) {
+    const selected = String(els.forecastModel?.value || "");
+    const selectedModel = (state.forecastModels || []).find((item) => item.model_name === selected) || (state.forecastModels || [])[0] || {};
+    base.model_config = { model_name: selected || selectedModel.model_name || "" };
+  }
+  base.ai_provider_status = state.forecastAiProviderStatus || base.ai_provider_status || null;
+  base.model_availability = {
+    loaded: Boolean(state.forecastModelsLoaded),
+    available_count: (state.forecastModels || []).filter((item) => item.available).length,
+    unavailable_count: (state.forecastModels || []).filter((item) => !item.available).length,
+    error: state.forecastModelsError || "",
+  };
+  return Object.keys(base).some((key) => base[key] !== null && base[key] !== undefined && base[key] !== "") ? base : null;
+}
+
+function renderQualityForecastState(payload = forecastQualityPayload()) {
+  if (!payload) {
+    return decisionEmpty("ML Forecast 실험이 아직 실행되지 않았습니다. 실행 후 dataset, leakage, model, signal 품질이 여기에 요약됩니다.");
+  }
+  const datasetQuality = payload.dataset_preview?.data_quality || {};
+  const resultQuality = payload.forecast_result?.data_quality || {};
+  const quality = Object.keys(resultQuality).length ? resultQuality : datasetQuality;
+  const snapshot = payload.data_snapshot || payload.dataset_preview?.data_snapshot || {};
+  const leakage = payload.leakage_check || {};
+  const signalQuality = payload.signal_quality || {};
+  const modelEval = payload.model_evaluation || {};
+  const provider = payload.ai_provider_status || {};
+  const modelAvailability = payload.model_availability || {};
+  const errors = [
+    ...(payload.errors || []),
+    ...(payload.forecast_result?.errors || []),
+    ...(quality.errors || []),
+    ...(provider.error ? [provider.error] : []),
+    ...(modelAvailability.error ? [modelAvailability.error] : []),
+  ];
+  const warnings = [
+    ...(payload.warnings || []),
+    ...(quality.warnings || []),
+    ...(signalQuality.warnings || []),
+    ...(provider.status && provider.status !== "ok" ? [`provider_status:${provider.status}`] : []),
+  ];
+  const status = quality.status || payload.status || payload.forecast_result?.status || leakage.status || provider.status || "unknown";
+  const modelName = payload.model_config?.model_name || payload.experiment?.model_name || payload.forecast_result?.model_name || "model 확인 불가";
+  return `
+    <div class="decision-status-row">
+      <span class="decision-badge ${escapeHtml(decisionStatusClass(status))}">${escapeHtml(status)}</span>
+      <span>${escapeHtml(payload.ticker || payload.dataset_config?.ticker || "ticker 없음")} · ${escapeHtml(modelName)} · advisory-only forecast</span>
+    </div>
+    <div class="decision-metric-grid dense">
+      ${decisionMetric("기준일", snapshot.as_of || snapshot.latest_date || quality.latest_date || "확인 불가", snapshot.as_of || snapshot.latest_date ? "ok" : "warn")}
+      ${decisionMetric("관측치", quality.row_count ?? quality.observation_count ?? snapshot.row_count ?? "확인 불가", "ok")}
+      ${decisionMetric("결측", quality.missing_count ?? quality.missing_rows ?? "확인 불가", Number(quality.missing_count || quality.missing_rows || 0) ? "warn" : "ok")}
+      ${decisionMetric("Leakage", leakage.status || "unknown", leakage.status || "unknown")}
+      ${decisionMetric("Signal", signalQuality.status || "unknown", signalQuality.status || "unknown")}
+      ${decisionMetric("Evaluation", modelEval.status || payload.forecast_result?.status || "unknown", modelEval.status || payload.forecast_result?.status || "unknown")}
+      ${decisionMetric("Provider", provider.status || "not checked", provider.status || "unknown")}
+      ${decisionMetric("모델 가용", modelAvailability.loaded ? `${modelAvailability.available_count || 0}/${(modelAvailability.available_count || 0) + (modelAvailability.unavailable_count || 0)}` : "확인 전", modelAvailability.available_count ? "ok" : "warn")}
+    </div>
+    ${qualityDetailList("Forecast 경고", warnings)}
+    ${qualityDetailList("Forecast 오류", errors)}
+  `;
+}
+
+function renderQualityAiPortfolioState() {
+  const rec = state.aiPortfolioRecommendation || {};
+  const dashboard = state.aiPortfolioDashboard || {};
+  const quality = rec.data_quality || dashboard.selected_policy?.data_quality || {};
+  const health = dashboard.data_health_summary || {};
+  const counts = health.table_counts || {};
+  const coverageRows = Array.isArray(dashboard.coverage_rows) ? dashboard.coverage_rows : [];
+  if (!state.aiPortfolioLoaded && !state.aiPortfolioDashboard && !state.aiPortfolioRecommendation) {
+    return decisionEmpty("AI Portfolio가 아직 로드되지 않았습니다. 탭 진입 또는 추천 실행 후 coverage, snapshot, 운영 품질이 여기에 요약됩니다.");
+  }
+  const warnCoverage = coverageRows.filter((row) => row.status && row.status !== "ok" && row.status !== "fresh");
+  const missingAssets = quality.missing_assets || rec.missing_assets || [];
+  const warnings = [
+    ...(quality.warnings || []),
+    ...(rec.warnings || []),
+    ...warnCoverage.map((row) => `${row.label || row.id || "coverage"}:${row.status}`),
+  ];
+  const status = quality.status || quality.decision_status || health.decision_status || rec.status || "unknown";
+  return `
+    <div class="decision-status-row">
+      <span class="decision-badge ${escapeHtml(decisionStatusClass(status))}">${escapeHtml(status)}</span>
+      <span>${escapeHtml(state.aiPortfolioPolicy?.portfolio_name || dashboard.selected_policy?.portfolio_name || "정책 미선택")} · 브로커 주문 실행 없음</span>
+    </div>
+    <div class="decision-metric-grid dense">
+      ${decisionMetric("Coverage rows", String(coverageRows.length || 0), coverageRows.length ? "ok" : "warn")}
+      ${decisionMetric("가격 행", _fmtNumber(counts.prices_daily || 0), counts.prices_daily ? "ok" : "warn")}
+      ${decisionMetric("재무 스냅샷", _fmtNumber(counts.fundamentals_snapshots || 0), counts.fundamentals_snapshots ? "ok" : "warn")}
+      ${decisionMetric("SEC 팩트", _fmtNumber(counts.sec_financial_facts || 0), counts.sec_financial_facts ? "ok" : "warn")}
+      ${decisionMetric("누락 자산", missingAssets.length ? `${missingAssets.length}개` : "없음", missingAssets.length ? "warn" : "ok")}
+      ${decisionMetric("운영 작업", _fmtNumber(dashboard.operation_summary?.total_count || state.aiPortfolioOperations.length || 0), "ok")}
+    </div>
+    ${qualityDetailList("AI Portfolio 경고/coverage", warnings)}
+  `;
+}
+
+function renderLocalQualitySections() {
+  if (els.qualityQuantamentalData) els.qualityQuantamentalData.innerHTML = renderQualityQuantamentalState();
+  if (els.qualityForecastData) els.qualityForecastData.innerHTML = renderQualityForecastState();
+  if (els.qualityAiPortfolioData) els.qualityAiPortfolioData.innerHTML = renderQualityAiPortfolioState();
 }
 
 async function loadQualityDashboard() {
   if (!els.qualitySummary) return;
   els.qualitySummary.innerHTML = "<span class='muted'>Loading…</span>";
   els.qualitySubtitle.textContent = "평가 결과를 로드 중…";
+  renderQualityArtifactPaths(null);
   if (els.qualityDataHealth) els.qualityDataHealth.innerHTML = decisionEmpty("데이터 마트 품질을 불러오는 중입니다.");
   if (els.qualityMacroData) els.qualityMacroData.innerHTML = decisionEmpty("매크로 시계열 품질을 불러오는 중입니다.");
-  const [evalResult, dataHealthResult, macroQualityResult, macroRefreshResult] = await Promise.all([
+  renderLocalQualitySections();
+  const [evalResult, dataHealthResult, macroQualityResult, macroRefreshResult, forecastProviderResult, forecastModelsResult] = await Promise.all([
     qualityFetchJson(API.evalDashboard),
     qualityFetchJson(API.dataHealth),
     qualityFetchJson(API.macroDataQuality),
     qualityFetchJson(API.macroRefreshStatus),
+    qualityFetchJson(API.forecastAiProviderHealth),
+    qualityFetchJson(API.forecastModels),
   ]);
   renderQualityDashboard(evalResult.ok ? evalResult.data : null, {
     evalError: evalResult.error,
     dataHealth: dataHealthResult,
     macroQuality: macroQualityResult,
     macroRefresh: macroRefreshResult,
+    forecastProvider: forecastProviderResult,
+    forecastModels: forecastModelsResult,
   });
 }
 
 function renderQualityDashboard(data, extras = {}) {
+  if (extras.forecastProvider?.ok) {
+    state.forecastAiProviderStatus = extras.forecastProvider.data;
+  } else if (extras.forecastProvider) {
+    state.forecastAiProviderStatus = { status: "unavailable", error: extras.forecastProvider.error || "forecast_provider_unavailable" };
+  }
+  if (extras.forecastModels?.ok) {
+    state.forecastModels = extras.forecastModels.data?.models || [];
+    state.forecastModelsLoaded = true;
+    state.forecastModelsError = "";
+  } else if (extras.forecastModels) {
+    state.forecastModelsError = extras.forecastModels.error || "forecast_models_unavailable";
+  }
+  renderLocalQualitySections();
   if (els.qualityDataHealth) {
     els.qualityDataHealth.innerHTML = extras.dataHealth?.ok
       ? renderQualityDataHealth(extras.dataHealth.data)
@@ -3488,6 +3732,7 @@ function renderQualityDashboard(data, extras = {}) {
   if (!data) {
     els.qualitySummary.innerHTML = `<span class='error'>평가 품질 조회 실패: ${escapeHtml(extras.evalError || "unknown")}</span>`;
     els.qualitySubtitle.textContent = "데이터 품질은 아래 섹션에서 확인할 수 있습니다.";
+    renderQualityArtifactPaths(null);
     if (els.qualityCategories) els.qualityCategories.innerHTML = "<li class='muted'>평가 카테고리 데이터 없음.</li>";
     if (els.qualityCases) els.qualityCases.innerHTML = "<li class='muted'>평가 케이스가 없습니다.</li>";
     if (els.qualityCasesNote) els.qualityCasesNote.textContent = "";
@@ -3498,11 +3743,13 @@ function renderQualityDashboard(data, extras = {}) {
   const hasAnything = data.has_report || data.has_results;
   if (!hasAnything) {
     els.qualitySubtitle.textContent = "평가 산출물이 없습니다. quality_review.py 실행 후 다시 확인하세요.";
+    renderQualityArtifactPaths(null);
   } else {
-    const parts = [];
-    if (data.results_path) parts.push(`results: ${data.results_path}`);
-    if (data.report_path) parts.push(`report: ${data.report_path}`);
-    els.qualitySubtitle.textContent = parts.join(" · ") || "—";
+    const artifactCount = [data.results_path, data.report_path].filter(Boolean).length;
+    els.qualitySubtitle.textContent = artifactCount
+      ? `평가 산출물 ${artifactCount}개 로드됨 · 상세 경로와 raw 진단은 접힘 영역에 보관합니다.`
+      : "평가 산출물을 로드했습니다.";
+    renderQualityArtifactPaths(data);
   }
 
   const sc = summary.status_counts || {};
@@ -4517,10 +4764,9 @@ function updateDashboardViewControls() {
   if (!els.dashboardViewControls) return;
   const activeTab = state.activeDashboardTab || "market";
   const activeView = panelViewForTab(activeTab);
-  const isMarket = activeTab === "market";
-  els.dashboardViewControls.hidden = isMarket;
+  els.dashboardViewControls.hidden = false;
   els.dashboardViewControls.querySelectorAll("[data-panel-view]").forEach((button) => {
-    const pressed = !isMarket && button.dataset.panelView === activeView;
+    const pressed = button.dataset.panelView === activeView;
     button.classList.toggle("active", pressed);
     button.setAttribute("aria-pressed", pressed ? "true" : "false");
   });
@@ -4535,7 +4781,7 @@ function setDashboardPanelView(view = "all", options = {}) {
     safeWriteStoredJson(STORAGE.dashboardLayout, state.dashboardPanelViewByTab);
   }
   if (els.homeSurfaceGrid) {
-    els.homeSurfaceGrid.dataset.panelView = activeTab === "market" ? "all" : normalized;
+    els.homeSurfaceGrid.dataset.panelView = normalized;
   }
   updateDashboardViewControls();
 }
@@ -9101,6 +9347,29 @@ function compactArtifactPath(path) {
   return parts.slice(-4).join("/");
 }
 
+function compactIdentifier(value, head = 12, tail = 6) {
+  const raw = String(value || "").trim();
+  if (!raw) return "-";
+  const minLength = head + tail + 3;
+  if (raw.length <= minLength) return raw;
+  return `${raw.slice(0, head)}...${raw.slice(-tail)}`;
+}
+
+function compactIdentifierValue(value, head = 12, tail = 6) {
+  const raw = String(value || "").trim();
+  return {
+    value: compactIdentifier(raw, head, tail),
+    title: raw,
+  };
+}
+
+function compactIdentifierCell(value, head = 12, tail = 6) {
+  const raw = String(value || "").trim();
+  const label = compactIdentifier(raw, head, tail);
+  if (!raw) return escapeHtml(label);
+  return `<span class="compact-id" title="${escapeHtml(raw)}">${escapeHtml(label)}</span>`;
+}
+
 function renderQuantExportControls(runId) {
   if (!runId) return "";
   const safeRunId = escapeHtml(runId);
@@ -11302,6 +11571,7 @@ function renderAiPortfolioOpsDashboard(dashboard) {
   `;
   renderAiPortfolioCoverage(dashboard?.coverage_rows || []);
   renderAiPortfolioSnapshotTimeline(dashboard?.snapshot_timeline || []);
+  renderLocalQualitySections();
 }
 
 async function loadAiPortfolioOps(force = false) {
@@ -11610,6 +11880,7 @@ function renderAiPortfolioResult(data) {
   loadAiPortfolioHistory();
   loadAiPortfolioPolicies(true);
   loadAiRecommendationDiff(policy.policy_id);
+  renderLocalQualitySections();
 }
 
 async function runAiPortfolioGenerate() {
@@ -12079,6 +12350,7 @@ async function loadForecastModels(force = false) {
     const data = await forecastFetchJson(API.forecastModels);
     state.forecastModels = data.models || [];
     state.forecastModelsLoaded = true;
+    state.forecastModelsError = "";
     const preferred = els.forecastModel.value || "ridge_regression";
     els.forecastModel.innerHTML = state.forecastModels.map((item) => {
       const disabled = item.available ? "" : " disabled";
@@ -12088,7 +12360,10 @@ async function loadForecastModels(force = false) {
     if ([...els.forecastModel.options].some((option) => option.value === preferred && !option.disabled)) {
       els.forecastModel.value = preferred;
     }
+    renderLocalQualitySections();
   } catch (err) {
+    state.forecastModelsError = String(err.message || err);
+    renderLocalQualitySections();
     if (els.forecastRegistrySurface) els.forecastRegistrySurface.innerHTML = decisionEmpty(`모델 목록 로드 실패: ${err.message || err}`);
   }
 }
@@ -12103,7 +12378,9 @@ async function runForecastDatasetPreview() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ dataset_config: forecastDatasetConfigFromControls() }),
     });
+    state.forecastDatasetPreview = data;
     renderForecastDataset(data);
+    renderLocalQualitySections();
   } catch (err) {
     els.forecastDatasetSurface.innerHTML = decisionEmpty(`데이터셋 미리보기 실패: ${err.message || err}`);
   } finally {
@@ -12126,7 +12403,11 @@ async function runForecastDatasetHydrate() {
       }),
     });
     renderForecastDatasetHydration(data);
-    if (data.dataset_preview) renderForecastDataset(data.dataset_preview);
+    if (data.dataset_preview) {
+      state.forecastDatasetPreview = data.dataset_preview;
+      renderForecastDataset(data.dataset_preview);
+      renderLocalQualitySections();
+    }
     await loadDataHealth(true);
   } catch (err) {
     els.forecastDatasetSurface.innerHTML = decisionEmpty(`데이터 저장 실패: ${err.message || err}`);
@@ -12152,8 +12433,11 @@ async function runForecastFeatureAndLeakagePreview() {
         body: JSON.stringify(request),
       }),
     ]);
+    state.forecastFeaturePayload = featureData;
+    state.forecastLeakageCheck = leakageData.leakage_check || leakageData;
     renderForecastFeatures(featureData);
-    renderForecastLeakage(leakageData.leakage_check || leakageData);
+    renderForecastLeakage(state.forecastLeakageCheck);
+    renderLocalQualitySections();
   } catch (err) {
     if (els.forecastFeatureSurface) els.forecastFeatureSurface.innerHTML = decisionEmpty(`feature/leakage 점검 실패: ${err.message || err}`);
   } finally {
@@ -12229,6 +12513,9 @@ function forecastSetAllSurfacesLoading(message) {
 }
 
 function renderForecastPayload(payload, startedAt = Date.now()) {
+  if (payload?.dataset_preview) state.forecastDatasetPreview = payload.dataset_preview;
+  if (payload?.feature_payload) state.forecastFeaturePayload = payload.feature_payload;
+  if (payload?.leakage_check) state.forecastLeakageCheck = payload.leakage_check;
   renderForecastDataset({ ...(payload.dataset_preview || {}), data_snapshot: payload.data_snapshot || payload.dataset_preview?.data_snapshot || {} });
   renderForecastFeatures(payload.feature_payload || {});
   renderForecastLeakage(payload.leakage_check || {});
@@ -12240,6 +12527,7 @@ function renderForecastPayload(payload, startedAt = Date.now()) {
   renderForecastEvaluation(payload.model_evaluation || {});
   renderForecastExplainability(payload.explainability || {});
   renderForecastAi(payload.ai_interpretation || {});
+  renderLocalQualitySections();
 }
 
 function renderForecastDataset(data) {
@@ -12488,6 +12776,7 @@ async function loadForecastAiProviderStatus(force = false) {
   if (!force && els.forecastAiProviderSurface.dataset.loaded === "true") return;
   try {
     const data = await forecastFetchJson(API.forecastAiProviderHealth);
+    state.forecastAiProviderStatus = data;
     els.forecastAiProviderSurface.dataset.loaded = "true";
     els.forecastAiProviderSurface.innerHTML = `
       <div class="decision-practical-grid forecast-metric-grid">
@@ -12498,7 +12787,10 @@ async function loadForecastAiProviderStatus(force = false) {
       ${(data.available_models || []).length ? `<div class="forecast-chip-row">${data.available_models.slice(0, 6).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : decisionEmpty("사용 가능한 provider model 목록이 없습니다.")}
       ${data.error ? `<div class="decision-warning">${escapeHtml(data.error)}</div>` : ""}
     `;
+    renderLocalQualitySections();
   } catch (err) {
+    state.forecastAiProviderStatus = { status: "unavailable", error: String(err.message || err) };
+    renderLocalQualitySections();
     els.forecastAiProviderSurface.innerHTML = decisionEmpty(`AI provider 상태 확인 실패: ${err.message || err}`);
   }
 }
@@ -12573,7 +12865,10 @@ async function loadForecastHistory(force = false) {
     els.forecastHistorySurface.dataset.loaded = "true";
     els.forecastHistorySurface.innerHTML = items.length ? `
       <div class="decision-table-wrap"><table class="decision-table"><thead><tr><th>Experiment</th><th>Ticker</th><th>Status</th><th>Model</th><th>Data Snapshot</th></tr></thead><tbody>
-        ${items.map((item) => `<tr><td><button type="button" class="linkish" data-action="forecast-experiment-detail" data-experiment-id="${escapeHtml(item.experiment_id || "")}">${escapeHtml(item.experiment_id || "")}</button></td><td>${escapeHtml(item.ticker || "")}</td><td>${escapeHtml(item.status || "")}</td><td>${escapeHtml(item.model_id || "")}</td><td>${escapeHtml(item.data_snapshot_id || "")}</td></tr>`).join("")}
+        ${items.map((item) => {
+          const experimentId = String(item.experiment_id || "");
+          return `<tr><td><button type="button" class="linkish compact-id-button" title="${escapeHtml(experimentId)}" data-action="forecast-experiment-detail" data-experiment-id="${escapeHtml(experimentId)}">${compactIdentifierCell(experimentId)}</button></td><td>${escapeHtml(item.ticker || "")}</td><td>${escapeHtml(item.status || "")}</td><td>${compactIdentifierCell(item.model_id || "")}</td><td>${compactIdentifierCell(item.data_snapshot_id || "", 10, 6)}</td></tr>`;
+        }).join("")}
       </tbody></table></div>
     ` : decisionEmpty("저장된 ML Forecast 실험이 없습니다.");
   } catch (err) {
@@ -12635,7 +12930,7 @@ function renderForecastModelComparisonTable(items) {
   if (!els.forecastModelComparisonSurface) return;
   els.forecastModelComparisonSurface.innerHTML = items.length ? `
     <div class="decision-table-wrap"><table class="decision-table"><thead><tr><th>Experiment</th><th>Model</th><th>Confidence</th><th>Signal</th><th>Sharpe</th><th>MDD</th></tr></thead><tbody>
-      ${items.map((item) => `<tr><td>${escapeHtml(item.experiment_id || "")}</td><td>${escapeHtml(item.model_id || "")}</td><td>${escapeHtml(fmtDecimal(item.confidence, 3))} ${escapeHtml(item.confidence_level || "")}</td><td>${escapeHtml(fmtPercent(item.signal_quality?.hit_rate))}</td><td>${escapeHtml(fmtDecimal(item.backtest?.sharpe, 3))}</td><td>${escapeHtml(fmtPercent(item.backtest?.max_drawdown))}</td></tr>`).join("")}
+      ${items.map((item) => `<tr><td>${compactIdentifierCell(item.experiment_id || "")}</td><td>${compactIdentifierCell(item.model_id || "")}</td><td>${escapeHtml(fmtDecimal(item.confidence, 3))} ${escapeHtml(item.confidence_level || "")}</td><td>${escapeHtml(fmtPercent(item.signal_quality?.hit_rate))}</td><td>${escapeHtml(fmtDecimal(item.backtest?.sharpe, 3))}</td><td>${escapeHtml(fmtPercent(item.backtest?.max_drawdown))}</td></tr>`).join("")}
     </tbody></table></div>
   ` : decisionEmpty("비교할 ML Forecast 실험이 없습니다.");
 }
@@ -12658,7 +12953,10 @@ async function loadForecastRegistry(force = false) {
       </div>
       <div id="forecastRegistryIntegrityResult" class="decision-surface compact-surface">${decisionEmpty("모델 행의 verify를 누르면 signed artifact 무결성을 확인합니다.")}</div>
       <div class="decision-table-wrap"><table class="decision-table"><thead><tr><th>Model</th><th>Ticker</th><th>Target</th><th>Status</th><th>Metric</th><th>Artifact</th><th>Action</th></tr></thead><tbody>
-        ${items.map((item) => `<tr><td>${escapeHtml(item.model_id || "")}</td><td>${escapeHtml(item.ticker || "")}</td><td>${escapeHtml(item.target || "")} ${escapeHtml(String(item.horizon || ""))}d</td><td>${escapeHtml(item.status || "")}</td><td>${escapeHtml(fmtPercent(item.metrics?.directional_accuracy || item.metrics?.accuracy))}</td><td>${escapeHtml(compactArtifactPath(item.artifact_path || ""))}</td><td><button type="button" class="linkish" data-action="forecast-verify-artifact" data-model-id="${escapeHtml(item.model_id || "")}">verify</button> <button type="button" class="linkish" data-action="forecast-promote" data-model-id="${escapeHtml(item.model_id || "")}">promote</button> <button type="button" class="linkish" data-action="forecast-deprecate" data-model-id="${escapeHtml(item.model_id || "")}">deprecate</button></td></tr>`).join("")}
+        ${items.map((item) => {
+          const modelId = String(item.model_id || "");
+          return `<tr><td>${compactIdentifierCell(modelId)}</td><td>${escapeHtml(item.ticker || "")}</td><td>${escapeHtml(item.target || "")} ${escapeHtml(String(item.horizon || ""))}d</td><td>${escapeHtml(item.status || "")}</td><td>${escapeHtml(fmtPercent(item.metrics?.directional_accuracy || item.metrics?.accuracy))}</td><td>${escapeHtml(compactArtifactPath(item.artifact_path || ""))}</td><td><button type="button" class="linkish" title="verify ${escapeHtml(modelId)}" data-action="forecast-verify-artifact" data-model-id="${escapeHtml(modelId)}">verify</button> <button type="button" class="linkish" title="promote ${escapeHtml(modelId)}" data-action="forecast-promote" data-model-id="${escapeHtml(modelId)}">promote</button> <button type="button" class="linkish" title="deprecate ${escapeHtml(modelId)}" data-action="forecast-deprecate" data-model-id="${escapeHtml(modelId)}">deprecate</button></td></tr>`;
+        }).join("")}
       </tbody></table></div>
       <div class="decision-surface compact-surface">
         <strong>Registry Audit</strong>
@@ -12711,7 +13009,7 @@ async function verifyForecastModelArtifact(modelId) {
           ${decisionMetric("Signature", checks.signature_matches ? "match" : "fail", checks.signature_matches ? "ok" : "fail")}
         </div>
         <div class="decision-mini-row">
-          <span>Model ${escapeHtml(data.model_id || modelId)}</span>
+          <span title="${escapeHtml(data.model_id || modelId)}">Model ${escapeHtml(compactIdentifier(data.model_id || modelId))}</span>
           <span>${escapeHtml(compactArtifactPath(data.integrity_path || ""))}</span>
         </div>
         ${(data.errors || []).map((item) => `<div class="decision-warning">${escapeHtml(item)}</div>`).join("")}
@@ -12758,6 +13056,11 @@ function renderForecastExperimentDetail(payload, audit = {}) {
   const aggregate = training.aggregate_metrics || {};
   const artifactRefs = experiment.artifact_refs || {};
   const auditItems = audit.items || [];
+  const experimentId = experiment.experiment_id || payload.experiment_id || "";
+  if (experimentId) {
+    els.forecastDetailTitle.textContent = compactIdentifier(experimentId, 18, 8);
+    els.forecastDetailTitle.title = experimentId;
+  }
   els.forecastDetailBody.innerHTML = `
     <div class="forecast-detail-grid">
       <section class="forecast-detail-section">
@@ -12765,7 +13068,8 @@ function renderForecastExperimentDetail(payload, audit = {}) {
         <div class="decision-practical-grid forecast-metric-grid">
           ${decisionMetric("Status", payload.status || experiment.status || "unknown", decisionStatusClass(payload.status || experiment.status))}
           ${decisionMetric("Ticker", forecast.ticker || experiment.ticker || "", "ok")}
-          ${decisionMetric("Model", forecast.model_id || "", "ok")}
+          ${decisionMetric("Experiment", compactIdentifier(experimentId), "ok")}
+          ${decisionMetric("Model", compactIdentifier(forecast.model_id || ""), "ok")}
           ${decisionMetric("Signal", signal.signal || forecast.signal || "unavailable", decisionStatusClass(signal.signal || forecast.signal))}
           ${decisionMetric("Confidence", fmtDecimal(forecast.model_confidence?.score, 3), "ok")}
           ${decisionMetric("Created", experiment.created_at || payload.generated_at || "", "ok")}
@@ -12774,12 +13078,12 @@ function renderForecastExperimentDetail(payload, audit = {}) {
       <section class="forecast-detail-section">
         <h3>Data Snapshot</h3>
         ${forecastDetailRows([
-          ["data_snapshot_id", snapshot.data_snapshot_id],
-          ["source_coverage_hash", snapshot.source_coverage_hash],
+          ["data_snapshot_id", compactIdentifierValue(snapshot.data_snapshot_id, 12, 6)],
+          ["source_coverage_hash", compactIdentifierValue(snapshot.source_coverage_hash, 12, 6)],
           ["price_rows", snapshot.price_coverage?.rows],
           ["price_range", `${snapshot.price_coverage?.start_date || ""} -> ${snapshot.price_coverage?.end_date || ""}`],
           ["benchmark_rows", snapshot.benchmark_coverage?.rows],
-          ["feature_schema_hash", snapshot.feature_schema_hash],
+          ["feature_schema_hash", compactIdentifierValue(snapshot.feature_schema_hash, 12, 6)],
         ])}
       </section>
       <section class="forecast-detail-section">
@@ -12829,7 +13133,12 @@ function forecastDetailRows(rows) {
   if (!cleanRows.length) return decisionEmpty("표시할 상세 값이 없습니다.");
   return `
     <div class="decision-table-wrap"><table class="decision-table forecast-detail-table"><tbody>
-      ${cleanRows.map(([key, value]) => `<tr><th>${escapeHtml(key)}</th><td>${escapeHtml(value === null || value === undefined || value === "" ? "N/A" : String(value))}</td></tr>`).join("")}
+      ${cleanRows.map(([key, value]) => {
+        const isDisplayObject = value && typeof value === "object" && Object.prototype.hasOwnProperty.call(value, "value");
+        const displayValue = isDisplayObject ? value.value : value;
+        const title = isDisplayObject && value.title ? ` title="${escapeHtml(value.title)}"` : "";
+        return `<tr><th>${escapeHtml(key)}</th><td${title}>${escapeHtml(displayValue === null || displayValue === undefined || displayValue === "" ? "N/A" : String(displayValue))}</td></tr>`;
+      }).join("")}
     </tbody></table></div>
   `;
 }
@@ -13134,6 +13443,7 @@ function renderQuantamentalAnalysis(data) {
       : `${data?.ticker || ""} · ${signal} · 데이터 품질 ${quality}`;
     els.quantamentalStatus.className = `form-notice ${["ok", "success"].includes(data?.status) ? "success" : "info"}`;
   }
+  renderLocalQualitySections();
 }
 
 function renderQuantamentalScreen(data) {

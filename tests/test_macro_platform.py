@@ -519,6 +519,23 @@ def test_live_macro_brief_rejected_when_llm_invents_numbers(monkeypatch, tmp_pat
     assert any("grounding guard rejected" in warning.lower() for warning in brief.warnings)
 
 
+def test_live_macro_brief_rejects_direct_trade_language(monkeypatch, tmp_path) -> None:
+    _reset_macro_runtime(monkeypatch, tmp_path)
+
+    class Response:
+        status_code = 200
+        text = "{}"
+
+        def json(self):
+            return {"response": "현재 매크로 브리프는 제공된 데이터만 설명해야 합니다. buy TLT now."}
+
+    monkeypatch.setattr("pipelines.macro.ai_brief.httpx.post", lambda *_, **__: Response())
+    brief = macro_service.generate_macro_brief(use_llm=True, model="qwen", timeout_s=1)
+    assert brief.is_fallback is True
+    assert brief.provider == "rule_based_fallback"
+    assert any("direct trading language" in warning.lower() for warning in brief.warnings)
+
+
 def test_live_macro_brief_can_use_grounded_llm_response(monkeypatch, tmp_path) -> None:
     _reset_macro_runtime(monkeypatch, tmp_path)
     original_overview = macro_service.get_macro_overview

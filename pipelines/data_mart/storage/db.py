@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
 from pathlib import Path
 
 from core.config.settings import load_settings
@@ -10,6 +11,9 @@ from pipelines.data_mart.storage.schema import DDL_STATEMENTS, SCHEMA_VERSION
 
 FINGPT_ANNOTATIONS_TABLE = "fingpt_article_annotations"
 FINGPT_ANNOTATIONS_OLD_TABLE = "fingpt_article_annotations_old"
+SQLITE_BUSY_TIMEOUT_MS = 30000
+_INIT_LOCK = threading.RLock()
+_INITIALIZED_PATHS: set[Path] = set()
 ADDITIVE_COLUMNS: dict[str, tuple[tuple[str, str], ...]] = {
     "filings": (
         ("cik", "TEXT"),
@@ -50,11 +54,11 @@ def default_db_path() -> Path:
 def connect(db_path: str | Path | None = None) -> sqlite3.Connection:
     path = Path(db_path) if db_path is not None else default_db_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(path), timeout=15, factory=ManagedConnection)
+    conn = sqlite3.connect(str(path), timeout=SQLITE_BUSY_TIMEOUT_MS / 1000, factory=ManagedConnection)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
-    conn.execute("PRAGMA busy_timeout=15000")
+    conn.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")
     return conn
 
 
@@ -168,16 +172,21 @@ def _migrate_fingpt_annotations_model_id(conn: sqlite3.Connection) -> None:
 
 def init_db(db_path: str | Path | None = None) -> Path:
     path = Path(db_path) if db_path is not None else default_db_path()
-    with connect(path) as conn:
-        for statement in DDL_STATEMENTS:
-            conn.execute(statement)
-        conn.commit()
-        _ensure_additive_columns(conn)
-        conn.commit()
-        _migrate_fingpt_annotations_model_id(conn)
-        conn.execute(
-            "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
-            (SCHEMA_VERSION, utc_now_iso()),
-        )
-        conn.commit()
+    resolved = path.resolve()
+    with _INIT_LOCK:
+        if resolved in _INITIALIZED_PATHS and path.exists():
+            return path
+        with connect(path) as conn:
+            for statement in DDL_STATEMENTS:
+                conn.execute(statement)
+            conn.commit()
+            _ensure_additive_columns(conn)
+            conn.commit()
+            _migrate_fingpt_annotations_model_id(conn)
+            conn.execute(
+                "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+                (SCHEMA_VERSION, utc_now_iso()),
+            )
+            conn.commit()
+        _INITIALIZED_PATHS.add(resolved)
     return path

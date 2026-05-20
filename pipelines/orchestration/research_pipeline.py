@@ -601,6 +601,14 @@ _HANGUL_RE = re.compile(r"[\uac00-\ud7a3]")
 _CJK_IDEOGRAPH_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
 _MOJIBAKE_RE = re.compile(r"[ÃÂ�]|(?:[ìíëê][\x80-\xff]?)|(?:[æäåçèé][\x80-\xff]?)")
 _NUMBER_RE = re.compile(r"[-+]?\d+(?:\.\d+)?")
+_DIRECT_ORDER_TEXT_RE = re.compile(
+    r"\b(buy now|sell now|must buy|must sell|go long|go short|short now|all in)\b",
+    re.IGNORECASE,
+)
+_UNSUPPORTED_CLAIM_TEXT_RE = re.compile(
+    r"\b(latest news|breaking news|invent|make up|unsupported score|price target|guaranteed upside)\b",
+    re.IGNORECASE,
+)
 
 
 def _language_counts(text: Any) -> dict[str, int]:
@@ -627,6 +635,11 @@ def _is_unusable_korean_text(text: Any, *, min_hangul: int = 8) -> bool:
     # Short metric labels like "RSI(14)" are valid elsewhere; this guard is
     # for descriptive sentences only.
     return counts["latin"] >= 12 or counts["cjk"] > 0
+
+
+def _needs_deterministic_text_guard(*items: Any) -> bool:
+    text = " ".join(str(item or "") for item in items)
+    return bool(_DIRECT_ORDER_TEXT_RE.search(text) or _UNSUPPORTED_CLAIM_TEXT_RE.search(text))
 
 
 def _number_tokens(value: Any) -> set[str]:
@@ -1049,8 +1062,20 @@ def _sanitize_decision_texts(
         cleaned_uncertainty = _technical_uncertainty(key_metrics)
         changed = True
 
-    bulls = [text for text in bull_points if not _is_unusable_korean_text(text)]
-    bears = [text for text in bear_points if not _is_unusable_korean_text(text)]
+    force_deterministic = _needs_deterministic_text_guard(
+        question,
+        cleaned_summary,
+        cleaned_uncertainty,
+        *bull_points,
+        *bear_points,
+    )
+    if force_deterministic:
+        cleaned_summary = _technical_summary(ticker, key_metrics)
+        cleaned_uncertainty = _technical_uncertainty(key_metrics)
+        changed = True
+
+    bulls = [] if force_deterministic else [text for text in bull_points if not _is_unusable_korean_text(text)]
+    bears = [] if force_deterministic else [text for text in bear_points if not _is_unusable_korean_text(text)]
     bull_generated_evidence: list[list[str]] = []
     bear_generated_evidence: list[list[str]] = []
     if len(bulls) < 2:

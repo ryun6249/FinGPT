@@ -133,6 +133,30 @@ def test_generate_returns_weights_sum_constraint_and_history(tmp_path, monkeypat
     assert count >= 1
 
 
+def test_ai_portfolio_explanation_is_advisory_and_payload_traceable(tmp_path, monkeypatch) -> None:
+    client = _client(tmp_path, monkeypatch)
+    response = client.post(
+        "/api/v1/ai-portfolio/generate",
+        json={
+            "portfolio_name": "Guardrail",
+            "investment_type": "balanced_growth",
+            "universe_id": "custom:SPY,TLT,GLD,SGOV",
+            "policy_overrides": {"lookback_window_months": 3},
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    explanation = body["recommendation"]["ai_explanation"].lower()
+
+    for phrase in ["buy now", "sell now", "must buy", "must sell", "latest news", "99.9"]:
+        assert phrase not in explanation
+    assert set(body["data_quality"]["used_assets"]) == {"SPY", "TLT", "GLD", "SGOV"}
+    assert body["data_quality"]["missing_assets"] == []
+    assert body["recommendation"]["constraint_check"]["status"] in {"pass", "warning", "fail"}
+    assert body["recommendation"]["audit"]["config_hash"]
+    assert body["recommendation"]["audit"]["universe_hash"]
+
+
 def test_default_multi_asset_generation_respects_policy_ranges(tmp_path, monkeypatch) -> None:
     client = _client(tmp_path, monkeypatch)
     response = client.post(

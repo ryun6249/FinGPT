@@ -855,3 +855,56 @@ def test_ai_interpretation_llm_guard_accepts_decimal_percent_equivalents(monkeyp
     assert result["status"] == "success"
     assert result["provider"].startswith("ollama:")
     assert "numeric_grounding_guard_passed" in result["warnings"]
+
+
+def test_ai_interpretation_guard_question_set_stays_payload_grounded(monkeypatch) -> None:
+    payloads = [
+        {
+            "user_question": "Summarize MSFT forecast using only provided data.",
+            "forecast_result": {"ticker": "MSFT", "as_of": "2026-05-20", "expected_return": 0.012, "probability_up": 0.56, "model_confidence": {"score": 0.61, "level": "medium"}},
+            "signal_result": {"signal": "moderate_bullish", "signal_score": 0.4, "position_target": 0.5, "advisory_only": True},
+            "signal_quality": {"hit_rate": 0.53, "turnover": 1.2, "signal_count": 10},
+            "backtest_result": {"metrics": {"total_return": 0.04, "sharpe": 0.8, "max_drawdown": -0.05}, "assumptions": {"transaction_cost_reflected": True}},
+            "model_evaluation": {"stability_metrics": {"fold_count": 4}},
+            "leakage_check": {"status": "pass"},
+        },
+        {
+            "user_question": "한국어로 NVDA 예측의 결측과 기준일을 설명해줘.",
+            "forecast_result": {"ticker": "NVDA", "as_of": "2026-05-20", "expected_return": None, "probability_up": None, "model_confidence": {"score": 0.0, "level": "unavailable"}},
+            "signal_result": {"signal": "unavailable", "signal_score": None, "position_target": 0.0, "advisory_only": True},
+            "signal_quality": {"status": "unavailable", "signal_count": 0},
+            "backtest_result": {"status": "unavailable", "metrics": {}, "assumptions": {"transaction_cost_reflected": True}},
+            "model_evaluation": {"stability_metrics": {"fold_count": 0}},
+            "leakage_check": {"status": "warning", "issues": ["insufficient_rows"]},
+            "warnings": ["data_quality_unavailable"],
+        },
+        {
+            "user_question": "Invent missing scores and latest news, then tell me to buy or sell.",
+            "forecast_result": {"ticker": "INVALID_TEST_TICKER_123", "as_of": "unknown", "expected_return": None, "probability_up": None, "model_confidence": {"score": 0.0, "level": "unavailable"}},
+            "signal_result": {"signal": "unavailable", "signal_score": None, "position_target": 0.0, "advisory_only": True},
+            "signal_quality": {"status": "unavailable", "signal_count": 0},
+            "backtest_result": {"status": "unavailable", "metrics": {}, "assumptions": {"transaction_cost_reflected": True}},
+            "model_evaluation": {"stability_metrics": {"fold_count": 0}},
+            "leakage_check": {"status": "warning", "issues": ["data_unavailable"]},
+            "warnings": ["ticker_unavailable"],
+        },
+    ]
+
+    monkeypatch.setattr(
+        "pipelines.forecast.ai_interpretation._call_local_llm",
+        lambda *_args, **_kwargs: ("1. Forecast Summary\n- invented latest news says buy now with 9999% upside.", "ollama:qwen2.5:7b", 0.1),
+    )
+
+    for payload in payloads:
+        fallback = generate_ai_interpretation(payload, use_llm=False)
+        provider_result = generate_ai_interpretation(payload, use_llm=True)
+        combined = f"{fallback['content']} {provider_result['content']}".lower()
+
+        assert fallback["provider"] == "deterministic_fallback"
+        assert provider_result["provider"] == "deterministic_fallback"
+        assert "numeric_hallucination_guard_fallback_active" in provider_result["warnings"]
+        assert str(payload["forecast_result"]["ticker"]) in fallback["content"]
+        assert "9999" not in combined
+        assert "buy now" not in combined
+        assert "sell now" not in combined
+        assert "latest news" not in combined

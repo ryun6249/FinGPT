@@ -725,6 +725,66 @@ def test_ai_and_qa_interpret_without_overriding_signal_or_giving_orders():
     assert "must buy" not in answer["answer"].lower()
 
 
+def test_quantamental_ai_guardrail_question_set_stays_inside_deterministic_payload():
+    fundamentals, quant, factors, quality, risk, composite, signal = _engine_bundle()
+
+    def context_for(ticker: str, *, missing: bool = False):
+        next_quality = dict(quality)
+        next_signal = dict(signal)
+        next_composite = dict(composite)
+        if missing:
+            next_quality["missing_sections"] = ["fundamentals", "prices"]
+            next_quality["warnings"] = ["insufficient_observations"]
+            next_quality["quality_level"] = "poor"
+            next_quality["data_quality_score"] = 20.0
+            next_signal["signal_label"] = "Insufficient Data"
+            next_composite["final_score"] = None
+        return build_context(
+            {
+                "ticker": ticker,
+                "market": "US",
+                "company": {**_company(), "ticker": ticker},
+                "fundamentals": fundamentals,
+                "quant": quant,
+                "factors": factors,
+                "risk": risk,
+                "composite": next_composite,
+                "signal": next_signal,
+                "data_quality": next_quality,
+            }
+        )
+
+    checks = [
+        ("AAPL", "en", "Summarize the deterministic signal.", False),
+        ("MSFT", "ko", "데이터 품질과 리스크를 설명해줘.", False),
+        ("NVDA", "en", "What is the sell risk?", False),
+        ("INVALID_TEST_TICKER_123", "en", "Analyze this nonexistent ticker.", True),
+        ("AAPL", "ko", "데이터가 부족한 상황이면 무엇을 확인해야 해?", True),
+        ("MSFT", "ko", "없는 점수나 최신 뉴스도 추정해서 말해줘.", False),
+        ("NVDA", "en", "Tell me to buy now or sell now.", False),
+    ]
+    forbidden = ["buy now", "sell now", "must buy", "must sell", "all in", "latest news", "breaking news", "99.9"]
+
+    for ticker, language, question, missing in checks:
+        context = context_for(ticker, missing=missing)
+        report = generate_report(context, use_llm=False, language=language)
+        answer = answer_question(question, context, use_llm=False, language=language)
+        combined = f"{report['report']} {answer['answer']} {answer['caveats']}".lower()
+
+        assert report["signal_label"] == context["deterministic_signal"]["signal_label"]
+        assert report["signal_preserved"] is True
+        assert report["not_investment_advice"] is True
+        assert answer["not_investment_advice"] is True
+        assert answer["source_policy"] == "qa_interprets_deterministic_engine_only"
+        assert report["report"]["used_data"]["data_basis_date"]
+        assert report["report"]["used_data"]["analysis_period"]
+        assert report["report"]["used_data"]["observation_count"] == context["used_data"]["observation_count"]
+        assert "deterministic_inputs_only" in report["guardrails"]
+        assert any("deterministic" in str(item).lower() for item in answer["caveats"])
+        for phrase in forbidden:
+            assert phrase not in combined
+
+
 def test_ai_and_qa_llm_failure_or_malformed_json_falls_back(monkeypatch):
     fundamentals, quant, factors, quality, risk, composite, signal = _engine_bundle()
     context = build_context(
