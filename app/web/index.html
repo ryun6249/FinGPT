@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FinGPT Local Research Assistant</title>
-  <link rel="stylesheet" href="styles.css?v=20260521-quant-decision-v26" />
+  <link rel="stylesheet" href="styles.css?v=20260521-risk-forecast-v35" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='48' font-size='48'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E" />
 </head>
 <body>
@@ -328,6 +328,9 @@
           </button>
           <button id="macroDashboardTab" type="button" class="dashboard-tab" data-dashboard-tab="macro" data-testid="macro-dashboard-tab" role="tab" aria-selected="false">
             Macro
+          </button>
+          <button id="riskDashboardTab" type="button" class="dashboard-tab" data-dashboard-tab="risk" data-testid="risk-dashboard-tab" role="tab" aria-selected="false">
+            Risk
           </button>
           <button id="quantLabTab" type="button" class="dashboard-tab" data-dashboard-tab="quant" data-testid="quant-lab-tab" role="tab" aria-selected="false">
             Quant Lab
@@ -676,6 +679,99 @@
           <section class="home-card macro-card macro-quality-card macro-surface" data-panel-tier="details">
             <div class="home-card-head"><h3>Data Quality</h3><span>missing, stale, provider errors</span></div>
             <div id="macroDataQualitySurface" class="decision-surface compact-surface"><div class="home-news-empty">Loading data quality.</div></div>
+          </section>
+
+          <section id="riskWorkbenchPanel" class="home-card risk-card risk-workbench-card risk-surface" data-panel-tier="primary">
+            <div class="home-card-head">
+              <h3>Risk Control Plane</h3>
+              <span>company, macro, transmission, scenario, evidence</span>
+            </div>
+            <div class="risk-command-bar" id="riskCommandBar">
+              <div class="segmented-control risk-mode-control" role="group" aria-label="Risk mode">
+                <button type="button" data-risk-mode="company" aria-pressed="true" class="active">Company</button>
+                <button type="button" data-risk-mode="watchlist" aria-pressed="false">Watchlist</button>
+                <button type="button" data-risk-mode="portfolio" aria-pressed="false">Portfolio</button>
+              </div>
+              <label>
+                <span>Ticker or list</span>
+                <input id="riskTickerInput" type="text" value="NVDA" aria-label="Risk ticker input" />
+              </label>
+              <label>
+                <span>Scenario set</span>
+                <select id="riskScenarioSelect" aria-label="Risk scenario set">
+                  <option value="base_adverse_severe">Base / adverse / severe</option>
+                  <option value="rates_credit_liquidity">Rates / credit / liquidity</option>
+                  <option value="inflation_growth_policy">Inflation / growth / policy</option>
+                </select>
+              </label>
+              <label>
+                <span>Lookback</span>
+                <select id="riskLookbackSelect" aria-label="Risk lookback">
+                  <option value="252">1Y</option>
+                  <option value="756" selected>3Y</option>
+                  <option value="1260">5Y</option>
+                  <option value="2520">10Y</option>
+                </select>
+              </label>
+              <button id="riskRefreshButton" type="button" class="primary-btn" data-testid="risk-run">Run Risk</button>
+            </div>
+            <div class="workbench-guardrail-strip">
+              <span><strong>Boundary</strong> No trade action instruction</span>
+              <span><strong>Scores</strong> deterministic adapters only</span>
+              <span><strong>Quality</strong> stale and partial states stay visible</span>
+              <span><strong>Audit</strong> evidence and input hash shown</span>
+            </div>
+            <div id="riskExecutiveStrip" class="risk-executive-strip" aria-live="polite">
+              <div class="home-news-empty">Run Risk to view company and macro risk output.</div>
+            </div>
+            <div id="riskDecisionBrief" class="risk-decision-brief decision-surface compact-surface" aria-live="polite">
+              <div class="home-news-empty">Decision brief appears after a risk run.</div>
+            </div>
+          </section>
+
+          <section class="home-card risk-card risk-waterfall-card risk-surface" data-panel-tier="primary">
+            <div class="home-card-head"><h3>Driver Waterfall</h3><span>weighted risk contribution</span></div>
+            <div id="riskDriverWaterfall" class="risk-driver-waterfall decision-surface compact-surface">
+              <div class="home-news-empty">Driver waterfall appears after a risk run.</div>
+            </div>
+          </section>
+
+          <section class="home-card risk-card risk-company-card risk-surface" data-panel-tier="primary">
+            <div class="home-card-head"><h3>Company Risk Stack</h3><span>vectors, confidence, data usability</span></div>
+            <div id="riskCompanyTable" class="risk-company-table decision-surface">
+              <div class="home-news-empty">Company vectors appear after a risk run.</div>
+            </div>
+          </section>
+
+          <section class="home-card risk-card risk-macro-card risk-surface" data-panel-tier="primary">
+            <div class="home-card-head"><h3>Macro Pressure</h3><span>rates, growth, credit and liquidity</span></div>
+            <div id="riskMacroPressurePanel" class="risk-macro-pressure-panel decision-surface compact-surface">
+              <div class="home-news-empty">Macro pressure appears after a risk run.</div>
+            </div>
+          </section>
+
+          <section class="home-card risk-card risk-transmission-card risk-surface" data-panel-tier="details">
+            <div class="home-card-head"><h3>Transmission Matrix</h3><span>pressure, sensitivity, affected subjects</span></div>
+            <div id="riskTransmissionMatrix" class="risk-transmission-matrix decision-surface">
+              <div class="home-news-empty">Transmission channels appear after a risk run.</div>
+            </div>
+          </section>
+
+          <section class="home-card risk-card risk-scenario-card risk-surface" data-panel-tier="details">
+            <div class="home-card-head"><h3>Scenario Matrix</h3><span>base, adverse, severe stress rows</span></div>
+            <div id="riskScenarioMatrix" class="risk-scenario-matrix decision-surface compact-surface">
+              <div class="home-news-empty">Scenario matrix appears after a risk run.</div>
+            </div>
+          </section>
+
+          <section class="home-card risk-card risk-evidence-card risk-surface" data-panel-tier="details">
+            <div class="home-card-head"><h3>Evidence Review</h3><span>freshness, providers, calculation policy</span></div>
+            <details id="riskEvidenceDrawer" class="risk-evidence-drawer" open>
+              <summary>Evidence and data quality</summary>
+              <div id="riskEvidenceContent" class="risk-evidence-content decision-surface compact-surface">
+                <div class="home-news-empty">Evidence and calculation policy appear after a risk run.</div>
+              </div>
+            </details>
           </section>
           <section class="home-card asset-detail-card quant-surface" data-panel-tier="details">
             <div class="home-card-head">
@@ -1033,6 +1129,7 @@
               <button type="button" id="forecastGenerateProviderAi" class="ghost-btn" data-testid="ml-forecast-provider-ai">Provider AI</button>
             </div>
             <div class="decision-note">가격 경로를 단정하지 않고 forward return, direction probability, uncertainty, advisory signal, OOS 백테스트를 분리해 표시합니다. 실제 주문 실행은 제공하지 않습니다.</div>
+            <div id="forecastRiskPrefillNotice" class="decision-note risk-forecast-prefill" hidden></div>
           </section>
 
           <section class="home-card forecast-card forecast-dataset-card forecast-surface" data-panel-tier="primary">
@@ -1631,6 +1728,6 @@
   <script src="modules/quant-ui.js?v=20260521-market-signals-v1"></script>
   <script src="modules/ai-portfolio-ui.js?v=20260520-ai-portfolio-ops-v1"></script>
   <script src="modules/quantamental-ui.js?v=20260521-quantamental-decision-v23"></script>
-  <script src="app.js?v=20260521-quant-decision-v29"></script>
+  <script src="app.js?v=20260521-risk-forecast-v37"></script>
 </body>
 </html>

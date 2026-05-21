@@ -95,6 +95,26 @@ _DECISION_CARD_CONTRACTS: list[dict[str, Any]] = [
         ],
     },
     {
+        "tab": "risk",
+        "title": "Risk",
+        "decision_question": "Which company, macro, transmission, scenario, and data-quality risks can damage the subject?",
+        "primary_output": "Enterprise risk workbench with company vectors, macro pressure, transmission channels, scenario matrix, and evidence review.",
+        "next_action": "Run the risk workbench, inspect decision usability, then review evidence before acting elsewhere.",
+        "source_endpoints": [
+            "/api/v1/risk/health",
+            "/api/v1/risk/workbench",
+            "/api/v1/risk/company/{ticker}",
+            "/api/v1/risk/macro",
+        ],
+        "guardrails": ["no_buy_sell_hold", "deterministic_scores_only", "freshness_visible", "ai_no_score_generation"],
+        "chips": [
+            {"label": "Decision", "value": "risk control", "status": "ok", "detail": "Company, macro, and portfolio risk context"},
+            {"label": "Evidence", "value": "risk vectors", "status": "warn", "detail": "Uses Quantamental and Macro adapters"},
+            {"label": "Guard", "value": "decision usable", "status": "warn", "detail": "Missing or stale inputs stay visible"},
+            {"label": "Action", "value": "run risk", "status": "ok", "detail": "Review scenario damage paths and evidence"},
+        ],
+    },
+    {
         "tab": "quant",
         "title": "Quant Lab",
         "decision_question": "Did the strategy survive reproducible backtest and portfolio checks?",

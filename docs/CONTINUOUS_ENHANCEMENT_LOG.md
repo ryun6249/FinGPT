@@ -1,5 +1,96 @@
 # Continuous Enhancement Log
 
+## 2026-05-21 Risk Workbench Forecast Validation Plan
+
+- Runtime: `2026-05-21 22:07 KST`.
+- Current status: `riskplan.md` base implementation and prior compatibility-matrix enhancement were already complete and verified. This slice added a bounded ML Forecast usability layer.
+- Backend contract: `core/schemas/risk.py` now exposes `forecast_validation_plan` on `RiskWorkbenchResponse` with status, selected primary test, launch href, run order, experiment controls, acceptance criteria, blocked reasons, and evidence refs.
+- Backend orchestration: `pipelines/risk/service.py` derives the plan from existing `ml_validation_tests`, data-quality state, and Risk provenance. It does not change Risk scoring, Forecast math, provider calls, AI generation, or trading/order behavior.
+- UI/UX: `/ui/#risk` now renders the Forecast validation plan in the first-flow decision brief and the evidence drawer, so users can see what ML test to run first and what makes it pass before opening ML Forecast.
+- Verification: `python -m pytest tests -q` passed with `725 passed, 9 subtests passed`; browser smoke on `http://127.0.0.1:8812/ui/#risk` covered NVDA desktop, TLT 390px mobile, and invalid ticker with `forecast_validation_plan`, overflow `0`, console errors `0`, direct trade instruction `false`, and invalid Forecast links `0`.
+- Screenshots: `F:\LLM\risk-forecast-plan-desktop-nvda-8812.png`, `F:\LLM\risk-forecast-plan-mobile-tlt-8812.png`, `F:\LLM\risk-forecast-plan-invalid-8812.png`.
+
+## 2026-05-21 Automation risk: Enterprise-Macro Risk Workbench
+
+- Runtime: `2026-05-21 02:45 KST`.
+- Branch/worktree: continued `automation/continuous-enhancement-20260519-2303`; the worktree already contained accumulated local automation changes, so this run preserved unrelated pending changes and added the Risk bounded-context slice.
+- Automation memory: `C:\Users\yygg1\.codex\automations\risk\memory.md`; it was missing at run start and was created after verification.
+
+### Risk Selected Slice
+
+- Implement a deterministic `/api/v1/risk/*` contract over existing Quantamental and Macro service boundaries.
+- Add a static `/ui/#risk` control plane after Macro with command, executive, waterfall, company, macro, transmission, scenario, and evidence surfaces.
+- Keep outputs advisory-only: no direct trade action instructions, no AI-generated scores, and missing/stale inputs must remain visible.
+
+### Risk Follow-up Enhancement Slice
+
+- Runtime: `2026-05-21 03:12 KST`.
+- Added a typed deterministic `decision_brief` to the Risk response with review questions, watch items, blocked reasons, and deployment/service-contract notes.
+- Added first-flow UI rendering for the decision brief near the executive strip so users can see what to inspect next before drilling into tables.
+- Improved portfolio-mode input ergonomics: the Risk command bar now accepts compact weighted input such as `NVDA:0.40, MSFT:0.35, TLT:0.25`, normalizes weights, and sends typed positions to `/api/v1/risk/workbench`.
+
+### Risk KR/EN Language Slice
+
+- Runtime: `2026-05-21 03:38 KST`.
+- Added `output_language` to the Risk workbench request and passed it through the Quantamental adapter so backend-generated decision briefs can return Korean or English deterministically.
+- Localized Risk tab UI copy through the existing `UI_LANGUAGE_COPY` path: command labels, guardrails, empty/loading/error states, executive strip, decision brief, table headers, scenario labels, driver labels, freshness/status values, and transmission mechanism text.
+- Language toggle now rerenders Risk copy and refreshes an already-loaded Risk response when the active tab is Risk, so the backend decision brief follows KR/EN instead of leaving stale language text.
+
+### Risk Asset-Proxy Compatibility Slice
+
+- Runtime: `2026-05-21 04:10 KST`.
+- Selected enhancement: treat ETF and macro proxy inputs such as `TLT`, `HYG`, and `SPY` as limited asset-proxy risk subjects instead of invalid company-fundamental failures when price and macro evidence are present.
+- Intended behavior: keep missing fundamentals/SEC evidence visible, but allow rates, credit, liquidity, transmission, scenario, and market-behavior risk to remain decision-usable for the supported proxy scope.
+- Guardrail: invalid tickers and missing price/quant inputs still fail closed; the Risk workbench must not fabricate company solvency, cash-flow, earnings, or SEC metrics for ETFs.
+
+### Risk Service-Readiness Slice
+
+- Runtime: `2026-05-21 05:03 KST`.
+- Selected enhancement: expose a structured `service_readiness` gate in the Risk response and first-flow UI so deployment readiness is not buried inside free-text deployment notes.
+- Intended behavior: classify each Risk run as `ready`, `review_required`, or `blocked` based on `decision_usable`, missing/stale data, asset-proxy scope, macro availability, and confidence; show checklist evidence, blockers, warnings, and next steps in KR/EN.
+- Guardrail: service-readiness is an operability/deployment gate, not an investment conclusion; it does not change risk scores, scenario math, or trade-action policy.
+
+### Risk Action-Checklist Slice
+
+- Runtime: `2026-05-21 06:10 KST`.
+- Selected enhancement: add a typed `action_checklist` to each Risk response and render it in the first-flow decision brief so users can see the next concrete checks without reading every table first.
+- Intended behavior: classify data-quality, top-driver, severe-scenario, asset-proxy, portfolio-concentration, and service-release actions as `ok`, `review`, or `blocked`; keep each action tied to evidence refs and next steps.
+- Guardrail: the checklist is decision support and release readiness guidance only. It does not issue buy/sell/hold instructions and does not change risk score math.
+
+### Risk Monitoring-Trigger Slice
+
+- Runtime: `2026-05-21 07:05 KST`.
+- Selected enhancement: add typed `monitoring_triggers` to each Risk response and render them in the first-flow decision brief beside the action checklist.
+- Intended behavior: give users concrete post-run watchpoints for data-quality gates, dominant risk drivers, macro transmission channels, severe scenarios, asset-proxy scope, and service release readiness.
+- Guardrail: monitoring triggers are operational and analytical follow-ups only. They do not change risk score math and do not issue buy/sell/hold instructions.
+
+### Risk Validation Results
+
+| Check | Result | Notes |
+|---|---|---|
+| Python syntax | Passed | `python -m py_compile core/schemas/risk.py app/api/routers/risk.py pipelines/risk/*.py` |
+| Risk tests | Passed | `10 passed`: aggregation, transmission, data quality, API, UI Risk contract, and blocked decision brief |
+| UI contract | Passed | `node --check app/web/app.js`; `python scripts/check_ui_contract.py` |
+| Existing UI/dashboard regression | Passed | `42 passed, 4 subtests passed`: UI modules and routing contract |
+| Existing domain regression | Passed | `96 passed`: Quantamental, Macro, Dashboard, AI Portfolio API |
+| Combined regression | Passed | `148 passed, 4 subtests passed`: Risk, domain, dashboard, and UI contract suites |
+| Live API smoke | Passed | `NVDA`, `JPM`, `TLT`, `INVALID_TEST_TICKER_123`, and weighted `NVDA/MSFT/TLT` portfolio returned typed Risk responses; `TLT` and the mixed portfolio now surface `asset_proxy` decision-usable output, while invalid tickers still fail closed |
+| Browser smoke | Passed | `NVDA`, `JPM`, `TLT`, `INVALID_TEST_TICKER_123`, and weighted portfolio; desktop and 390px mobile overflow `0`; decision brief, transmission, scenario, evidence, asset-proxy scope, and invalid fail-closed states rendered |
+| KR/EN API smoke | Passed | Latest server `http://127.0.0.1:8767`; `output_language=ko` returned Korean summary/questions/watch items, `output_language=en` returned English summary/questions/watch items |
+| KR/EN browser smoke | Passed | `/ui/#risk` language toggle rendered Korean and English labels/decision brief with overflow `0`; screenshots `F:\LLM\risk-kr-language-8767.png`, `F:\LLM\risk-en-language-8767.png` |
+| Final combined regression | Passed | `149 passed, 4 subtests passed` after KR/EN changes |
+| Asset-proxy enhancement verification | Passed | Fresh server `http://127.0.0.1:8780/ui/#risk`; Risk tests `13 passed`, UI modules/routing `42 passed, 4 subtests passed`, domain regression `96 passed`, UI contract passed, desktop/mobile browser overflow `0`, console errors `0`; screenshots `F:\LLM\risk-asset-proxy-desktop-8780.png`, `F:\LLM\risk-asset-proxy-mobile-8780.png` |
+| Service-readiness enhancement verification | Passed | Fresh server `http://127.0.0.1:8792/ui/#risk`; Risk tests `13 passed`, UI modules/routing `42 passed, 4 subtests passed`, domain regression `96 passed`, UI contract passed, API smoke covered `NVDA`, `TLT`, `INVALID_TEST_TICKER_123`, weighted `NVDA/MSFT/TLT`, and EN output; browser smoke covered desktop and 390px mobile, `service_readiness` rendered as `warn`/`fail`, overflow `0`, console errors `0`; screenshots `F:\LLM\risk-service-readiness-desktop-8792.png`, `F:\LLM\risk-service-readiness-mobile-8792.png` |
+| Action-checklist verification | Passed | Fresh server `http://127.0.0.1:8793/ui/#risk`; Risk/API/UI contract tests `13 passed`, UI/dashboard regression `56 passed, 4 subtests passed`, Quantamental/Macro/AI Portfolio regression `82 passed`, UI contract passed, API smoke covered `NVDA`, `TLT`, `INVALID_TEST_TICKER_123`, weighted `NVDA/MSFT/TLT`, and EN output; desktop and 390px mobile browser smoke rendered `action_checklist` plus `service_readiness`, overflow `0`, console errors `0`; screenshots `F:\LLM\risk-action-checklist-desktop-8793.png`, `F:\LLM\risk-action-checklist-mobile-8793.png` |
+| Monitoring-trigger verification | Passed | Fresh server `http://127.0.0.1:8794/ui/#risk`; Risk/API/UI contract tests `13 passed`, UI/dashboard regression `56 passed, 4 subtests passed`, Quantamental/Macro/Dashboard/AI Portfolio regression `96 passed`, UI contract passed, API smoke covered `NVDA`, `TLT`, `INVALID_TEST_TICKER_123`, weighted `NVDA/MSFT/TLT`, and EN output; desktop and 390px mobile browser smoke rendered `monitoring_triggers`, `action_checklist`, and `service_readiness`, overflow `0`, console errors `0`; screenshots `F:\LLM\risk-monitoring-triggers-desktop-8794.png`, `F:\LLM\risk-monitoring-triggers-mobile-8794.png` |
+
+### Risk Remaining Risks
+
+- Browser verification used deterministic local service paths and existing provider/cache behavior; it did not run slow live LLM repetition.
+- The latest local verification server is `http://127.0.0.1:8794/ui/#risk`; older ports `8765`, `8767`, `8780`, `8791`, `8792`, and `8793` may still be running with prior slices.
+- Latest screenshots: `F:\LLM\risk-monitoring-triggers-desktop-8794.png`, `F:\LLM\risk-monitoring-triggers-mobile-8794.png`.
+- The worktree remains dirty with accumulated automation changes and this Risk slice.
+
 ## 2026-05-20 Automation 5.20 Continuation v13: Quality Evaluation Detail Folding
 
 - Runtime: `2026-05-20 13:06:07 +09:00`.
@@ -980,6 +1071,111 @@
 - [x] README updated if needed
 - [x] PR summary includes changed files
 - [x] PR summary includes validation result
+
+## 2026-05-21 Risk Workbench Priority Map and Run Lineage
+
+- Branch: `automation/continuous-enhancement-20260519-2303`.
+- Current status: `riskplan.md` base implementation, asset-proxy support, service readiness, action checklist, and monitoring triggers were already complete. This run added one bounded service-readiness and decision-clarity slice.
+- Backend contract: `core/schemas/risk.py` now exposes `priority_map` and `run_lineage` on `RiskWorkbenchResponse`.
+- Backend orchestration: `pipelines/risk/service.py` ranks company, macro, and data-quality cells into a compact priority risk map, and emits replay/service lineage with adapter status, evidence counts, freshness counts, subject count, service version, scenario set, and replay fields.
+- UI/UX: `/ui/#risk` renders the priority risk map in the decision brief and the run-lineage packet in the evidence drawer. The first flow stays compact while audit and service-wrapper context remains visible.
+- Compatibility: no trading/order execution path, provider selection, secret, `.env`, scoring weights, or AI-generated score path was changed.
+
+### Risk Priority/Lineage Validation Results
+
+| Check | Command / Tool | Result | Notes |
+|---|---|---|---|
+| Python syntax | `python -m py_compile core/schemas/risk.py pipelines/risk/service.py` | Passed | New schemas and orchestration compile. |
+| JS syntax | `node --check app/web/app.js` | Passed | Static UI JavaScript syntax. |
+| Risk/API/UI contract | `python -m pytest tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py -q` | Passed | `8 passed`. |
+| UI contract | `python scripts/check_ui_contract.py` | Passed | `priority_map` and `run_lineage` markers included; no mojibake or placeholder lines reported. |
+| Risk targeted suite | `python -m pytest tests/test_risk_aggregation.py tests/test_risk_transmission.py tests/test_risk_data_quality.py tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py -q` | Passed | `13 passed`. |
+| UI/dashboard regression | `python -m pytest tests/test_dashboard_api.py tests/test_ui_modules.py tests/test_ui_routing_contract.py -q` | Passed | `56 passed, 4 subtests passed`. |
+| Quantamental/Macro/Dashboard/AI Portfolio regression | `python -m pytest tests/test_quantamental_api.py tests/test_macro_platform.py tests/test_dashboard_api.py tests/test_ai_portfolio_api.py -q` | Passed | `96 passed`. |
+| Live API smoke | `POST /api/v1/risk/workbench` on `http://127.0.0.1:8795` | Passed | NVDA, TLT, invalid ticker, weighted NVDA/MSFT/TLT portfolio, and EN output returned `priority_map` plus `run_lineage`. Invalid input stayed blocked. |
+| Browser desktop/mobile UI | Playwright against `http://127.0.0.1:8795/ui/#risk` | Passed | NVDA, TLT, invalid ticker, weighted portfolio, and mobile TLT rendered priority map, lineage, readiness, actions, triggers, evidence; overflowX `0`, console errors `0`, direct trade instruction `false`. |
+| Diff hygiene | `git diff --check` | Passed | Only Windows CRLF conversion warnings from Git; no whitespace errors. |
+
+## 2026-05-21 Risk Workbench Confidence Factors and Output Quality
+
+- Branch: `automation/continuous-enhancement-20260519-2303`.
+- Current status: `riskplan.md` base implementation and prior Risk enhancements were already complete and verified. This slice added confidence explainability and tightened Risk output-quality guards.
+- Backend contract: `core/schemas/risk.py` now exposes `confidence_factors` on `RiskWorkbenchResponse`.
+- Backend orchestration: `pipelines/risk/service.py` emits deterministic confidence factors for company coverage, macro backdrop, data-quality gate, scenario coverage, and service controls. Each factor carries `ok`, `review`, or `blocked`, an impact score, rationale, and evidence refs.
+- Output quality: Risk service output now uses clean Korean/English decision-support copy through the active response path, and tests assert the serialized Risk payload does not contain common mojibake markers.
+- UI/UX: `/ui/#risk` renders a compact confidence basis ladder in the decision brief so the top-line confidence score is explainable before users open the evidence drawer.
+- Compatibility: no trading/order execution path, provider selection, secret, `.env`, scoring weights, or AI-generated score path was changed.
+
+### Risk Confidence/Quality Validation Results
+
+| Check | Command / Tool | Result | Notes |
+|---|---|---|---|
+| Baseline Python syntax | `python -m py_compile core/schemas/risk.py app/api/routers/risk.py pipelines/risk/aggregation.py pipelines/risk/company.py pipelines/risk/data_quality.py pipelines/risk/macro.py pipelines/risk/scenario.py pipelines/risk/service.py pipelines/risk/transmission.py` | Passed | Existing Risk files compiled before the enhancement. |
+| Baseline JS syntax | `node --check app/web/app.js` | Passed | Static UI parsed before the enhancement. |
+| Baseline UI contract | `python scripts/check_ui_contract.py` | Passed | Existing Risk and broader dashboard markers present. |
+| Baseline Risk targeted suite | `python -m pytest tests/test_risk_aggregation.py tests/test_risk_transmission.py tests/test_risk_data_quality.py tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py -q` | Passed | `13 passed`. |
+| Post-change Python syntax | `python -m py_compile core/schemas/risk.py pipelines/risk/service.py` | Passed | New schema and service path compile. |
+| Post-change JS syntax | `node --check app/web/app.js` | Passed | Confidence ladder UI parses. |
+| Risk/API/UI contract | `python -m pytest tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py -q` | Passed | `8 passed`; confidence factors and Risk output-quality guard covered. |
+| UI contract | `python scripts/check_ui_contract.py` | Passed | `confidence_factors` and `risk-confidence-ladder` markers included; no UI mojibake or placeholder lines reported. |
+| Related Risk/UI/dashboard regression | `python -m pytest tests/test_risk_aggregation.py tests/test_risk_transmission.py tests/test_risk_data_quality.py tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py tests/test_dashboard_api.py tests/test_ui_modules.py tests/test_ui_routing_contract.py -q` | Passed | `69 passed, 4 subtests passed`. |
+| Quantamental/Macro/Dashboard/AI Portfolio regression | `python -m pytest tests/test_quantamental_api.py tests/test_macro_platform.py tests/test_dashboard_api.py tests/test_ai_portfolio_api.py -q` | Passed | `96 passed`. |
+| Live API smoke | `POST /api/v1/risk/workbench` on `http://127.0.0.1:8796` | Passed | NVDA, TLT, invalid ticker, weighted NVDA/MSFT/TLT portfolio, and EN output returned `confidence_factors`; invalid input stayed blocked and codepoint mojibake marker scan returned none for NVDA. |
+| Browser desktop/mobile UI | Playwright against `http://127.0.0.1:8796/ui/#risk` | Passed | Desktop NVDA/TLT/invalid/portfolio and mobile TLT rendered confidence ladder, readiness, action checklist, monitoring triggers, priority map, lineage, scenario/transmission/evidence; overflowX `0`, console errors `0`, direct trade instruction `false`. Screenshots: `F:\LLM\risk-confidence-factors-desktop-8796.png`, `F:\LLM\risk-confidence-factors-mobile-8796.png`. |
+| Diff hygiene | `git diff --check` | Passed | Only Windows CRLF conversion warnings from Git; no whitespace errors. |
+
+## 2026-05-21 Risk Workbench Workflow Handoff Queue
+
+- Branch: `automation/continuous-enhancement-20260519-2303`.
+- Runtime: `2026-05-21 10:16 KST`.
+- Current status: `riskplan.md` base implementation and prior Risk enhancements were already complete and verified. This slice added a bounded workflow-handoff layer for user navigation, ML Forecast convenience, and service-wrapper readiness.
+- Backend contract: `core/schemas/risk.py` now exposes `handoff_queue` on `RiskWorkbenchResponse` with typed handoff id, target tab, href, status, priority, reason, next step, and evidence refs.
+- Backend orchestration: `pipelines/risk/service.py` derives handoffs from existing data-quality gates, macro backdrop, company coverage scope, market behavior risk, severe scenarios, portfolio mode, priority map, and service readiness. No scoring weights, provider calls, trade-action policy, or AI-generated score path changed.
+- UI/UX: `/ui/#risk` now renders a compact next-workflow queue in the decision brief so users can move directly to Risk evidence repair, Macro pressure review, Quantamental drilldown, ML Forecast validation, AI Portfolio overlay review, or the service-wrapper gate.
+- Compatibility: invalid tickers stay fail-closed and do not receive ML Forecast handoff; ETF/asset-proxy runs keep proxy-scope warnings visible.
+
+### Risk Handoff Validation Results
+
+| Check | Command / Tool | Result | Notes |
+|---|---|---|---|
+| Python syntax | `python -m py_compile core/schemas/risk.py pipelines/risk/service.py app/api/routers/risk.py` | Passed | New schema and service path compile. |
+| JS syntax | `node --check app/web/app.js` | Passed | Handoff queue UI parses. |
+| UI contract | `python scripts/check_ui_contract.py` | Passed | `handoff_queue` and `risk-handoff-queue` markers included; no mojibake or placeholder lines reported. |
+| Risk/API/UI contract | `python -m pytest tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py -q` | Passed | `8 passed`; API tests cover handoff ids and invalid fail-closed behavior. |
+| Related Risk/UI/dashboard regression | `python -m pytest tests/test_risk_aggregation.py tests/test_risk_transmission.py tests/test_risk_data_quality.py tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py tests/test_dashboard_api.py tests/test_ui_modules.py tests/test_ui_routing_contract.py -q` | Passed | `69 passed, 4 subtests passed`. |
+| Quantamental/Macro/Dashboard/AI Portfolio regression | `python -m pytest tests/test_quantamental_api.py tests/test_macro_platform.py tests/test_dashboard_api.py tests/test_ai_portfolio_api.py -q` | Passed | `96 passed`. |
+| Full regression | `python -m pytest -q` | Passed | `723 passed, 9 subtests passed`. |
+| Live API smoke | `POST /api/v1/risk/workbench` on `http://127.0.0.1:8797` | Passed | NVDA, TLT, invalid ticker, weighted NVDA/MSFT/TLT portfolio, and EN output returned typed `handoff_queue`; invalid ticker had no ML Forecast handoff. |
+| Browser plugin smoke | Browser at `http://host.docker.internal:8797/ui/#risk` | Passed | NVDA rendered 6 handoff rows with Risk, Macro, Quantamental, ML Forecast, and service-wrapper links; overflowX `0`. |
+| Browser desktop/mobile UI | Playwright against `http://127.0.0.1:8797/ui/#risk` | Passed | Desktop NVDA, mobile TLT, and desktop invalid ticker rendered handoff queue; overflowX `0`, console errors `0`. Screenshots: `F:\LLM\risk-handoff-queue-desktop-8797.png`, `F:\LLM\risk-handoff-queue-mobile-8797.png`, `F:\LLM\risk-handoff-queue-invalid-8797.png`. |
+| Diff hygiene | `git diff --check` | Passed | Only Windows CRLF conversion warnings from Git; no whitespace errors. |
+
+## 2026-05-21 Risk Workbench ML Validation Tests
+
+- Branch: `automation/continuous-enhancement-20260519-2303`.
+- Runtime: `2026-05-21 11:13 KST`.
+- Current status: `riskplan.md` base implementation and prior Risk enhancements were already complete and verified. This slice added a bounded ML Forecast usability layer without changing Risk scoring, provider calls, trading/order behavior, secrets, or `.env` settings.
+- Backend contract: `core/schemas/risk.py` now exposes `ml_validation_tests` on `RiskWorkbenchResponse` with typed test id, label, status, priority, test type, target tickers, horizon, rationale, setup notes, pass criteria, and evidence refs.
+- Backend orchestration: `pipelines/risk/service.py` derives forecast validation tests from decision usability, data-quality gates, company/proxy coverage, macro pressure, transmission channels, severe scenarios, and portfolio mode. Blocked Risk runs return only a data-gate recheck; valid runs return walk-forward, leakage, scenario, asset-proxy, and portfolio tests when applicable.
+- UI/UX: `/ui/#risk` renders ML validation tests beside the handoff queue in the first-flow decision brief so users can see the next forecast experiment to run before leaving the Risk tab.
+- Compatibility: invalid tickers remain fail-closed; asset-proxy symbols such as `TLT` get proxy-specific validation guidance instead of fabricated company-fundamental requirements.
+
+### Risk ML Validation Results
+
+| Check | Command / Tool | Result | Notes |
+|---|---|---|---|
+| Python syntax | `python -m py_compile core/schemas/risk.py app/api/routers/risk.py pipelines/risk/aggregation.py pipelines/risk/company.py pipelines/risk/data_quality.py pipelines/risk/macro.py pipelines/risk/scenario.py pipelines/risk/service.py pipelines/risk/transmission.py` | Passed | Risk schema, router, and service modules compile. |
+| JS syntax | `node --check app/web/app.js` | Passed | ML validation UI parses. |
+| UI contract | `python scripts/check_ui_contract.py` | Passed | `ml_validation_tests` and `risk-ml-validation-tests` markers included; no mojibake or placeholder lines reported. |
+| Risk/API/UI contract | `python -m pytest tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py -q` | Passed | `8 passed`; API tests cover ML validation ids, English output, invalid fail-closed, and asset-proxy validation. |
+| Risk targeted suite | `python -m pytest tests/test_risk_aggregation.py tests/test_risk_transmission.py tests/test_risk_data_quality.py tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py -q` | Passed | `13 passed`. |
+| UI/dashboard regression | `python -m pytest tests/test_dashboard_api.py tests/test_ui_modules.py tests/test_ui_routing_contract.py -q` | Passed | `56 passed, 4 subtests passed`. |
+| Quantamental/Macro/AI Portfolio regression | `python -m pytest tests/test_quantamental_api.py tests/test_macro_platform.py tests/test_ai_portfolio_api.py -q` | Passed | `82 passed`. |
+| Full regression | `python -m pytest -q` | Passed | `723 passed, 9 subtests passed`. |
+| Live API smoke | `POST /api/v1/risk/workbench` on `http://127.0.0.1:8798` | Passed | NVDA returned leakage/scenario/baseline tests; TLT added `asset_proxy_validation`; invalid ticker returned blocked `risk_data_gate_recheck`; weighted NVDA/MSFT/TLT portfolio added `portfolio_component_oos_check`. |
+| Browser plugin smoke | Browser at `http://host.docker.internal:8798/ui/#risk` | Passed | Risk page opened through the local browser tool. |
+| Browser desktop/mobile UI | Python Playwright against `http://127.0.0.1:8798/ui/#risk` | Passed | Desktop NVDA, desktop invalid ticker, mobile TLT, and desktop portfolio rendered ML validation tests; overflowX `0`, console errors `0`, direct trade instruction `false`. Screenshots: `F:\LLM\risk-ml-validation-desktop-nvda-8798.png`, `F:\LLM\risk-ml-validation-desktop-invalid-8798.png`, `F:\LLM\risk-ml-validation-mobile-tlt-8798.png`, `F:\LLM\risk-ml-validation-desktop-portfolio-8798.png`. |
+| Diff hygiene | `git diff --check` | Passed | Only Windows CRLF conversion warnings from Git; no whitespace errors. |
 
 ## 2026-05-20 Continuous Enhancement Run 09:07
 
@@ -2562,3 +2758,273 @@
 - [x] README updated if needed
 - [x] PR summary includes changed files
 - [x] PR summary includes validation result
+
+## 2026-05-21 Risk Continuous Enhancement: ML Forecast Handoff Prefill
+
+- Branch/worktree: `automation/continuous-enhancement-20260519-2303` in `F:\LLM\FinGPT`.
+- Current status: Risk plan items were already implemented and re-verified. This slice adds user-convenience and service-integration polish by turning actionable Risk `ml_validation_tests` into direct ML Forecast launch links.
+- Contract: `RiskMlValidationTest` now includes optional `forecast_prefill` and `launch_href`; blocked data-gate tests intentionally leave both unset so unavailable Risk inputs cannot create a seemingly valid Forecast experiment.
+- Backend: `pipelines/risk/service.py` builds deterministic Forecast prefill settings from each ML validation test: ticker, benchmark, horizon, validation method, target type, macro/cross-asset feature switches, Risk test id, and Risk input hash.
+- UI/UX: the Risk decision brief renders a compact `Forecast에서 열기` / `Open in Forecast` link per actionable ML test. `/ui/?tab=ml-forecast...#ml-forecast` now hydrates ML Forecast controls and shows a Risk handoff notice before any forecast job is run.
+- Safety: this does not alter Risk scoring, Forecast training logic, model choices, trading language, or any order/rebalance workflow. It is navigation plus prefill only.
+
+### Validation Results
+
+| Check | Command / Tool | Result | Notes |
+|---|---|---|---|
+| Python syntax | `python -m py_compile core/schemas/risk.py pipelines/risk/service.py` | Passed | New schema and service helper compile. |
+| JS syntax | `node --check app\web\app.js` | Passed | Static UI JavaScript syntax. |
+| Target Risk/API/UI tests | `python -m pytest tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py -q` | Passed | `8 passed`. |
+| UI contract | `python scripts\check_ui_contract.py` | Passed | New `forecast_prefill`, `launch_href`, and prefill-handler markers included; no mojibake or placeholders. |
+| Risk/dashboard/UI regression | `python -m pytest tests/test_risk_aggregation.py tests/test_risk_transmission.py tests/test_risk_data_quality.py tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py tests/test_dashboard_api.py tests/test_ui_routing_contract.py -q` | Passed | `67 passed, 4 subtests passed`. |
+| Quantamental/Macro/AI Portfolio regression | `python -m pytest tests/test_quantamental_api.py tests/test_macro_platform.py tests/test_ai_portfolio_api.py -q` | Passed | `82 passed`. |
+| Full regression | `python -m pytest tests -q` | Passed | `723 passed, 9 subtests passed`. |
+| Diff hygiene | `git diff --check -- core/schemas/risk.py pipelines/risk/service.py app/web/app.js app/web/index.html app/web/styles.css scripts/check_ui_contract.py tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py` | Passed | Only Windows LF-to-CRLF warnings. |
+| Browser desktop Risk | Docker browser at `http://host.docker.internal:8801/ui/#risk` | Passed | NVDA rendered Korean Risk output, ML validation launch links, all required panels, and horizontal overflow `0`. |
+| Browser ML Forecast prefill | Docker browser at generated `/ui/?tab=ml-forecast...#ml-forecast` URL | Passed | Forecast tab active, `NVDA`, `QQQ`, `63`, `walk_forward_plus_purged_cv`, macro enabled, cross-asset disabled, and Risk handoff notice visible. |
+| Browser mobile Risk | Docker browser `390x900`, `TLT` | Passed | Asset-proxy scope visible, ML validation link present, all required panels rendered, horizontal overflow `0`. |
+| Browser invalid ticker | Docker browser, `INVALID_TEST_TICKER_123` | Passed | Risk index stayed unavailable, decision use blocked, ML data-gate recheck visible, and no Forecast launch link was shown. |
+
+## 2026-05-21 Risk Continuous Enhancement: Decision Path
+
+- Branch/worktree: `automation/continuous-enhancement-20260519-2303` in `F:\LLM\FinGPT`.
+- Current status: Risk plan items were already implemented and re-verified. This slice reduces first-flow scanning by consolidating the top action, linked workflow, Forecast validation launch, service gate, and evidence refs into a typed `decision_path`.
+- Contract: `RiskWorkbenchResponse.decision_path` is derived from existing `action_checklist`, `handoff_queue`, `ml_validation_tests`, `service_readiness`, and `priority_map` outputs, so it does not invent a new score or duplicate Risk math.
+- UI/UX: the Risk decision brief now renders a compact `의사결정 경로` / `Decision path` card before the longer checklist panels, with direct links to the next workflow and actionable Forecast validation when available.
+- Safety: invalid or data-blocked Risk runs keep the decision path in `blocked` state and do not expose a Forecast launch link.
+
+### Validation Results
+
+| Check | Command / Tool | Result | Notes |
+|---|---|---|---|
+| Python syntax | `python -m py_compile core/schemas/risk.py pipelines/risk/service.py` | Passed | New schema and service helper compile. |
+| JS syntax | `node --check app\web\app.js` | Passed | Static UI JavaScript syntax. |
+| Target Risk/API/UI tests | `python -m pytest tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py -q` | Passed | `8 passed`. |
+| UI contract | `python scripts\check_ui_contract.py` | Passed | `decision_path` and `risk-decision-path` markers included; no mojibake or placeholders. |
+| Risk/dashboard/UI regression | `python -m pytest tests/test_risk_aggregation.py tests/test_risk_transmission.py tests/test_risk_data_quality.py tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py tests/test_dashboard_api.py tests/test_ui_routing_contract.py -q` | Passed | `67 passed, 4 subtests passed`. |
+| Quantamental/Macro/AI Portfolio regression | `python -m pytest tests/test_quantamental_api.py tests/test_macro_platform.py tests/test_ai_portfolio_api.py -q` | Passed | `82 passed`. |
+| Full regression | `python -m pytest tests -q` | Passed | `723 passed, 9 subtests passed`. |
+| Diff hygiene | `git diff --check -- core/schemas/risk.py pipelines/risk/service.py app/web/app.js app/web/styles.css scripts/check_ui_contract.py tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py docs/ARCHITECTURE.md docs/PROJECT_MAP.md docs/UI_TAB_DECISION_CHECKLIST.md` | Passed | Only Windows LF-to-CRLF warnings. |
+| Browser desktop Risk | Playwright at `http://127.0.0.1:8802/ui/#risk` | Passed | NVDA rendered `decision_path`, Forecast validation link, all required Risk panels, console errors `0`, overflow `0`; screenshot `F:\LLM\risk-decision-path-desktop-8802.png`. |
+| Browser ML Forecast prefill | Playwright at generated `/ui/?tab=ml-forecast...#ml-forecast` URL | Passed | Forecast tab prefilled `NVDA`, horizon `63`, validation `walk_forward_plus_purged_cv`, and Risk handoff notice; screenshot `F:\LLM\risk-decision-path-forecast-prefill-8802.png`. |
+| Browser mobile Risk | Playwright `390x900`, `TLT` | Passed | Asset-proxy Risk rendered `decision_path`, all required panels, console errors `0`, overflow `0`; screenshot `F:\LLM\risk-decision-path-mobile-8802.png`. |
+| Browser invalid ticker | Playwright, `INVALID_TEST_TICKER_123` | Passed | Decision path stayed `blocked`, no Forecast launch link appeared, console errors `0`, overflow `0`; screenshot `F:\LLM\risk-decision-path-invalid-8802.png`. |
+
+## 2026-05-21 Risk Continuous Enhancement: Forecast Source Context
+
+- Branch/worktree: `automation/continuous-enhancement-20260519-2303` in `F:\LLM\FinGPT`.
+- Current status: Risk plan items and previous Risk enhancements were already complete and re-verified. This slice improves Risk-to-ML Forecast usability and auditability by carrying Risk validation metadata through the Forecast request payload.
+- Contract: `ForecastRunRequest.source_context` records `risk_workbench` source, Risk validation test id, Risk input hash, test type, label, and priority.
+- Backend/UI: Risk ML validation launch URLs now include `riskTestType`, `riskTestPriority`, and `riskTestLabel`; the ML Forecast tab renders a compact handoff plan and sends the same source context when training or queueing Forecast runs.
+- Safety: this does not change Risk scoring, Forecast math, model selection, signal generation, order execution, or advisory-only policy.
+
+### Validation Results
+
+| Check | Command / Tool | Result | Notes |
+|---|---|---|---|
+| Baseline targeted gate | `python -m pytest tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py tests/test_forecast_lab.py::test_leakage_checker_blocks_random_shuffle_and_same_bar_execution -q` | Passed | `9 passed` before edits. |
+| Python syntax | `python -m py_compile core/schemas/risk.py app/api/routers/risk.py pipelines/risk/aggregation.py pipelines/risk/company.py pipelines/risk/data_quality.py pipelines/risk/macro.py pipelines/risk/scenario.py pipelines/risk/service.py pipelines/risk/transmission.py core/schemas/forecast.py pipelines/forecast/service.py` | Passed | Risk and Forecast schema/service modules compile. |
+| JS syntax | `node --check app/web/app.js` | Passed | Static UI JavaScript syntax. |
+| UI contract | `python scripts/check_ui_contract.py` | Passed | New source-context, handoff-card, and Risk markers present; no missing markers, mojibake lines, or placeholder lines. |
+| Target Risk/Forecast tests | `python -m pytest tests/test_risk_aggregation.py tests/test_risk_transmission.py tests/test_risk_data_quality.py tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py tests/test_forecast_lab.py -q` | Passed | `48 passed`. |
+| Dashboard/UI routing tests | `python -m pytest tests/test_dashboard_api.py tests/test_ui_routing_contract.py -q` | Passed | `54 passed, 4 subtests passed`. |
+| Domain regression | `python -m pytest tests/test_quantamental_api.py tests/test_macro_platform.py tests/test_ai_portfolio_api.py -q` | Passed | `82 passed`. |
+| Full regression | `python -m pytest tests -q` | Passed | `724 passed, 9 subtests passed`. |
+| Diff hygiene | `git diff --check -- ...` | Passed | Only Windows LF-to-CRLF warnings. |
+| Browser Risk desktop | Playwright at `http://127.0.0.1:8803/ui/#risk` | Passed | NVDA rendered Risk output and source-context Forecast launch URL; screenshot `F:\LLM\risk-source-context-desktop-8803.png`. |
+| Browser Forecast handoff | Playwright at generated `/ui/?tab=ml-forecast...#ml-forecast` URL | Passed | Forecast controls hydrated, handoff plan rendered, and queued-job POST carried matching `source_context`; screenshot `F:\LLM\risk-source-context-forecast-8803.png`. |
+| Browser Risk mobile | Playwright `390x900`, `TLT` | Passed | Asset-proxy Risk rendered Forecast links and overflow `0`; screenshot `F:\LLM\risk-source-context-mobile-8803.png`. |
+| Browser invalid ticker | Playwright, `INVALID_TEST_TICKER_123` | Passed | Fail-closed output had no Forecast launch link and overflow `0`; screenshot `F:\LLM\risk-source-context-invalid-8803.png`. |
+
+## 2026-05-21 Risk Continuous Enhancement: Release Packet
+
+- Runtime: `2026-05-21 15:11 KST`.
+- Branch/worktree: `automation/continuous-enhancement-20260519-2303` in `F:\LLM\FinGPT`; the worktree already contained accumulated local automation changes, so this slice preserves prior Risk and dashboard work.
+- Current status: Risk plan items and prior Risk enhancements were already complete and re-verified. This slice improves service deployability by adding a typed `release_packet` to each Risk response.
+- Contract: `RiskWorkbenchResponse.release_packet` carries API/UI routes, required audit fields, validation commands, deployment checks, rollback triggers, data dependencies, and limitations.
+- UI/UX: the Risk decision brief renders a compact release-packet card beside service readiness, and the evidence drawer exposes service routes plus validation commands for operator review.
+- Safety: the release packet is an operability contract, not an investment conclusion. It does not change Risk scoring, Forecast math, signal generation, order/rebalance behavior, or provider settings.
+
+### Validation Plan
+
+| Check | Command / Tool | Status |
+|---|---|---|
+| Baseline targeted gate | `python -m py_compile ...`; `node --check app/web/app.js`; `python -m pytest tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py tests/test_forecast_lab.py::test_forecast_run_request_accepts_risk_source_context -q` | Passed before edits |
+| Python syntax | `python -m py_compile core/schemas/risk.py app/api/routers/risk.py pipelines/risk/aggregation.py pipelines/risk/company.py pipelines/risk/data_quality.py pipelines/risk/macro.py pipelines/risk/scenario.py pipelines/risk/service.py pipelines/risk/transmission.py core/schemas/forecast.py pipelines/forecast/service.py` | Passed |
+| JS syntax | `node --check app/web/app.js` | Passed |
+| Target Risk/API/UI tests | `python -m pytest tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py -q` | Passed: `8 passed` |
+| UI contract | `python scripts/check_ui_contract.py` | Passed: release-packet markers present, no mojibake or placeholder lines |
+| Risk/Forecast targeted regression | `python -m pytest tests/test_risk_aggregation.py tests/test_risk_transmission.py tests/test_risk_data_quality.py tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py tests/test_forecast_lab.py -q` | Passed: `48 passed` |
+| Dashboard/UI routing tests | `python -m pytest tests/test_dashboard_api.py tests/test_ui_routing_contract.py -q` | Passed: `54 passed, 4 subtests passed` |
+| Domain regression | `python -m pytest tests/test_quantamental_api.py tests/test_macro_platform.py tests/test_ai_portfolio_api.py -q` | Passed: `82 passed` |
+| Full regression | `python -m pytest tests -q` | Passed: `724 passed, 9 subtests passed` |
+| Diff hygiene | `git diff --check -- ...` | Passed: CRLF conversion warnings only |
+| Browser Risk desktop/mobile/invalid | Fresh server `http://127.0.0.1:8804/ui/#risk` and Playwright checks | Passed: NVDA desktop, TLT 390px mobile, and `INVALID_TEST_TICKER_123`; release packet rendered, body/critical overflow `0`, console errors `0`, invalid ticker had `0` Forecast links |
+
+### Browser Evidence
+
+- Desktop screenshot: `F:\LLM\risk-release-packet-desktop-8804.png`.
+- Mobile screenshot: `F:\LLM\risk-release-packet-mobile-8804.png`.
+- Invalid ticker screenshot: `F:\LLM\risk-release-packet-invalid-8804.png`.
+- Local review server: `http://127.0.0.1:8804/ui/#risk`.
+
+## 2026-05-21 Risk Continuous Enhancement: Input Receipt
+
+- Runtime: `2026-05-21 16:15 KST`.
+- Branch/worktree: `automation/continuous-enhancement-20260519-2303` in `F:\LLM\FinGPT`; the worktree already contained accumulated local automation changes, so this slice preserves prior Risk, Forecast, dashboard, and documentation work.
+- Current status: `riskplan.md` plan items and prior Risk enhancements were already complete and re-verified. This slice improves user clarity, data compatibility, and service replayability by adding a typed `input_receipt` to each Risk response.
+- Contract: `RiskWorkbenchResponse.input_receipt` records mode, subjects, market, scenario, lookback, output language, normalized positions, weight sum, status, compatibility notes, and replay notes.
+- UI/UX: the Risk decision brief renders an `입력 확인서` / `Input receipt` card immediately beside the decision path, showing what the service actually analyzed before users inspect driver, scenario, Forecast, or release panels.
+- Safety: this does not change Risk scoring, Forecast math, AI interpretation, signal generation, order/rebalance behavior, or provider settings. Invalid and blocked inputs still fail closed, and asset-proxy inputs stay visibly scoped.
+
+### Validation Plan
+
+| Check | Command / Tool | Status |
+|---|---|---|
+| Python syntax | `python -m py_compile core/schemas/risk.py app/api/routers/risk.py pipelines/risk/aggregation.py pipelines/risk/company.py pipelines/risk/data_quality.py pipelines/risk/macro.py pipelines/risk/scenario.py pipelines/risk/service.py pipelines/risk/transmission.py core/schemas/forecast.py pipelines/forecast/service.py` | Passed |
+| JS syntax | `node --check app/web/app.js` | Passed |
+| Target Risk/API/UI tests | `python -m pytest tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py -q` | Passed: `8 passed` |
+| UI contract | `python scripts/check_ui_contract.py` | Passed: `input_receipt` and `risk-input-receipt` markers present, no mojibake or placeholder lines |
+| Risk/Forecast targeted regression | `python -m pytest tests/test_risk_aggregation.py tests/test_risk_transmission.py tests/test_risk_data_quality.py tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py tests/test_forecast_lab.py -q` | Passed: `48 passed` |
+| Dashboard/UI routing tests | `python -m pytest tests/test_dashboard_api.py tests/test_ui_routing_contract.py -q` | Passed: `54 passed, 4 subtests passed` |
+| Domain regression | `python -m pytest tests/test_quantamental_api.py tests/test_macro_platform.py tests/test_ai_portfolio_api.py -q` | Passed: `82 passed` |
+| Full regression | `python -m pytest tests -q` | Passed: `724 passed, 9 subtests passed` |
+| Diff hygiene | `git diff --check -- ...` | Passed: CRLF conversion warnings only |
+| Browser Risk desktop | Docker browser at `http://host.docker.internal:8805/ui/#risk` | Passed: NVDA rendered input receipt, all required Risk panels, Forecast validation links, body/critical overflow `0`, and browser errors `0` |
+| Browser Risk mobile | Docker browser `390x900`, `TLT` | Passed: asset-proxy scope and input receipt rendered, body/critical overflow `0`, and browser errors `0` |
+| Browser invalid ticker | Docker browser, `INVALID_TEST_TICKER_123` | Passed: risk index unavailable, decision use blocked, input receipt rendered, and Forecast launch links `0` |
+
+### Browser Evidence
+
+- Local review server: `http://127.0.0.1:8805/ui/#risk`.
+
+## 2026-05-21 Risk Continuous Enhancement: Decision Quality
+
+- Runtime: `2026-05-21 16:30 KST`.
+- Branch/worktree: `automation/continuous-enhancement-20260519-2303` in `F:\LLM\FinGPT`; the worktree already contained accumulated local automation changes, so this slice preserves prior Risk, Forecast, dashboard, and documentation work.
+- Current status: `riskplan.md` plan items and prior Risk enhancements were already complete at run start, and the pre-edit targeted Risk gate passed with `12 passed`.
+- Contract: `RiskWorkbenchResponse.decision_quality` summarizes confidence, data-quality gates, normalized input receipt, service readiness, release packet, checklist state, and ML Forecast validation launch availability into a single `ok`, `review`, or `blocked` status, score, basis list, blockers, and next actions.
+- UI/UX: the Risk decision brief renders a compact decision-quality card beside the decision path so users can see whether the run is ready, review-bound, or blocked without scanning every operational panel first.
+- Safety: this is a derived usability summary only. It does not change Risk scoring, Forecast math, AI interpretation, signal generation, order/rebalance behavior, provider settings, or the fail-closed treatment of invalid inputs.
+
+### Validation Plan
+
+| Check | Command / Tool | Status |
+|---|---|---|
+| Python syntax | `python -m py_compile core/schemas/risk.py app/api/routers/risk.py pipelines/risk/aggregation.py pipelines/risk/company.py pipelines/risk/data_quality.py pipelines/risk/macro.py pipelines/risk/scenario.py pipelines/risk/service.py pipelines/risk/transmission.py core/schemas/forecast.py pipelines/forecast/service.py` | Passed |
+| JS syntax | `node --check app/web/app.js` | Passed |
+| Target Risk/API/UI tests | `python -m pytest tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py -q` | Passed: `8 passed` |
+| UI contract | `python scripts/check_ui_contract.py` | Passed: `decision_quality` and `risk-decision-quality` markers present, no missing markers, mojibake lines, or placeholder lines |
+| Risk/Forecast targeted regression | `python -m pytest tests/test_risk_aggregation.py tests/test_risk_transmission.py tests/test_risk_data_quality.py tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py tests/test_forecast_lab.py -q` | Passed: `48 passed` |
+| Dashboard/UI routing tests | `python -m pytest tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py tests/test_dashboard_api.py tests/test_ui_routing_contract.py -q` | Passed: `62 passed, 4 subtests passed` |
+| Domain regression | `python -m pytest tests/test_quantamental_api.py tests/test_macro_platform.py tests/test_ai_portfolio_api.py -q` | Passed: `82 passed` |
+| Full regression | `python -m pytest tests -q` | Passed: `724 passed, 9 subtests passed` |
+| Browser Risk desktop/mobile/invalid | Fresh server `http://127.0.0.1:8806/ui/#risk` with Playwright checks | Passed: NVDA desktop, TLT 390px mobile, and `INVALID_TEST_TICKER_123`; decision-quality card rendered, input receipt/service readiness/release packet present, body/critical overflow `0`, console errors `0`, invalid ticker Forecast links `0`, loaded `app.js?v=20260521-risk-forecast-v32` and `styles.css?v=20260521-risk-forecast-v30` |
+
+### Browser Evidence
+
+- Desktop screenshot: `F:\LLM\risk-decision-quality-desktop-8806.png`.
+- Mobile screenshot: `F:\LLM\risk-decision-quality-mobile-8806.png`.
+- Invalid ticker screenshot: `F:\LLM\risk-decision-quality-invalid-8806.png`.
+- Local review server: `http://127.0.0.1:8806/ui/#risk`.
+## 2026-05-21 Risk Continuous Enhancement: Evidence Coverage
+
+- Runtime: `2026-05-21 18:25 KST`.
+- Branch/worktree: continued `automation/continuous-enhancement-20260519-2303` in `F:\LLM\FinGPT`; the worktree already contained accumulated local Risk, Forecast, dashboard, and documentation changes, so this slice preserved them and added only the evidence-coverage layer plus cache-version/test/docs updates.
+- Current status: `riskplan.md` plan items and prior Risk enhancements were already complete at run start. This slice improves user clarity, data compatibility, deployability review, and error visibility by adding typed `evidence_coverage` to each Risk response.
+- Scope: `evidence_coverage` summarizes input normalization, company/asset profile coverage, macro backdrop, scenario stress coverage, ML Forecast validation coverage, service release coverage, and evidence inventory as `ok`, `review`, or `blocked`. It is rendered in the first-flow Risk decision brief and the evidence drawer.
+- Guardrail: this is a derived decision-support and operability summary only. It does not change Risk scoring, Forecast math, provider calls, AI interpretation, signal generation, orders, rebalancing, secrets, or environment settings.
+- Cache safety: static assets were bumped to `app.js?v=20260521-risk-forecast-v33` and `styles.css?v=20260521-risk-forecast-v31`.
+
+| Check | Result | Notes |
+|---|---|---|
+| Python syntax | Passed | `python -m py_compile core/schemas/risk.py app/api/routers/risk.py pipelines/risk/aggregation.py pipelines/risk/company.py pipelines/risk/data_quality.py pipelines/risk/macro.py pipelines/risk/scenario.py pipelines/risk/service.py pipelines/risk/transmission.py core/schemas/forecast.py pipelines/forecast/service.py` |
+| JS syntax | Passed | `node --check app/web/app.js` |
+| UI contract | Passed | `python scripts/check_ui_contract.py`; `evidence_coverage`, `risk-evidence-coverage`, and `risk-evidence-coverage-detail` markers present; no missing markers, mojibake lines, or placeholder lines |
+| Target Risk/UI | Passed | `python -m pytest tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py -q` -> `8 passed`; post-cache-bump rerun `tests/test_risk_workbench_api.py` -> `7 passed` |
+| Risk/Forecast regression | Passed | `python -m pytest tests/test_risk_aggregation.py tests/test_risk_transmission.py tests/test_risk_data_quality.py tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py tests/test_forecast_lab.py -q` -> `48 passed` |
+| Dashboard/UI routing | Passed | `python -m pytest tests/test_dashboard_api.py tests/test_ui_routing_contract.py -q` -> `54 passed, 4 subtests passed`; post-cache-bump rerun with UI Risk contract -> `41 passed, 4 subtests passed` |
+| Domain regression | Passed | `python -m pytest tests/test_quantamental_api.py tests/test_macro_platform.py tests/test_ai_portfolio_api.py -q` -> `82 passed` |
+| Full regression | Passed | `python -m pytest tests -q` -> `724 passed, 9 subtests passed` |
+| Browser UI | Passed | Fresh server `http://127.0.0.1:8807/ui/#risk`; NVDA desktop, TLT 390px mobile, invalid ticker fail-closed, and Risk-to-Forecast prefill rendered `evidence_coverage`; body/critical overflow `0`; console errors `0`; invalid ticker had `0` Forecast launch links |
+| Cache version browser check | Passed | `http://127.0.0.1:8807/ui/?cache=20260521-risk-evidence#risk` loaded `app.js?v=20260521-risk-forecast-v33` and `styles.css?v=20260521-risk-forecast-v31` |
+
+## 2026-05-21 Risk Continuous Enhancement: AI Output Controls
+
+- Runtime: `2026-05-21 19:25 KST`.
+- Branch/worktree: continued `automation/continuous-enhancement-20260519-2303` in `F:\LLM\FinGPT`; the worktree already contained accumulated local Risk, Forecast, dashboard, and documentation changes, so this slice preserved them and added only the AI-output-control layer plus cache-version/test/docs updates.
+- Current status: `riskplan.md` plan items and prior Risk enhancements were already complete at run start. This slice improves advanced AI output quality, data compatibility, and deployment safety by adding typed `ai_output_controls` to each Risk response.
+- Scope: `ai_output_controls` carries status, language, grounding summary, required evidence refs, allowed claims, blocked claims, citation policy, review instructions, and prompt context. The first-flow Risk UI and evidence drawer render those guardrails before any model-written Risk narrative is reused or shared.
+- Guardrail: this does not change Risk scoring, Forecast math, provider calls, signal generation, orders, rebalancing, secrets, or environment settings. It prevents AI narratives from inventing missing metrics, overstating service readiness, or treating ML Forecast validation experiments as confirmed forecasts.
+- Cache safety: static assets were bumped to `app.js?v=20260521-risk-forecast-v34` and `styles.css?v=20260521-risk-forecast-v32`.
+
+| Check | Result | Notes |
+|---|---|---|
+| Python syntax | Passed | `python -m py_compile core/schemas/risk.py app/api/routers/risk.py pipelines/risk/aggregation.py pipelines/risk/company.py pipelines/risk/data_quality.py pipelines/risk/macro.py pipelines/risk/scenario.py pipelines/risk/service.py pipelines/risk/transmission.py core/schemas/forecast.py pipelines/forecast/service.py` |
+| JS syntax | Passed | `node --check app/web/app.js` |
+| UI contract | Passed | `python scripts/check_ui_contract.py`; `ai_output_controls`, `risk-ai-output-controls`, and `risk-ai-output-detail` markers present; no missing markers, mojibake lines, or placeholder lines |
+| Target Risk/UI | Passed | `python -m pytest tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py -q` -> `8 passed` |
+| Risk/Forecast regression | Passed | `python -m pytest tests/test_risk_aggregation.py tests/test_risk_transmission.py tests/test_risk_data_quality.py tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py tests/test_forecast_lab.py -q` -> `48 passed` |
+| Dashboard/UI routing | Passed | `python -m pytest tests/test_dashboard_api.py tests/test_ui_routing_contract.py -q` -> `54 passed, 4 subtests passed` |
+| Domain regression | Passed | `python -m pytest tests/test_quantamental_api.py tests/test_macro_platform.py tests/test_ai_portfolio_api.py -q` -> `82 passed` |
+| Full regression | Passed | `python -m pytest tests -q` -> `724 passed, 9 subtests passed` |
+| API smoke | Passed | `NVDA`, `TLT`, `INVALID_TEST_TICKER_123`, and weighted `NVDA/MSFT/TLT` portfolio returned typed `ai_output_controls`; invalid ticker produced `ai_output_controls.status=blocked` and `0` Forecast links |
+| Browser UI | Passed | Fresh server `http://127.0.0.1:8808/ui/#risk`; NVDA desktop, TLT 390px mobile, and invalid ticker fail-closed output rendered `ai_output_controls`; body/critical overflow `0`; console errors `0`; invalid ticker had `0` Forecast launch links |
+
+## 2026-05-21 Risk Decision Compass Slice
+
+- Current status: `riskplan.md` plan items and prior Risk enhancements were already complete at run start. This slice improves first-flow usability and decision support by adding typed `decision_compass` to each Risk response.
+- Scope: `decision_compass` summarizes the intended user sequence: verify input/decision quality, review evidence coverage, run linked ML Forecast validation when available, control AI narrative output, and review service gates. It is derived from existing deterministic contracts and does not change Risk scoring or Forecast math.
+- UI/UX: the Risk decision brief now renders a full-width decision navigator above the detailed cards; asset-proxy and blocked-input cases prioritize the affected input subject as the primary focus.
+- Cache safety: static assets were bumped to `app.js?v=20260521-risk-forecast-v35` and `styles.css?v=20260521-risk-forecast-v33`.
+
+| Check | Status | Evidence |
+| --- | --- | --- |
+| Python syntax | Passed | `python -m py_compile core/schemas/risk.py app/api/routers/risk.py pipelines/risk/aggregation.py pipelines/risk/company.py pipelines/risk/data_quality.py pipelines/risk/macro.py pipelines/risk/scenario.py pipelines/risk/service.py pipelines/risk/transmission.py core/schemas/forecast.py pipelines/forecast/service.py` |
+| UI syntax | Passed | `node --check app/web/app.js` |
+| UI contract | Passed | `python scripts/check_ui_contract.py`; `decision_compass`, `risk-decision-compass`, and `risk-compass-step` markers present; no missing markers, mojibake lines, or placeholder lines |
+| Risk/Forecast regression | Passed | `python -m pytest tests/test_risk_aggregation.py tests/test_risk_transmission.py tests/test_risk_data_quality.py tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py tests/test_forecast_lab.py -q` -> `48 passed` |
+| Dashboard/UI routing regression | Passed | `python -m pytest tests/test_dashboard_api.py tests/test_ui_routing_contract.py -q` -> `54 passed, 4 subtests passed` |
+| Cross-domain regression | Passed | `python -m pytest tests/test_quantamental_api.py tests/test_macro_platform.py tests/test_ai_portfolio_api.py -q` -> `82 passed` |
+| Full regression | Passed | `python -m pytest tests -q` -> `724 passed, 9 subtests passed` |
+| API smoke | Passed | `NVDA`, `TLT`, `INVALID_TEST_TICKER_123`, and weighted `NVDA/MSFT/TLT` returned typed `decision_compass`; invalid ticker produced `decision_compass.status=blocked` and `0` Forecast links |
+| Browser UI | Passed | Fresh server `http://127.0.0.1:8809/ui/#risk`; NVDA desktop, TLT 390px mobile, and invalid ticker rendered `decision_compass`; body/critical overflow `0`; console errors `0`; invalid ticker had `0` Forecast links |
+
+### Browser Evidence
+
+- Desktop screenshot: `F:\LLM\risk-ai-output-desktop-8808.png`.
+- Mobile screenshot: `F:\LLM\risk-ai-output-mobile-8808.png`.
+- Invalid ticker screenshot: `F:\LLM\risk-ai-output-invalid-8808.png`.
+- Local review server: `http://127.0.0.1:8808/ui/#risk`.
+
+## 2026-05-21 Risk Compatibility Matrix Slice
+
+- Current status: `riskplan.md` plan items and prior Risk enhancements were complete at run start. This slice improves user routing clarity, data compatibility, ML Forecast convenience, and service-safety review by adding typed `compatibility_matrix` output to every Risk response.
+- Scope: `compatibility_matrix` gives each requested subject a status, coverage scope, supported downstream workflows, blocked workflows, Forecast launch link when safe, decision note, next step, and evidence refs. It is rendered in the first-flow Risk decision brief and the evidence drawer.
+- Guardrail: this is a workflow-compatibility and product-safety gate only. It does not change Risk scoring, Forecast math, provider calls, AI generation, signal generation, orders, rebalancing, secrets, or environment settings.
+- Cache safety: static assets were bumped to `app.js?v=20260521-risk-forecast-v36` and `styles.css?v=20260521-risk-forecast-v34`.
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Python syntax | Passed | `python -m py_compile core/schemas/risk.py app/api/routers/risk.py pipelines/risk/aggregation.py pipelines/risk/company.py pipelines/risk/data_quality.py pipelines/risk/macro.py pipelines/risk/scenario.py pipelines/risk/service.py pipelines/risk/transmission.py core/schemas/forecast.py pipelines/forecast/service.py` |
+| JS syntax | Passed | `node --check app/web/app.js` |
+| UI contract | Passed | `python scripts/check_ui_contract.py`; `compatibility_matrix`, `risk-compatibility-matrix`, and `risk-compatibility-detail` markers present, with no missing markers, mojibake lines, or placeholder lines |
+| Target Risk/UI | Passed | `python -m pytest tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py -q` -> `8 passed` |
+| Risk/Forecast regression | Passed | `python -m pytest tests/test_risk_aggregation.py tests/test_risk_transmission.py tests/test_risk_data_quality.py tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py tests/test_forecast_lab.py -q` -> `48 passed` |
+| Dashboard/UI routing | Passed | `python -m pytest tests/test_dashboard_api.py tests/test_ui_routing_contract.py -q` -> `54 passed, 4 subtests passed` |
+| Domain regression | Passed | `python -m pytest tests/test_quantamental_api.py tests/test_macro_platform.py tests/test_ai_portfolio_api.py -q` -> `82 passed` |
+| Full regression | Passed | `python -m pytest tests -q` -> `724 passed, 9 subtests passed` |
+| Diff whitespace | Passed | `git diff --check -- ...`; only Windows LF-to-CRLF warnings |
+| API smoke | Passed | `NVDA`, `TLT`, `INVALID_TEST_TICKER_123`, and weighted `NVDA/MSFT/TLT` returned typed `compatibility_matrix`; invalid ticker had `compatibility_status=blocked` and `0` Forecast links |
+| Browser UI | Passed | Fresh server `http://127.0.0.1:8811/ui/#risk`; NVDA desktop, TLT 390px mobile, and invalid ticker rendered compatibility matrix and evidence-drawer detail; body/critical overflow `0`; console errors `0`; invalid ticker Forecast links `0` |
+
+Browser screenshots:
+
+- `F:\LLM\risk-compatibility-desktop-nvda-8811.png`
+- `F:\LLM\risk-compatibility-mobile-tlt-8811.png`
+- `F:\LLM\risk-compatibility-invalid-8811.png`
+
+Remaining risk:
+
+- Public deployment controls remain intentionally `review_required` until auth, rate limits, retention, monitoring, and operator run storage are configured outside the Risk response.
+- Live slow production LLM repetitions were not run; this slice is deterministic Risk/Forecast/UI contract work.

@@ -20,6 +20,15 @@ SignalValue = Literal[
 ModelStatus = Literal["draft", "trained", "validated", "promoted", "deprecated", "failed"]
 
 
+class ForecastSourceContext(BaseModel):
+    source: str = ""
+    risk_validation_test_id: str = ""
+    risk_input_hash: str = ""
+    risk_test_type: str = ""
+    risk_test_label: str = ""
+    risk_priority: int | None = Field(default=None, ge=1, le=5)
+
+
 def _clean_ticker(value: Any, default: str = "SPY") -> str:
     ticker = str(value or default).strip().upper()
     return ticker or default
@@ -264,6 +273,7 @@ class ForecastExperiment(BaseModel):
     signal_config: SignalConfig
     backtest_config: BacktestConfig
     visualization_config: VisualizationConfig
+    source_context: ForecastSourceContext = Field(default_factory=ForecastSourceContext)
     status: ForecastStatus = "partial"
     warnings: list[str] = Field(default_factory=list)
     data_quality: DataQualityResult = Field(default_factory=DataQualityResult)
@@ -284,6 +294,7 @@ class ForecastRunRequest(BaseModel):
     signal_config: SignalConfig = Field(default_factory=SignalConfig)
     backtest_config: BacktestConfig = Field(default_factory=BacktestConfig)
     visualization_config: VisualizationConfig = Field(default_factory=VisualizationConfig)
+    source_context: ForecastSourceContext = Field(default_factory=ForecastSourceContext)
 
 
 class ForecastJobSubmitRequest(BaseModel):

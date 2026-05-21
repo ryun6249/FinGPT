@@ -77,6 +77,13 @@ const API = {
   macroDataQuality: "/api/v1/macro/data-quality",
   macroRefreshRun: "/api/v1/macro/refresh",
   macroRefreshStatus: "/api/v1/macro/refresh/status",
+  risk: {
+    health: "/api/v1/risk/health",
+    workbench: "/api/v1/risk/workbench",
+    company: (ticker) => `/api/v1/risk/company/${encodeURIComponent(ticker || "")}`,
+    macro: "/api/v1/risk/macro",
+    scenario: "/api/v1/risk/scenario",
+  },
   dataHealth: "/api/v1/data/health",
   dataPrices: (ticker, limit = 252, options = {}) => {
     const params = new URLSearchParams({ limit: String(limit) });
@@ -242,6 +249,7 @@ const DASHBOARD_PANEL_LAYOUT_VERSION = "20260519-all-default";
 const DEFAULT_DASHBOARD_PANEL_VIEWS = {
   market: "all",
   macro: "all",
+  risk: "all",
   quant: "all",
   quantamental: "all",
   forecast: "all",
@@ -494,6 +502,7 @@ const els = {
   homeSurfaceGrid: document.getElementById("homeSurfaceGrid"),
   marketDashboardTab: document.getElementById("marketDashboardTab"),
   macroDashboardTab: document.getElementById("macroDashboardTab"),
+  riskDashboardTab: document.getElementById("riskDashboardTab"),
   quantLabTab: document.getElementById("quantLabTab"),
   quantamentalTab: document.getElementById("quantamentalTab"),
   mlForecastTab: document.getElementById("mlForecastTab"),
@@ -548,6 +557,21 @@ const els = {
   macroResearchTicker: document.getElementById("macroResearchTicker"),
   macroResearchPreviewRun: document.getElementById("macroResearchPreviewRun"),
   macroResearchPreviewResult: document.getElementById("macroResearchPreviewResult"),
+  riskWorkbenchPanel: document.getElementById("riskWorkbenchPanel"),
+  riskModeButtons: () => document.querySelectorAll("[data-risk-mode]"),
+  riskTickerInput: document.getElementById("riskTickerInput"),
+  riskScenarioSelect: document.getElementById("riskScenarioSelect"),
+  riskLookbackSelect: document.getElementById("riskLookbackSelect"),
+  riskRefreshButton: document.getElementById("riskRefreshButton"),
+  riskExecutiveStrip: document.getElementById("riskExecutiveStrip"),
+  riskDecisionBrief: document.getElementById("riskDecisionBrief"),
+  riskDriverWaterfall: document.getElementById("riskDriverWaterfall"),
+  riskCompanyTable: document.getElementById("riskCompanyTable"),
+  riskMacroPressurePanel: document.getElementById("riskMacroPressurePanel"),
+  riskTransmissionMatrix: document.getElementById("riskTransmissionMatrix"),
+  riskScenarioMatrix: document.getElementById("riskScenarioMatrix"),
+  riskEvidenceDrawer: document.getElementById("riskEvidenceDrawer"),
+  riskEvidenceContent: document.getElementById("riskEvidenceContent"),
   assetDetailTicker: document.getElementById("assetDetailTicker"),
   assetDetailTickerOpen: document.getElementById("assetDetailTickerOpen"),
   assetDetailRange: document.getElementById("assetDetailRange"),
@@ -612,6 +636,7 @@ const els = {
   forecastValidation: document.getElementById("forecastValidation"),
   forecastIncludeMacro: document.getElementById("forecastIncludeMacro"),
   forecastIncludeCrossAsset: document.getElementById("forecastIncludeCrossAsset"),
+  forecastRiskPrefillNotice: document.getElementById("forecastRiskPrefillNotice"),
   forecastPreviewDataset: document.getElementById("forecastPreviewDataset"),
   forecastHydrateDataset: document.getElementById("forecastHydrateDataset"),
   forecastBuildFeatures: document.getElementById("forecastBuildFeatures"),
@@ -848,6 +873,17 @@ const state = {
   macroSeriesList: null,
   macroSeriesSearch: null,
   macroSeriesDetail: null,
+  risk: {
+    mode: "company",
+    tickers: ["NVDA"],
+    positions: [],
+    scenarioSet: "base_adverse_severe",
+    lookbackDays: 756,
+    loading: false,
+    loaded: false,
+    error: "",
+    response: null,
+  },
   lastBacktestRequest: null,
   lastQuantBacktestRequest: null,
   lastBacktestResult: null,
@@ -872,6 +908,7 @@ const state = {
   forecastFeaturePayload: null,
   forecastLeakageCheck: null,
   forecastAiProviderStatus: null,
+  forecastRiskHandoff: null,
   lastForecastPayload: null,
   forecastJobPollTimer: null,
   chartTooltipBound: false,
@@ -4007,6 +4044,7 @@ const UI_LANGUAGE_COPY = {
     dashboardHero: {
       market: ["시장 대시보드", "티커를 입력하면 종목 분석으로, 비워두고 질문만 입력하면 금리·신용·FX·원자재·테마 topic 분석으로 라우팅합니다."],
       macro: ["매크로", "데이터 품질, 레짐, 자산군 영향, 정책 힌트, 리서치 맥락을 AI 해석과 분리해 점검합니다."],
+      risk: ["Risk", "기업, 매크로, 전이 경로, 시나리오, 데이터 품질을 한 화면에서 점검하되 투자 행동 지시는 생성하지 않습니다."],
       quant: ["퀀트 랩", "저장 가격 기반 리스크, 전략 검증, 포트폴리오 배분을 같은 조건으로 점검합니다."],
       quantamental: ["Quantamental", "재무제표, 가격, 팩터, 리스크를 deterministic engine으로 계산하고 AI는 구조화 결과만 해석합니다."],
       forecast: ["ML Forecast", "검증 가능한 예측 실험실입니다. 가격 경로가 아니라 OOS forward return, 확률, 신뢰도, 신호, 비용 반영 백테스트를 분리해 점검합니다."],
@@ -4082,6 +4120,239 @@ const UI_LANGUAGE_COPY = {
         volatility_compression: "변동성 수축",
       },
     },
+    risk: {
+      modeLabels: { company: "기업", watchlist: "관심종목", portfolio: "포트폴리오" },
+      labels: { ticker: "티커 또는 목록", scenario: "시나리오 세트", lookback: "조회 기간" },
+      scenarios: {
+        base_adverse_severe: "기본 / 악화 / 심각",
+        rates_credit_liquidity: "금리 / 신용 / 유동성",
+        inflation_growth_policy: "인플레이션 / 성장 / 정책",
+      },
+      cards: {
+        workbench: ["리스크 컨트롤 플레인", "기업, 매크로, 전이, 시나리오, 근거"],
+        waterfall: ["동인 워터폴", "가중 리스크 기여도"],
+        company: ["기업 리스크 스택", "벡터, 신뢰도, 데이터 사용성"],
+        macro: ["매크로 압력", "금리, 성장, 신용과 유동성"],
+        transmission: ["전이 매트릭스", "압력, 민감도, 영향 대상"],
+        scenario: ["시나리오 매트릭스", "기본, 악화, 심각 스트레스"],
+        evidence: ["근거 검토", "신선도, 공급자, 계산 정책"],
+      },
+      guardrails: [
+        ["경계", "투자 행동 지시 없음"],
+        ["점수", "결정적 어댑터만 사용"],
+        ["품질", "오래되거나 부분적인 상태 표시"],
+        ["감사", "근거와 입력 해시 표시"],
+      ],
+      buttons: { run: "리스크 실행" },
+      metrics: {
+        riskIndex: "리스크 지수",
+        riskLevel: "리스크 등급",
+        confidence: "신뢰도",
+        decisionUsable: "의사결정 사용성",
+        asOf: "기준 시각",
+        topDrivers: "핵심 동인",
+        regime: "레짐",
+        dataQuality: "데이터 품질",
+        confidencePenalty: "신뢰도 차감",
+        policy: "정책",
+      },
+      table: {
+        ticker: "티커",
+        risk: "리스크",
+        level: "등급",
+        confidence: "신뢰도",
+        solvency: "지급능력",
+        valuation: "밸류에이션",
+        market: "시장",
+        data: "데이터",
+        channel: "경로",
+        pressure: "압력",
+        sensitivity: "민감도",
+        delta: "변화",
+        affected: "영향 대상",
+        mechanism: "메커니즘",
+      },
+      vectorLabels: {
+        company_fundamental_vulnerability: "기업 펀더멘털 취약성",
+        market_behavior_risk: "시장 행동 리스크",
+        macro_regime_risk: "매크로 레짐 리스크",
+        credit_liquidity_risk: "신용/유동성 리스크",
+        transmission_sensitivity: "전이 민감도",
+        weighted_company_risk: "가중 기업 리스크",
+        weighted_market_behavior_risk: "가중 시장 행동 리스크",
+        weighted_transmission_sensitivity: "가중 전이 민감도",
+        concentration_penalty: "집중도 패널티",
+        data_quality_penalty: "데이터 품질 패널티",
+        macro_policy_rates: "정책/금리",
+        macro_growth_inflation: "성장/인플레이션",
+        credit_liquidity: "신용/유동성",
+      },
+      channelLabels: {
+        rates_duration: "금리/듀레이션",
+        curve_credit: "수익률곡선/신용",
+        credit_liquidity: "신용/유동성",
+        growth_inflation: "성장/인플레이션",
+        valuation_multiple: "밸류에이션 멀티플",
+        liquidity_beta: "유동성 베타",
+        commodity_input: "원자재/투입비",
+      },
+      scenarioLabels: {
+        base: "기본 매크로 압력 경로",
+        adverse: "악화 리스크오프 경로",
+        severe: "심각한 유동성 및 이익 스트레스",
+        rate_shock: "금리 충격",
+        credit_shock: "신용 스프레드 충격",
+        liquidity_shock: "유동성 충격",
+        inflation_shock: "인플레이션 지속 충격",
+        growth_shock: "성장 둔화 충격",
+        policy_error: "정책 오류 충격",
+      },
+      channelMechanisms: {
+        rates_duration: "높은 실질/명목 금리는 듀레이션, 레버리지, 할인율 민감 자산에 압력을 줍니다.",
+        curve_credit: "수익률곡선과 신용 스프레드는 은행 마진, 조달비용, 부도 위험으로 전이됩니다.",
+        credit_liquidity: "유동성 긴축은 차환과 시장 깊이 리스크를 증폭할 수 있습니다.",
+        growth_inflation: "성장과 인플레이션 충격은 매출 지속성과 마진 압박으로 전이됩니다.",
+        valuation_multiple: "할인율 변화는 장기 성장주의 밸류에이션 멀티플을 압축할 수 있습니다.",
+        liquidity_beta: "자금 스트레스와 리스크오프 베타는 주식 및 팩터 낙폭 위험을 키울 수 있습니다.",
+        commodity_input: "원자재와 투입비 압력은 노출이 큰 기업의 마진을 훼손할 수 있습니다.",
+      },
+      driverLabels: {
+        "deterministic quantamental risk inputs": "결정적 Quantamental 리스크 입력",
+        asset_proxy_price_macro_scope: "가격·매크로 프록시 범위",
+        fundamentals_not_applicable_for_etf: "ETF에는 기업 재무제표 미적용",
+        company_fundamentals_full_scope: "기업 재무 전체 범위",
+        risk_profile_blocked_by_missing_company_or_price_data: "기업 또는 가격 데이터 부족으로 차단",
+        growth_signal: "성장 신호",
+        inflation_signal: "인플레이션 신호",
+        valuation_fragility: "밸류에이션 취약성",
+        "data quality blocks decision use": "데이터 품질로 의사결정 사용 차단",
+        data_quality_gate_review: "데이터 품질 게이트 검토",
+        freshness_stale: "오래된 데이터",
+        freshness_partial: "부분 데이터",
+      },
+      brief: {
+        advisory: "의사결정 지원 전용",
+        policyUnknown: "정책 상태 확인 불가",
+        reviewNext: "다음 검토",
+        watchItems: "관찰 항목",
+        blockedReasons: "차단 사유",
+        serviceContract: "서비스 계약",
+        serviceReadiness: "서비스 준비도",
+        decisionCompass: "결정 내비게이터",
+        decisionPath: "의사결정 경로",
+        decisionQuality: "결정 품질",
+        evidenceCoverage: "근거 커버리지",
+        compatibilityMatrix: "호환성 매트릭스",
+        primaryAction: "우선 조치",
+        primaryHandoff: "연결 워크플로우",
+        forecastValidation: "Forecast 검증",
+        forecastValidationPlan: "Forecast 검증 계획",
+        primaryTest: "우선 테스트",
+        runOrder: "실행 순서",
+        experimentControls: "실험 통제",
+        acceptanceCriteria: "통과 기준",
+        serviceGate: "서비스 게이트",
+        qualityBasis: "품질 근거",
+        actionChecklist: "실행 체크리스트",
+        monitoringTriggers: "감시 트리거",
+        priorityMap: "우선순위 위험맵",
+        confidenceFactors: "신뢰도 근거",
+        handoffQueue: "다음 워크플로우",
+        mlValidationTests: "ML 검증 테스트",
+        openForecastTest: "Forecast에서 열기",
+        releasePacket: "배포 패킷",
+        releaseChecks: "배포 체크",
+        runLineage: "실행 감사",
+        inputReceipt: "입력 확인서",
+        aiOutputControls: "AI 출력 가드레일",
+        grounding: "근거 요약",
+        allowedClaims: "허용 주장",
+        blockedClaims: "차단 주장",
+        citationPolicy: "인용 정책",
+        promptContext: "프롬프트 컨텍스트",
+        subjects: "분석 대상",
+        weights: "정규화 비중",
+        compatibilityNotes: "호환성 메모",
+        supportedWorkflows: "지원 워크플로우",
+        blockedWorkflows: "차단 워크플로우",
+        forecastLaunch: "Forecast 실행",
+        replayNotes: "재현 메모",
+        checklist: "점검 항목",
+        nextSteps: "다음 조치",
+        unavailable: "리스크 결정 브리프를 사용할 수 없습니다.",
+        rerun: "필수 데이터가 준비된 뒤 다시 실행하세요.",
+        noWatch: "뚜렷한 관찰 항목이 없습니다.",
+        noReadiness: "서비스 준비도 정보가 없습니다.",
+        noDecisionCompass: "결정 내비게이터 정보가 없습니다.",
+        noDecisionPath: "의사결정 경로 정보가 없습니다.",
+        noDecisionQuality: "결정 품질 정보가 없습니다.",
+        noEvidenceCoverage: "근거 커버리지 정보가 없습니다.",
+        noCompatibilityMatrix: "호환성 매트릭스 정보가 없습니다.",
+        noForecastValidationPlan: "Forecast 검증 계획 정보가 없습니다.",
+        noActions: "표시할 실행 항목이 없습니다.",
+        noTriggers: "표시할 감시 트리거가 없습니다.",
+        noPriority: "표시할 우선순위 위험 항목이 없습니다.",
+        noConfidenceFactors: "표시할 신뢰도 근거가 없습니다.",
+        noHandoff: "표시할 후속 워크플로우가 없습니다.",
+        noMlValidationTests: "표시할 ML 검증 테스트가 없습니다.",
+        noReleasePacket: "배포 패킷 정보가 없습니다.",
+        noLineage: "실행 감사 정보가 없습니다.",
+        noInputReceipt: "입력 확인서 정보가 없습니다.",
+        noAiOutputControls: "AI 출력 가드레일 정보가 없습니다.",
+      },
+      messages: {
+        loading: "리스크 워크벤치를 불러오는 중입니다.",
+        errorBrief: "리스크 요청이 결정 브리프를 생성하지 못했습니다.",
+        errorFix: "요청 또는 공급자 문제를 수정한 뒤 다시 실행하세요.",
+        emptyExecutive: "리스크를 실행하면 기업, 매크로, 시나리오, 근거 출력이 표시됩니다.",
+        emptyBrief: "리스크 실행 후 결정 브리프가 표시됩니다.",
+        emptyWaterfall: "리스크 실행 후 동인 워터폴이 표시됩니다.",
+        emptyCompany: "리스크 실행 후 기업 벡터가 표시됩니다.",
+        emptyMacro: "리스크 실행 후 매크로 압력이 표시됩니다.",
+        emptyTransmission: "리스크 실행 후 전이 경로가 표시됩니다.",
+        emptyScenario: "리스크 실행 후 시나리오 매트릭스가 표시됩니다.",
+        emptyEvidence: "리스크 실행 후 근거와 계산 정책이 표시됩니다.",
+        scoreDirection: "0 낮은 리스크 / 100 높은 리스크",
+        deterministic: "결정적 분류",
+        unknownFreshness: "신선도 확인 불가",
+        analysisOnly: "분석 지원 전용",
+        inputHash: "입력",
+        noneDetected: "감지된 항목 없음",
+        unavailableWaterfall: "리스크 동인 기여도를 사용할 수 없습니다.",
+        unavailableCompany: "기업 리스크 프로필을 사용할 수 없습니다.",
+        unavailableTransmission: "전이 경로를 사용할 수 없습니다.",
+        unavailableScenario: "시나리오 매트릭스를 사용할 수 없습니다.",
+        projectedRisk: "예상 리스크",
+        channelsUnavailable: "경로 확인 불가",
+        missing: "누락",
+        stale: "오래됨",
+        source: "출처",
+        unavailable: "사용 불가",
+        penalty: "패널티",
+        confidenceDeducted: "사용 가능 신뢰도에서 차감",
+      },
+      status: {
+        usable: "사용 가능",
+        blocked: "차단",
+        unknown: "확인 불가",
+        all: "전체",
+        low: "낮음",
+        moderate: "보통",
+        elevated: "상승",
+        high: "높음",
+        fresh: "신선",
+        partial: "부분",
+        stale: "오래됨",
+        missing: "누락",
+        base: "기본",
+        adverse: "악화",
+        severe: "심각",
+        ready: "준비됨",
+        review_required: "검토 필요",
+        ok: "정상",
+        review: "검토",
+      },
+    },
   },
   en: {
     languageLabel: "Output language",
@@ -4124,6 +4395,7 @@ const UI_LANGUAGE_COPY = {
     dashboardHero: {
       market: ["Market Dashboard", "Enter a ticker for single-name research, or leave it blank so the question can route to rates, credit, FX, commodities, or themes."],
       macro: ["Macro", "Review data quality, regimes, asset impact, policy hints, and research context separately from AI interpretation."],
+      risk: ["Risk", "Review company, macro, transmission, scenario, and data-quality risk without generating trade action instructions."],
       quant: ["Quant Lab", "Evaluate stored-price risk, strategy validation, and portfolio allocation under consistent assumptions."],
       quantamental: ["Quantamental", "Compute fundamentals, price, factor, and risk signals deterministically while AI only interprets the structured output."],
       forecast: ["ML Forecast", "A verifiable forecasting lab for OOS forward returns, probabilities, confidence, signals, and cost-aware backtests."],
@@ -4199,6 +4471,239 @@ const UI_LANGUAGE_COPY = {
         volatility_compression: "Volatility Compression",
       },
     },
+    risk: {
+      modeLabels: { company: "Company", watchlist: "Watchlist", portfolio: "Portfolio" },
+      labels: { ticker: "Ticker or list", scenario: "Scenario set", lookback: "Lookback" },
+      scenarios: {
+        base_adverse_severe: "Base / adverse / severe",
+        rates_credit_liquidity: "Rates / credit / liquidity",
+        inflation_growth_policy: "Inflation / growth / policy",
+      },
+      cards: {
+        workbench: ["Risk Control Plane", "company, macro, transmission, scenario, evidence"],
+        waterfall: ["Driver Waterfall", "weighted risk contribution"],
+        company: ["Company Risk Stack", "vectors, confidence, data usability"],
+        macro: ["Macro Pressure", "rates, growth, credit and liquidity"],
+        transmission: ["Transmission Matrix", "pressure, sensitivity, affected subjects"],
+        scenario: ["Scenario Matrix", "base, adverse, severe stress rows"],
+        evidence: ["Evidence Review", "freshness, providers, calculation policy"],
+      },
+      guardrails: [
+        ["Boundary", "No trade action instruction"],
+        ["Scores", "deterministic adapters only"],
+        ["Quality", "stale and partial states stay visible"],
+        ["Audit", "evidence and input hash shown"],
+      ],
+      buttons: { run: "Run Risk" },
+      metrics: {
+        riskIndex: "Risk index",
+        riskLevel: "Risk level",
+        confidence: "Confidence",
+        decisionUsable: "Decision usable",
+        asOf: "As of",
+        topDrivers: "Top drivers",
+        regime: "Regime",
+        dataQuality: "Data quality",
+        confidencePenalty: "Confidence penalty",
+        policy: "Policy",
+      },
+      table: {
+        ticker: "Ticker",
+        risk: "Risk",
+        level: "Level",
+        confidence: "Confidence",
+        solvency: "Solvency",
+        valuation: "Valuation",
+        market: "Market",
+        data: "Data",
+        channel: "Channel",
+        pressure: "Pressure",
+        sensitivity: "Sensitivity",
+        delta: "Delta",
+        affected: "Affected",
+        mechanism: "Mechanism",
+      },
+      vectorLabels: {
+        company_fundamental_vulnerability: "Company fundamental vulnerability",
+        market_behavior_risk: "Market behavior risk",
+        macro_regime_risk: "Macro regime risk",
+        credit_liquidity_risk: "Credit/liquidity risk",
+        transmission_sensitivity: "Transmission sensitivity",
+        weighted_company_risk: "Weighted company risk",
+        weighted_market_behavior_risk: "Weighted market behavior risk",
+        weighted_transmission_sensitivity: "Weighted transmission sensitivity",
+        concentration_penalty: "Concentration penalty",
+        data_quality_penalty: "Data quality penalty",
+        macro_policy_rates: "Policy/rates",
+        macro_growth_inflation: "Growth/inflation",
+        credit_liquidity: "Credit/liquidity",
+      },
+      channelLabels: {
+        rates_duration: "Rates/duration",
+        curve_credit: "Curve/credit",
+        credit_liquidity: "Credit/liquidity",
+        growth_inflation: "Growth/inflation",
+        valuation_multiple: "Valuation multiple",
+        liquidity_beta: "Liquidity beta",
+        commodity_input: "Commodity/input cost",
+      },
+      scenarioLabels: {
+        base: "Base macro pressure path",
+        adverse: "Adverse risk-off path",
+        severe: "Severe liquidity and earnings stress",
+        rate_shock: "Rate shock",
+        credit_shock: "Credit spread shock",
+        liquidity_shock: "Liquidity shock",
+        inflation_shock: "Persistent inflation shock",
+        growth_shock: "Growth slowdown shock",
+        policy_error: "Policy error shock",
+      },
+      channelMechanisms: {
+        rates_duration: "High real and nominal rates pressure duration, leverage, and discount-rate sensitive assets.",
+        curve_credit: "Yield-curve and credit-spread moves transmit through bank margins, funding cost, and default risk.",
+        credit_liquidity: "Tighter liquidity can amplify refinancing risk and market-depth stress.",
+        growth_inflation: "Growth and inflation shocks transmit through revenue durability and margin pressure.",
+        valuation_multiple: "Discount-rate shifts can compress long-duration growth multiples.",
+        liquidity_beta: "Funding stress and risk-off beta can increase equity and factor drawdown risk.",
+        commodity_input: "Commodity and input-cost pressure can weaken margins for exposed companies.",
+      },
+      driverLabels: {
+        "deterministic quantamental risk inputs": "deterministic Quantamental risk inputs",
+        asset_proxy_price_macro_scope: "price and macro proxy scope",
+        fundamentals_not_applicable_for_etf: "company fundamentals not applicable for ETF",
+        company_fundamentals_full_scope: "full company fundamentals scope",
+        risk_profile_blocked_by_missing_company_or_price_data: "blocked by missing company or price data",
+        growth_signal: "growth signal",
+        inflation_signal: "inflation signal",
+        valuation_fragility: "valuation fragility",
+        "data quality blocks decision use": "data quality blocks decision use",
+        data_quality_gate_review: "data-quality gate review",
+        freshness_stale: "stale data",
+        freshness_partial: "partial data",
+      },
+      brief: {
+        advisory: "Advisory support only",
+        policyUnknown: "Policy status unknown",
+        reviewNext: "Review next",
+        watchItems: "Watch items",
+        blockedReasons: "Blocked reasons",
+        serviceContract: "Service contract",
+        serviceReadiness: "Service readiness",
+        decisionCompass: "Decision navigator",
+        decisionPath: "Decision path",
+        decisionQuality: "Decision quality",
+        evidenceCoverage: "Evidence coverage",
+        compatibilityMatrix: "Compatibility matrix",
+        primaryAction: "Primary action",
+        primaryHandoff: "Linked workflow",
+        forecastValidation: "Forecast validation",
+        forecastValidationPlan: "Forecast validation plan",
+        primaryTest: "Primary test",
+        runOrder: "Run order",
+        experimentControls: "Experiment controls",
+        acceptanceCriteria: "Acceptance criteria",
+        serviceGate: "Service gate",
+        qualityBasis: "Quality basis",
+        actionChecklist: "Action checklist",
+        monitoringTriggers: "Monitoring triggers",
+        priorityMap: "Priority risk map",
+        confidenceFactors: "Confidence basis",
+        handoffQueue: "Next workflow",
+        mlValidationTests: "ML validation tests",
+        openForecastTest: "Open in Forecast",
+        releasePacket: "Release packet",
+        releaseChecks: "Release checks",
+        runLineage: "Run lineage",
+        inputReceipt: "Input receipt",
+        aiOutputControls: "AI output guardrails",
+        grounding: "Grounding summary",
+        allowedClaims: "Allowed claims",
+        blockedClaims: "Blocked claims",
+        citationPolicy: "Citation policy",
+        promptContext: "Prompt context",
+        subjects: "Subjects",
+        weights: "Normalized weights",
+        compatibilityNotes: "Compatibility notes",
+        supportedWorkflows: "Supported workflows",
+        blockedWorkflows: "Blocked workflows",
+        forecastLaunch: "Forecast launch",
+        replayNotes: "Replay notes",
+        checklist: "Checklist",
+        nextSteps: "Next steps",
+        unavailable: "Risk decision brief is unavailable.",
+        rerun: "Rerun after required data is available.",
+        noWatch: "No dominant watch item detected.",
+        noReadiness: "Service readiness is unavailable.",
+        noDecisionCompass: "Decision navigator is unavailable.",
+        noDecisionPath: "Decision path is unavailable.",
+        noDecisionQuality: "Decision quality is unavailable.",
+        noEvidenceCoverage: "Evidence coverage is unavailable.",
+        noCompatibilityMatrix: "Compatibility matrix is unavailable.",
+        noForecastValidationPlan: "Forecast validation plan is unavailable.",
+        noActions: "No action item is available.",
+        noTriggers: "No monitoring trigger is available.",
+        noPriority: "No priority risk item is available.",
+        noConfidenceFactors: "No confidence factor is available.",
+        noHandoff: "No follow-up workflow is available.",
+        noMlValidationTests: "No ML validation test is available.",
+        noReleasePacket: "Release packet is unavailable.",
+        noLineage: "Run lineage is unavailable.",
+        noInputReceipt: "Input receipt is unavailable.",
+        noAiOutputControls: "AI output guardrails are unavailable.",
+      },
+      messages: {
+        loading: "Loading risk workbench...",
+        errorBrief: "Risk request did not produce a decision brief.",
+        errorFix: "Fix the request or provider issue, then rerun risk.",
+        emptyExecutive: "Run Risk to view company, macro, scenario, and evidence output.",
+        emptyBrief: "Decision brief appears after a risk run.",
+        emptyWaterfall: "Driver waterfall appears after a risk run.",
+        emptyCompany: "Company vectors appear after a risk run.",
+        emptyMacro: "Macro pressure appears after a risk run.",
+        emptyTransmission: "Transmission channels appear after a risk run.",
+        emptyScenario: "Scenario matrix appears after a risk run.",
+        emptyEvidence: "Evidence and calculation policy appear after a risk run.",
+        scoreDirection: "0 low risk / 100 high risk",
+        deterministic: "deterministic classification",
+        unknownFreshness: "unknown freshness",
+        analysisOnly: "analysis support only",
+        inputHash: "input",
+        noneDetected: "none detected",
+        unavailableWaterfall: "Risk driver contribution data is unavailable.",
+        unavailableCompany: "Company risk profiles are unavailable.",
+        unavailableTransmission: "Transmission channels are unavailable.",
+        unavailableScenario: "Scenario matrix is unavailable.",
+        projectedRisk: "Projected risk",
+        channelsUnavailable: "channels unavailable",
+        missing: "Missing",
+        stale: "Stale",
+        source: "source",
+        unavailable: "unavailable",
+        penalty: "penalty",
+        confidenceDeducted: "deducted from usable confidence",
+      },
+      status: {
+        usable: "usable",
+        blocked: "blocked",
+        unknown: "unknown",
+        all: "all",
+        low: "low",
+        moderate: "moderate",
+        elevated: "elevated",
+        high: "high",
+        fresh: "fresh",
+        partial: "partial",
+        stale: "stale",
+        missing: "missing",
+        base: "base",
+        adverse: "adverse",
+        severe: "severe",
+        ready: "ready",
+        review_required: "review required",
+        ok: "ok",
+        review: "review",
+      },
+    },
   },
 };
 
@@ -4271,6 +4776,76 @@ function setCardCopy(surface, copy) {
   if (caption && subtitle) caption.textContent = subtitle;
 }
 
+function riskCopy() {
+  return (UI_LANGUAGE_COPY[selectedOutputLanguage()] || UI_LANGUAGE_COPY.ko).risk || UI_LANGUAGE_COPY.en.risk;
+}
+
+function localizedRiskStatus(value) {
+  const copy = riskCopy();
+  const clean = String(value || "").toLowerCase();
+  if (copy.status?.[clean]) return copy.status[clean];
+  return value || copy.status.unknown;
+}
+
+function riskReadinessStatusClass(status) {
+  const clean = String(status || "").toLowerCase();
+  if (clean === "ready") return "ok";
+  if (clean === "blocked") return "fail";
+  return "warn";
+}
+
+function riskActionStatusClass(status) {
+  const clean = String(status || "").toLowerCase();
+  if (["ok", "ready", "success"].includes(clean)) return "ok";
+  if (["blocked", "fail", "failed", "error"].includes(clean)) return "fail";
+  if (["review", "review_required", "warn", "partial", "stale"].includes(clean)) return "warn";
+  return "muted";
+}
+
+function riskDisplayLabel(group, value) {
+  const copy = riskCopy();
+  const key = String(value || "");
+  const label = copy[group]?.[key];
+  if (label) return label;
+  return key.replaceAll("_", " ");
+}
+
+function riskDriverText(value) {
+  const raw = String(value || "");
+  const copy = riskCopy();
+  return copy.driverLabels?.[raw] || raw.replaceAll("_", " ");
+}
+
+function applyRiskUiLanguage(copy) {
+  const r = copy.risk || UI_LANGUAGE_COPY.en.risk;
+  setCardCopy(els.riskWorkbenchPanel, r.cards.workbench);
+  setCardCopy(els.riskDriverWaterfall, r.cards.waterfall);
+  setCardCopy(els.riskCompanyTable, r.cards.company);
+  setCardCopy(els.riskMacroPressurePanel, r.cards.macro);
+  setCardCopy(els.riskTransmissionMatrix, r.cards.transmission);
+  setCardCopy(els.riskScenarioMatrix, r.cards.scenario);
+  setCardCopy(els.riskEvidenceDrawer, r.cards.evidence);
+  setWrappedLabelText(els.riskTickerInput, r.labels.ticker);
+  setWrappedLabelText(els.riskScenarioSelect, r.labels.scenario);
+  setWrappedLabelText(els.riskLookbackSelect, r.labels.lookback);
+  els.riskModeButtons().forEach((button) => {
+    const mode = button.dataset.riskMode || "";
+    if (r.modeLabels?.[mode]) button.textContent = r.modeLabels[mode];
+  });
+  if (els.riskScenarioSelect) {
+    Array.from(els.riskScenarioSelect.options || []).forEach((option) => {
+      option.textContent = r.scenarios?.[option.value] || option.textContent;
+    });
+  }
+  if (els.riskRefreshButton) els.riskRefreshButton.textContent = r.buttons.run;
+  const guardrails = els.riskWorkbenchPanel?.querySelectorAll(".workbench-guardrail-strip span") || [];
+  r.guardrails.forEach(([label, value], index) => {
+    if (guardrails[index]) guardrails[index].innerHTML = `<strong>${escapeHtml(label)}</strong> ${escapeHtml(value)}`;
+  });
+  setRiskMode(state.risk.mode || "company");
+  renderRiskWorkbench();
+}
+
 function applyQuantamentalUiLanguage(copy) {
   const q = copy.quantamental || UI_LANGUAGE_COPY.en.quantamental;
   setWrappedLabelText(els.quantamentalTicker, q.labels.ticker);
@@ -4327,6 +4902,7 @@ function applyQuantamentalUiLanguage(copy) {
 
 function applyUiLanguage(language, options = {}) {
   const normalized = normalizeOutputLanguage(language);
+  const previousLanguage = state.outputLanguage;
   state.outputLanguage = normalized;
   const copy = UI_LANGUAGE_COPY[normalized] || UI_LANGUAGE_COPY.ko;
   document.documentElement.lang = normalized;
@@ -4397,6 +4973,7 @@ function applyUiLanguage(language, options = {}) {
   if (runMeta) runMeta.innerHTML = `<span class="kbd">Ctrl</span> + <span class="kbd">Enter</span> ${escapeHtml(copy.formLabels.hotkey)}`;
   updateDashboardHero(state.activeDashboardTab || "market");
   renderGlobalQualitySummary();
+  applyRiskUiLanguage(copy);
   applyQuantamentalUiLanguage(copy);
   updateQuantamentalAiModelStatus();
   if (state.quantamentalAnalysis) renderQuantamentalAnalysis(state.quantamentalAnalysis);
@@ -4409,6 +4986,14 @@ function applyUiLanguage(language, options = {}) {
     && normalizeTvChartSettings(state.tvChartSettings).source === "tradingview"
   ) {
     mountMarketOverviewChart(state.tvChartSettings);
+  }
+  if (
+    normalizeOutputLanguage(previousLanguage) !== normalized
+    && state.activeDashboardTab === "risk"
+    && state.risk.response
+    && !state.risk.loading
+  ) {
+    loadRiskWorkbench(true);
   }
 }
 
@@ -4734,6 +5319,12 @@ function fallbackDashboardContextItems(tab = "market") {
       { label: "레짐", value: "신호와 AI 해석 분리", status: "warn", detail: "레짐 엔진 결과 우선" },
       { label: "출력", value: "정책 힌트 전용", status: "ok", detail: "자문용 맥락" },
     ],
+    risk: [
+      { label: "범위", value: "Company / Macro / Portfolio", status: "ok", detail: "Risk control plane" },
+      { label: "근거", value: "Quantamental + Macro", status: "warn", detail: "어댑터 입력과 freshness 확인" },
+      { label: "가드", value: "No trade action", status: "warn", detail: "투자 행동 지시는 표시하지 않음" },
+      { label: "작업", value: "Run Risk", status: "ok", detail: "시나리오와 evidence 검토" },
+    ],
     quant: [
       { label: "데이터", value: "저장 가격 이력", status: "ok", detail: "data mart 가격" },
       { label: "경계", value: "No-lookahead 검사", status: "warn", detail: "미래 데이터 누수 방지" },
@@ -4816,6 +5407,848 @@ async function loadDashboardDecisionCards(force = false) {
     }
   })();
   return state.dashboardDecisionCardsRequest;
+}
+
+function riskLevelStatus(level) {
+  const clean = String(level || "").toLowerCase();
+  if (clean === "low" || clean === "moderate") return "ok";
+  if (["elevated", "unknown", "partial", "stale", "missing"].includes(clean)) return "warn";
+  return "fail";
+}
+
+function riskTickersFromInput() {
+  return riskInputEntries().map((entry) => entry.ticker);
+}
+
+function riskInputEntries() {
+  const raw = String(els.riskTickerInput?.value || "NVDA");
+  const entries = [];
+  const seen = new Set();
+  raw
+    .split(/[\s,;]+/)
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .forEach((token) => {
+      const [tickerPart, weightPart] = token.split(/[:=]/);
+      const ticker = normalizeTickerToken(tickerPart || "");
+      if (!ticker || seen.has(ticker)) return;
+      seen.add(ticker);
+      const rawWeight = weightPart === undefined ? null : Number(String(weightPart).replace("%", ""));
+      const weight = Number.isFinite(rawWeight) ? (rawWeight > 1 ? rawWeight / 100 : rawWeight) : null;
+      entries.push({ ticker, weight });
+    });
+  return entries.slice(0, 25);
+}
+
+function riskPortfolioPositions() {
+  const entries = riskInputEntries();
+  const source = entries.length ? entries : [{ ticker: "NVDA", weight: 1 }];
+  const hasWeights = source.some((entry) => Number.isFinite(entry.weight) && Number(entry.weight) > 0);
+  const rawWeights = source.map((entry) => {
+    if (!hasWeights) return 1;
+    return Number.isFinite(entry.weight) && Number(entry.weight) > 0 ? Number(entry.weight) : 0;
+  });
+  const total = rawWeights.reduce((sum, value) => sum + value, 0);
+  const fallbackWeight = 1 / Math.max(1, source.length);
+  return source.map((entry, index) => ({
+    ticker: entry.ticker,
+    weight: Number((total > 0 ? rawWeights[index] / total : fallbackWeight).toFixed(6)),
+  }));
+}
+
+function riskRequestPayload() {
+  const tickers = riskTickersFromInput();
+  const mode = state.risk.mode || "company";
+  const scenarioSet = String(els.riskScenarioSelect?.value || state.risk.scenarioSet || "base_adverse_severe");
+  const lookbackDays = Number(els.riskLookbackSelect?.value || state.risk.lookbackDays || 756);
+  state.risk.tickers = tickers.length ? tickers : ["NVDA"];
+  state.risk.scenarioSet = scenarioSet;
+  state.risk.lookbackDays = Number.isFinite(lookbackDays) ? lookbackDays : 756;
+  const payload = {
+    mode,
+    tickers: state.risk.tickers,
+    scenario_set: scenarioSet,
+    lookback_days: state.risk.lookbackDays,
+    include_sec: true,
+    include_macro_scenarios: true,
+    force_refresh: false,
+    output_language: selectedOutputLanguage(),
+  };
+  if (mode === "company") {
+    payload.tickers = [state.risk.tickers[0] || "NVDA"];
+  }
+  if (mode === "portfolio") {
+    state.risk.positions = riskPortfolioPositions();
+    payload.positions = state.risk.positions;
+    delete payload.tickers;
+  }
+  return payload;
+}
+
+function setRiskMode(mode = "company") {
+  const clean = ["company", "watchlist", "portfolio"].includes(mode) ? mode : "company";
+  state.risk.mode = clean;
+  els.riskModeButtons().forEach((button) => {
+    const pressed = button.dataset.riskMode === clean;
+    button.classList.toggle("active", pressed);
+    button.setAttribute("aria-pressed", pressed ? "true" : "false");
+  });
+  if (els.riskTickerInput) {
+    els.riskTickerInput.placeholder = clean === "company" ? "NVDA" : (clean === "portfolio" ? "NVDA:0.40, MSFT:0.35, TLT:0.25" : "NVDA, MSFT, JPM, TLT");
+    if (clean === "company" && riskTickersFromInput().length > 1) {
+      els.riskTickerInput.value = riskTickersFromInput()[0] || "NVDA";
+    }
+  }
+  renderRiskWorkbench();
+}
+
+function riskMetric(label, value, status = "ok", detail = "") {
+  return `
+    <div class="risk-metric ${escapeHtml(decisionStatusClass(status))}">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+      ${detail ? `<small>${escapeHtml(detail)}</small>` : ""}
+    </div>
+  `;
+}
+
+function riskScoreText(value) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return riskCopy().status.unknown;
+  return fmtDecimal(Number(value), 1);
+}
+
+function renderRiskExecutiveStrip(result) {
+  if (!els.riskExecutiveStrip) return;
+  const copy = riskCopy();
+  const dataQuality = result.data_quality || {};
+  const drivers = (result.primary_drivers || []).slice(0, 3);
+  els.riskExecutiveStrip.innerHTML = `
+    ${riskMetric(copy.metrics.riskIndex, riskScoreText(result.risk_index), riskLevelStatus(result.risk_level), copy.messages.scoreDirection)}
+    ${riskMetric(copy.metrics.riskLevel, localizedRiskStatus(result.risk_level || "unknown"), riskLevelStatus(result.risk_level), copy.messages.deterministic)}
+    ${riskMetric(copy.metrics.confidence, `${riskScoreText(result.confidence)}%`, Number(result.confidence || 0) >= 60 ? "ok" : "warn", localizedRiskStatus(dataQuality.freshness || "unknown"))}
+    ${riskMetric(copy.metrics.decisionUsable, result.decision_usable ? copy.status.usable : copy.status.blocked, result.decision_usable ? "ok" : "fail", copy.messages.analysisOnly)}
+    ${riskMetric(copy.metrics.asOf, fmtDate(result.as_of || ""), "ok", result.input_hash ? `${copy.messages.inputHash} ${result.input_hash}` : "")}
+    <div class="risk-driver-summary">
+      <span>${escapeHtml(copy.metrics.topDrivers)}</span>
+      <strong>${drivers.length ? drivers.map((item) => escapeHtml(riskDriverText(item))).join(" / ") : escapeHtml(copy.messages.noneDetected)}</strong>
+    </div>
+  `;
+}
+
+function renderRiskDecisionBrief(result) {
+  if (!els.riskDecisionBrief) return;
+  const copy = riskCopy();
+  const brief = result.decision_brief || {};
+  const decisionCompass = result.decision_compass || {};
+  const decisionPath = result.decision_path || {};
+  const decisionQuality = result.decision_quality || {};
+  const evidenceCoverage = result.evidence_coverage || {};
+  const compatibilityMatrix = result.compatibility_matrix || {};
+  const readiness = result.service_readiness || {};
+  const releasePacket = result.release_packet || {};
+  const inputReceipt = result.input_receipt || {};
+  const aiControls = result.ai_output_controls || {};
+  const forecastPlan = result.forecast_validation_plan || {};
+  const readinessStatus = readiness.status || (result.decision_usable ? "review_required" : "blocked");
+  const releaseStatus = releasePacket.status || readinessStatus;
+  const compassStatus = riskActionStatusClass(decisionCompass.status || decisionQuality.status || readinessStatus || "review");
+  const decisionPathStatus = riskActionStatusClass(decisionPath.status || readinessStatus || "review");
+  const decisionQualityStatus = riskActionStatusClass(decisionQuality.status || decisionPath.status || readinessStatus || "review");
+  const coverageStatus = riskActionStatusClass(evidenceCoverage.status || decisionQuality.status || readinessStatus || "review");
+  const compatibilityStatus = riskActionStatusClass(compatibilityMatrix.status || evidenceCoverage.status || decisionQuality.status || "review");
+  const aiControlStatus = riskActionStatusClass(aiControls.status || decisionQuality.status || readinessStatus || "review");
+  const forecastPlanStatus = riskActionStatusClass(forecastPlan.status || decisionQuality.status || "review");
+  const rawDecisionHandoffHref = String(decisionPath.primary_handoff_href || "/ui/#risk");
+  const decisionHandoffHref = rawDecisionHandoffHref.startsWith("/ui/#") || rawDecisionHandoffHref.startsWith("#") ? rawDecisionHandoffHref : "/ui/#risk";
+  const rawDecisionMlHref = String(decisionPath.ml_validation_href || "");
+  const decisionMlHref = rawDecisionMlHref.startsWith("/ui/?") || rawDecisionMlHref.startsWith("/ui/#") ? rawDecisionMlHref : "";
+  const blocked = Array.isArray(brief.blocked_reasons) ? brief.blocked_reasons : [];
+  const questions = Array.isArray(brief.review_questions) ? brief.review_questions : [];
+  const watchItems = Array.isArray(brief.watch_items) ? brief.watch_items : [];
+  const deployment = Array.isArray(brief.deployment_notes) ? brief.deployment_notes : [];
+  const actionItems = Array.isArray(result.action_checklist) ? result.action_checklist : [];
+  const compassSteps = Array.isArray(decisionCompass.steps) ? decisionCompass.steps : [];
+  const triggerItems = Array.isArray(result.monitoring_triggers) ? result.monitoring_triggers : [];
+  const priorityItems = Array.isArray(result.priority_map) ? result.priority_map : [];
+  const confidenceItems = Array.isArray(result.confidence_factors) ? result.confidence_factors : [];
+  const handoffItems = Array.isArray(result.handoff_queue) ? result.handoff_queue : [];
+  const mlValidationItems = Array.isArray(result.ml_validation_tests) ? result.ml_validation_tests : [];
+  const forecastPlanRunOrder = Array.isArray(forecastPlan.run_order) ? forecastPlan.run_order : [];
+  const forecastPlanControls = Array.isArray(forecastPlan.experiment_controls) ? forecastPlan.experiment_controls : [];
+  const forecastPlanCriteria = Array.isArray(forecastPlan.acceptance_criteria) ? forecastPlan.acceptance_criteria : [];
+  const forecastPlanBlocked = Array.isArray(forecastPlan.blocked_reasons) ? forecastPlan.blocked_reasons : [];
+  const releaseChecks = Array.isArray(releasePacket.deployment_checks) ? releasePacket.deployment_checks : [];
+  const qualityBasis = Array.isArray(decisionQuality.basis) ? decisionQuality.basis : [];
+  const qualityBlockers = Array.isArray(decisionQuality.blockers) ? decisionQuality.blockers : [];
+  const qualityActions = Array.isArray(decisionQuality.next_best_actions) ? decisionQuality.next_best_actions : [];
+  const qualityItems = [
+    ...qualityBlockers.slice(0, 2),
+    ...qualityBasis.slice(0, 3),
+    ...qualityActions.slice(0, 2),
+  ].filter(Boolean);
+  const qualityScore = Number(decisionQuality.score);
+  const qualityWidth = Number.isFinite(qualityScore) ? Math.max(2, Math.min(100, qualityScore)) : 4;
+  const coverageItems = Array.isArray(evidenceCoverage.items) ? evidenceCoverage.items : [];
+  const compatibilityRows = Array.isArray(compatibilityMatrix.rows) ? compatibilityMatrix.rows : [];
+  const coverageScore = Number(evidenceCoverage.score);
+  const coverageWidth = Number.isFinite(coverageScore) ? Math.max(2, Math.min(100, coverageScore)) : 4;
+  const coverageDomainSummary = [
+    ...(Array.isArray(evidenceCoverage.blocked_domains) ? evidenceCoverage.blocked_domains.map((item) => `blocked:${item}`) : []),
+    ...(Array.isArray(evidenceCoverage.review_domains) ? evidenceCoverage.review_domains.map((item) => `review:${item}`) : []),
+    ...(Array.isArray(evidenceCoverage.covered_domains) ? evidenceCoverage.covered_domains.map((item) => `ok:${item}`) : []),
+  ].slice(0, 5).join(" · ");
+  const receiptPositions = Array.isArray(inputReceipt.normalized_positions) ? inputReceipt.normalized_positions : [];
+  const receiptNotes = Array.isArray(inputReceipt.compatibility_notes) ? inputReceipt.compatibility_notes : [];
+  const receiptReplayNotes = Array.isArray(inputReceipt.replay_notes) ? inputReceipt.replay_notes : [];
+  const receiptSubjects = Array.isArray(inputReceipt.subjects) ? inputReceipt.subjects : [];
+  const receiptStatus = riskActionStatusClass(inputReceipt.status || "review");
+  const aiRequiredRefs = Array.isArray(aiControls.required_evidence_refs) ? aiControls.required_evidence_refs : [];
+  const aiAllowedClaims = Array.isArray(aiControls.allowed_claims) ? aiControls.allowed_claims : [];
+  const aiBlockedClaims = Array.isArray(aiControls.blocked_claims) ? aiControls.blocked_claims : [];
+  const aiCitationPolicy = Array.isArray(aiControls.citation_policy) ? aiControls.citation_policy : [];
+  const readinessBlockers = Array.isArray(readiness.blockers) ? readiness.blockers : [];
+  const readinessWarnings = Array.isArray(readiness.warnings) ? readiness.warnings : [];
+  const readinessNextSteps = Array.isArray(readiness.next_steps) ? readiness.next_steps : [];
+  const readinessChecklist = Array.isArray(readiness.checklist) ? readiness.checklist : [];
+  const readinessItems = [
+    ...readinessBlockers.slice(0, 2),
+    ...readinessWarnings.slice(0, 2),
+    ...readinessNextSteps.slice(0, 2),
+    ...readinessChecklist.slice(0, 1),
+  ].filter(Boolean);
+  els.riskDecisionBrief.innerHTML = `
+    <div class="risk-brief-head">
+      <strong>${escapeHtml(brief.summary || copy.brief.unavailable)}</strong>
+      <span>${escapeHtml(result.not_investment_advice ? copy.brief.advisory : copy.brief.policyUnknown)}</span>
+    </div>
+    <div class="risk-brief-grid">
+      <div class="risk-decision-compass ${escapeHtml(compassStatus)}">
+        <span>${escapeHtml(copy.brief.decisionCompass)}</span>
+        <strong><span class="table-status ${escapeHtml(compassStatus)}">${escapeHtml(localizedRiskStatus(decisionCompass.status || "review"))}</span>${escapeHtml(decisionCompass.headline || copy.brief.noDecisionCompass)}</strong>
+        ${decisionCompass.primary_focus ? `<small><b>${escapeHtml(copy.brief.priorityMap)}</b>${escapeHtml(decisionCompass.primary_focus)}</small>` : ""}
+        ${decisionCompass.next_step ? `<em>${escapeHtml(decisionCompass.next_step)}</em>` : ""}
+        <div class="risk-compass-step-list">
+          ${(compassSteps.length ? compassSteps : [{ label: copy.brief.noDecisionCompass, status: "review", instruction: "", target: "risk", href: "/ui/#risk" }]).slice(0, 5).map((item) => {
+            const status = riskActionStatusClass(item.status || "review");
+            const rawHref = String(item.href || "");
+            const href = rawHref.startsWith("/ui/?") || rawHref.startsWith("/ui/#") || rawHref.startsWith("#") ? rawHref : "";
+            return `
+              <div class="risk-compass-step ${escapeHtml(status)}">
+                <strong><span class="table-status ${escapeHtml(status)}">${escapeHtml(localizedRiskStatus(item.status || "review"))}</span>${escapeHtml(item.label || item.step_id || "")}</strong>
+                ${item.instruction ? `<small>${escapeHtml(item.instruction)}</small>` : ""}
+                ${href ? `<a href="${escapeHtml(href)}">${escapeHtml(item.target || copy.brief.primaryHandoff)}</a>` : ""}
+              </div>
+            `;
+          }).join("")}
+        </div>
+        ${decisionCompass.service_hint ? `<small>${escapeHtml(decisionCompass.service_hint)}</small>` : ""}
+      </div>
+      <div class="risk-decision-path ${escapeHtml(decisionPathStatus)}">
+        <span>${escapeHtml(copy.brief.decisionPath)}</span>
+        <strong><span class="table-status ${escapeHtml(decisionPathStatus)}">${escapeHtml(localizedRiskStatus(decisionPath.status || "review"))}</span>${escapeHtml(decisionPath.headline || copy.brief.noDecisionPath)}</strong>
+        <ul>
+          <li><b>${escapeHtml(copy.brief.primaryAction)}</b> ${escapeHtml(decisionPath.primary_action || copy.brief.noActions)}</li>
+          <li><b>${escapeHtml(copy.brief.primaryHandoff)}</b> <a href="${escapeHtml(decisionHandoffHref)}">${escapeHtml(decisionPath.primary_handoff_label || copy.brief.noHandoff)}</a></li>
+          <li><b>${escapeHtml(copy.brief.forecastValidation)}</b> ${decisionMlHref ? `<a href="${escapeHtml(decisionMlHref)}">${escapeHtml(decisionPath.ml_validation_label || copy.brief.openForecastTest)}</a>` : escapeHtml(copy.brief.noMlValidationTests)}</li>
+          <li><b>${escapeHtml(copy.brief.serviceGate)}</b> ${escapeHtml(localizedRiskStatus(decisionPath.service_gate || readinessStatus))}</li>
+        </ul>
+      </div>
+      <div class="risk-decision-quality ${escapeHtml(decisionQualityStatus)}">
+        <span>${escapeHtml(copy.brief.decisionQuality)}</span>
+        <strong><span class="table-status ${escapeHtml(decisionQualityStatus)}">${escapeHtml(localizedRiskStatus(decisionQuality.status || "review"))}</span>${escapeHtml(riskScoreText(decisionQuality.score))}% · ${escapeHtml(decisionQuality.label || copy.brief.noDecisionQuality)}</strong>
+        <b><i style="width:${qualityWidth}%"></i></b>
+        <small>${escapeHtml(copy.brief.qualityBasis)}</small>
+        <ul>${(qualityItems.length ? qualityItems : [copy.brief.noDecisionQuality]).slice(0, 6).map((item) => `<li>${escapeHtml(riskDriverText(item))}</li>`).join("")}</ul>
+      </div>
+      <div class="risk-evidence-coverage ${escapeHtml(coverageStatus)}">
+        <span>${escapeHtml(copy.brief.evidenceCoverage)}</span>
+        <strong><span class="table-status ${escapeHtml(coverageStatus)}">${escapeHtml(localizedRiskStatus(evidenceCoverage.status || "review"))}</span>${escapeHtml(riskScoreText(evidenceCoverage.score))}%${coverageDomainSummary ? ` · ${escapeHtml(coverageDomainSummary)}` : ""}</strong>
+        <b><i style="width:${coverageWidth}%"></i></b>
+        <div class="risk-coverage-list">
+          ${(coverageItems.length ? coverageItems : [{ label: copy.brief.noEvidenceCoverage, status: "review", domain: "evidence", evidence_count: 0, freshness: "unknown", next_step: "" }]).slice(0, 5).map((item) => {
+            const status = riskActionStatusClass(item.status || "review");
+            const meta = [
+              String(item.domain || "").replaceAll("_", " "),
+              item.subject || "",
+              `${copy.messages.source} ${Number(item.evidence_count || 0)}`,
+              localizedRiskStatus(item.freshness || "unknown"),
+            ].filter(Boolean).join(" · ");
+            return `
+              <div class="risk-coverage-item ${escapeHtml(status)}">
+                <strong><span class="table-status ${escapeHtml(status)}">${escapeHtml(localizedRiskStatus(item.status || "review"))}</span>${escapeHtml(item.label || item.coverage_id || "")}</strong>
+                ${meta ? `<small>${escapeHtml(meta)}</small>` : ""}
+                ${item.impact ? `<small>${escapeHtml(item.impact)}</small>` : ""}
+                ${item.next_step ? `<em>${escapeHtml(item.next_step)}</em>` : ""}
+              </div>
+            `;
+          }).join("")}
+        </div>
+      </div>
+      <div class="risk-compatibility-matrix ${escapeHtml(compatibilityStatus)}">
+        <span>${escapeHtml(copy.brief.compatibilityMatrix)}</span>
+        <strong><span class="table-status ${escapeHtml(compatibilityStatus)}">${escapeHtml(localizedRiskStatus(compatibilityMatrix.status || "review"))}</span>${escapeHtml(compatibilityMatrix.summary || copy.brief.noCompatibilityMatrix)}</strong>
+        <div class="risk-compatibility-list">
+          ${(compatibilityRows.length ? compatibilityRows : [{ subject: copy.status.unknown, coverage_scope: "unknown", status: "review", supported_workflows: [], blocked_workflows: [], decision_note: copy.brief.noCompatibilityMatrix, next_step: "" }]).slice(0, 5).map((item) => {
+            const status = riskActionStatusClass(item.status || "review");
+            const supported = Array.isArray(item.supported_workflows) ? item.supported_workflows : [];
+            const blockedWorkflows = Array.isArray(item.blocked_workflows) ? item.blocked_workflows : [];
+            const rawHref = String(item.forecast_launch_href || "");
+            const href = rawHref.startsWith("/ui/?") || rawHref.startsWith("/ui/#") ? rawHref : "";
+            return `
+              <div class="risk-compatibility-row ${escapeHtml(status)}">
+                <strong><span class="table-status ${escapeHtml(status)}">${escapeHtml(localizedRiskStatus(item.status || "review"))}</span>${escapeHtml(item.subject || "")}${item.coverage_scope ? ` · ${escapeHtml(String(item.coverage_scope).replaceAll("_", " "))}` : ""}</strong>
+                ${supported.length ? `<small><b>${escapeHtml(copy.brief.supportedWorkflows)}</b>${escapeHtml(supported.slice(0, 4).join(" / "))}</small>` : ""}
+                ${blockedWorkflows.length ? `<small><b>${escapeHtml(copy.brief.blockedWorkflows)}</b>${escapeHtml(blockedWorkflows.slice(0, 4).join(" / "))}</small>` : ""}
+                ${item.decision_note ? `<small>${escapeHtml(item.decision_note)}</small>` : ""}
+                ${item.next_step ? `<em>${escapeHtml(item.next_step)}</em>` : ""}
+                ${href ? `<a class="risk-ml-validation-link" href="${escapeHtml(href)}">${escapeHtml(copy.brief.forecastLaunch)}</a>` : ""}
+              </div>
+            `;
+          }).join("")}
+        </div>
+        ${compatibilityMatrix.service_note ? `<small>${escapeHtml(compatibilityMatrix.service_note)}</small>` : ""}
+      </div>
+      <div class="risk-ai-output-controls ${escapeHtml(aiControlStatus)}">
+        <span>${escapeHtml(copy.brief.aiOutputControls)}</span>
+        <strong><span class="table-status ${escapeHtml(aiControlStatus)}">${escapeHtml(localizedRiskStatus(aiControls.status || "review"))}</span>${escapeHtml(aiControls.language || state.uiLanguage || "ko")}</strong>
+        <small>${escapeHtml(aiControls.grounding_summary || copy.brief.noAiOutputControls)}</small>
+        <div class="risk-chip-row">
+          ${(aiRequiredRefs.length ? aiRequiredRefs : ["decision_quality", "evidence_coverage"]).slice(0, 8).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+        </div>
+        <ul>${[
+          ...aiBlockedClaims.slice(0, 2),
+          ...aiAllowedClaims.slice(0, 1),
+          ...aiCitationPolicy.slice(0, 1),
+        ].filter(Boolean).slice(0, 4).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+      </div>
+      <div class="risk-input-receipt ${escapeHtml(receiptStatus)}">
+        <span>${escapeHtml(copy.brief.inputReceipt)}</span>
+        <strong><span class="table-status ${escapeHtml(receiptStatus)}">${escapeHtml(localizedRiskStatus(inputReceipt.status || "review"))}</span>${escapeHtml(inputReceipt.mode || state.risk.mode || "company")} · ${escapeHtml(String(inputReceipt.subject_count ?? receiptSubjects.length ?? 0))}</strong>
+        <div class="risk-receipt-grid">
+          <small><b>${escapeHtml(copy.brief.subjects)}</b>${escapeHtml((receiptSubjects.length ? receiptSubjects : state.risk.tickers || []).join(", ") || "-")}</small>
+          <small><b>${escapeHtml(copy.brief.weights)}</b>${escapeHtml(receiptPositions.length ? receiptPositions.map((item) => `${item.ticker}:${riskScoreText(Number(item.weight || 0) * 100)}%`).join(" / ") : "-")}</small>
+        </div>
+        <ul>${(receiptNotes.length ? receiptNotes : [copy.brief.noInputReceipt]).slice(0, 4).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+        ${receiptReplayNotes.length ? `<small>${escapeHtml(copy.brief.replayNotes)} · ${escapeHtml(receiptReplayNotes.slice(0, 4).join(" · "))}</small>` : ""}
+      </div>
+      <div>
+        <span>${escapeHtml(copy.brief.reviewNext)}</span>
+        <ul>${(questions.length ? questions : [copy.brief.rerun]).slice(0, 4).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+      </div>
+      <div>
+        <span>${escapeHtml(copy.brief.watchItems)}</span>
+        <ul>${(watchItems.length ? watchItems : [copy.brief.noWatch]).slice(0, 6).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+      </div>
+      <div>
+        <span>${escapeHtml(blocked.length ? copy.brief.blockedReasons : copy.brief.serviceContract)}</span>
+        <ul>${(blocked.length ? blocked : deployment).slice(0, 4).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+      </div>
+      <div class="risk-priority-map">
+        <span>${escapeHtml(copy.brief.priorityMap)}</span>
+        <div class="risk-priority-list">
+          ${(priorityItems.length ? priorityItems : [{ rank: 1, subject: copy.brief.noPriority, vector: "", score: null, level: "unknown", confidence: 0, reason: "" }]).slice(0, 5).map((item) => {
+            const score = Number(item.score);
+            const width = Number.isFinite(score) ? Math.max(2, Math.min(100, score)) : 4;
+            const status = riskLevelStatus(item.level || "unknown");
+            const detail = [
+              item.score === null || item.score === undefined ? copy.status.unknown : `${copy.metrics.riskIndex} ${riskScoreText(item.score)}`,
+              `${copy.metrics.confidence} ${riskScoreText(item.confidence)}%`,
+              item.reason ? riskDriverText(item.reason) : "",
+            ].filter(Boolean).join(" · ");
+            return `
+              <div class="risk-priority-item ${escapeHtml(status)}">
+                <strong><span class="table-status ${escapeHtml(status)}">#${escapeHtml(item.rank || 1)}</span>${escapeHtml(item.subject || "")}${item.vector ? ` · ${escapeHtml(riskDisplayLabel("vectorLabels", item.vector))}` : ""}</strong>
+                <b><i style="width:${width}%"></i></b>
+                <small>${escapeHtml(detail)}</small>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      </div>
+      <div class="risk-confidence-ladder">
+        <span>${escapeHtml(copy.brief.confidenceFactors)}</span>
+        <div class="risk-confidence-list">
+          ${(confidenceItems.length ? confidenceItems : [{ label: copy.brief.noConfidenceFactors, status: "review", impact: 0, rationale: "" }]).slice(0, 6).map((item) => {
+            const impact = Number(item.impact);
+            const width = Number.isFinite(impact) ? Math.max(2, Math.min(100, impact)) : 2;
+            const status = riskActionStatusClass(item.status || "review");
+            return `
+              <div class="risk-confidence-item ${escapeHtml(status)}">
+                <strong><span class="table-status ${escapeHtml(status)}">${escapeHtml(localizedRiskStatus(item.status || "review"))}</span>${escapeHtml(item.label || item.factor_id || "")}</strong>
+                <b><i style="width:${width}%"></i></b>
+                ${item.rationale ? `<small>${escapeHtml(item.rationale)}</small>` : ""}
+              </div>
+            `;
+          }).join("")}
+        </div>
+      </div>
+      <div class="risk-action-checklist">
+        <span>${escapeHtml(copy.brief.actionChecklist)}</span>
+        <div class="risk-action-list">
+          ${(actionItems.length ? actionItems : [{ label: copy.brief.noActions, status: "review", rationale: "", next_step: "" }]).slice(0, 5).map((item) => `
+            <div class="risk-action-item ${escapeHtml(riskActionStatusClass(item.status))}">
+              <strong><span class="table-status ${escapeHtml(riskActionStatusClass(item.status))}">${escapeHtml(localizedRiskStatus(item.status || "review"))}</span>${escapeHtml(item.label || item.action_id || "")}</strong>
+              ${item.rationale ? `<small>${escapeHtml(item.rationale)}</small>` : ""}
+              ${item.next_step ? `<em>${escapeHtml(item.next_step)}</em>` : ""}
+            </div>
+          `).join("")}
+        </div>
+      </div>
+      <div class="risk-handoff-queue">
+        <span>${escapeHtml(copy.brief.handoffQueue)}</span>
+        <div class="risk-handoff-list">
+          ${(handoffItems.length ? handoffItems : [{ label: copy.brief.noHandoff, status: "review", target_tab: "risk", href: "/ui/#risk", reason: "", next_step: "" }]).slice(0, 6).map((item) => {
+            const status = riskActionStatusClass(item.status || "review");
+            const rawHref = String(item.href || "/ui/#risk");
+            const href = rawHref.startsWith("/ui/#") || rawHref.startsWith("#") ? rawHref : "/ui/#risk";
+            const target = String(item.target_tab || "risk").replaceAll("_", " ");
+            return `
+              <a class="risk-handoff-item ${escapeHtml(status)}" href="${escapeHtml(href)}">
+                <strong><span class="table-status ${escapeHtml(status)}">${escapeHtml(localizedRiskStatus(item.status || "review"))}</span>${escapeHtml(item.label || item.handoff_id || "")}</strong>
+                <small>${escapeHtml(target)}${item.reason ? ` · ${escapeHtml(item.reason)}` : ""}</small>
+                ${item.next_step ? `<em>${escapeHtml(item.next_step)}</em>` : ""}
+              </a>
+            `;
+          }).join("")}
+        </div>
+      </div>
+      <div class="risk-forecast-validation-plan ${escapeHtml(forecastPlanStatus)}">
+        <span>${escapeHtml(copy.brief.forecastValidationPlan)}</span>
+        <strong><span class="table-status ${escapeHtml(forecastPlanStatus)}">${escapeHtml(localizedRiskStatus(forecastPlan.status || "review"))}</span>${escapeHtml(forecastPlan.primary_label || forecastPlan.primary_test_id || copy.brief.noForecastValidationPlan)}</strong>
+        ${forecastPlan.readiness_note ? `<small>${escapeHtml(forecastPlan.readiness_note)}</small>` : ""}
+        ${forecastPlan.primary_launch_href ? `<a class="risk-ml-validation-link" href="${escapeHtml(forecastPlan.primary_launch_href)}">${escapeHtml(copy.brief.openForecastTest)}</a>` : ""}
+        <div class="risk-forecast-plan-list">
+          ${(forecastPlanBlocked.length ? forecastPlanBlocked : forecastPlanRunOrder).slice(0, 5).map((item) => `
+            <div class="risk-forecast-plan-item ${escapeHtml(forecastPlanStatus)}">
+              <strong>${escapeHtml(item)}</strong>
+            </div>
+          `).join("")}
+        </div>
+        <small><b>${escapeHtml(copy.brief.experimentControls)}</b>${escapeHtml(forecastPlanControls.slice(0, 2).join(" / ") || copy.brief.noForecastValidationPlan)}</small>
+      </div>
+      <div class="risk-ml-validation-tests">
+        <span>${escapeHtml(copy.brief.mlValidationTests)}</span>
+        <div class="risk-ml-validation-list">
+          ${(mlValidationItems.length ? mlValidationItems : [{ label: copy.brief.noMlValidationTests, status: "review", test_type: "walk_forward", target_tickers: [], horizon_days: null, rationale: "", setup_notes: "" }]).slice(0, 5).map((item) => {
+            const status = riskActionStatusClass(item.status || "review");
+            const prefill = item.forecast_prefill || {};
+            const tickers = Array.isArray(item.target_tickers) ? item.target_tickers.join(", ") : "";
+            const horizon = item.horizon_days || prefill.horizon_days ? `${escapeHtml(String(item.horizon_days || prefill.horizon_days))}d` : "";
+            const meta = [String(item.test_type || "").replaceAll("_", " "), tickers, horizon].filter(Boolean).join(" · ");
+            const rawHref = String(item.launch_href || "");
+            const href = rawHref.startsWith("/ui/?") || rawHref.startsWith("/ui/#") ? rawHref : "";
+            return `
+              <div class="risk-ml-validation-item ${escapeHtml(status)}">
+                <strong><span class="table-status ${escapeHtml(status)}">${escapeHtml(localizedRiskStatus(item.status || "review"))}</span>${escapeHtml(item.label || item.test_id || "")}</strong>
+                ${meta ? `<small>${escapeHtml(meta)}</small>` : ""}
+                ${item.rationale ? `<small>${escapeHtml(item.rationale)}</small>` : ""}
+                ${item.setup_notes ? `<em>${escapeHtml(item.setup_notes)}</em>` : ""}
+                ${href ? `<a class="risk-ml-validation-link" href="${escapeHtml(href)}">${escapeHtml(copy.brief.openForecastTest)}</a>` : ""}
+              </div>
+            `;
+          }).join("")}
+        </div>
+      </div>
+      <div class="risk-monitoring-triggers">
+        <span>${escapeHtml(copy.brief.monitoringTriggers)}</span>
+        <div class="risk-monitoring-list">
+          ${(triggerItems.length ? triggerItems : [{ label: copy.brief.noTriggers, status: "review", current_state: "", trigger_condition: "", next_step: "" }]).slice(0, 5).map((item) => `
+            <div class="risk-monitoring-item ${escapeHtml(riskActionStatusClass(item.status))}">
+              <strong><span class="table-status ${escapeHtml(riskActionStatusClass(item.status))}">${escapeHtml(localizedRiskStatus(item.status || "review"))}</span>${escapeHtml(item.label || item.trigger_id || "")}</strong>
+              ${item.current_state ? `<small>${escapeHtml(riskDriverText(item.current_state))}</small>` : ""}
+              ${item.trigger_condition ? `<small>${escapeHtml(item.trigger_condition)}</small>` : ""}
+              ${item.next_step ? `<em>${escapeHtml(item.next_step)}</em>` : ""}
+            </div>
+          `).join("")}
+        </div>
+      </div>
+      <div class="risk-service-readiness ${escapeHtml(riskReadinessStatusClass(readinessStatus))}">
+        <span>${escapeHtml(copy.brief.serviceReadiness)}</span>
+        <strong>${escapeHtml(localizedRiskStatus(readinessStatus))}</strong>
+        <ul>${(readinessItems.length ? readinessItems : [copy.brief.noReadiness]).slice(0, 5).map((item) => `<li>${escapeHtml(riskDriverText(item))}</li>`).join("")}</ul>
+      </div>
+      <div class="risk-release-packet ${escapeHtml(riskReadinessStatusClass(releaseStatus))}">
+        <span>${escapeHtml(copy.brief.releasePacket)}</span>
+        <strong>${escapeHtml(localizedRiskStatus(releaseStatus))}${releasePacket.contract_version ? ` · ${escapeHtml(releasePacket.contract_version)}` : ""}</strong>
+        <div class="risk-release-check-list">
+          ${(releaseChecks.length ? releaseChecks : [{ label: copy.brief.noReleasePacket, status: "review", next_step: "" }]).slice(0, 5).map((item) => {
+            const status = riskActionStatusClass(item.status || "review");
+            return `
+              <div class="risk-release-check-item ${escapeHtml(status)}">
+                <strong><span class="table-status ${escapeHtml(status)}">${escapeHtml(localizedRiskStatus(item.status || "review"))}</span>${escapeHtml(item.label || item.check_id || "")}</strong>
+                ${item.next_step ? `<small>${escapeHtml(item.next_step)}</small>` : ""}
+              </div>
+            `;
+          }).join("")}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderRiskDriverWaterfall(result) {
+  if (!els.riskDriverWaterfall) return;
+  const copy = riskCopy();
+  const rows = Array.isArray(result.driver_contributions) ? result.driver_contributions : [];
+  els.riskDriverWaterfall.innerHTML = rows.length ? `
+    <div class="risk-waterfall-list">
+      ${rows.map((row) => {
+        const width = Math.max(2, Math.min(100, Number(row.contribution || 0) * 4));
+        return `
+          <div class="risk-waterfall-row ${escapeHtml(riskLevelStatus(row.level))}">
+            <span>${escapeHtml(riskDisplayLabel("vectorLabels", row.driver || ""))}</span>
+            <b><i style="width:${width}%"></i></b>
+            <strong>${escapeHtml(row.score === null || row.score === undefined ? "unknown" : `${riskScoreText(row.score)} x ${riskScoreText(row.weight)}`)}</strong>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  ` : decisionEmpty(copy.messages.unavailableWaterfall);
+}
+
+function renderRiskCompanyTable(result) {
+  if (!els.riskCompanyTable) return;
+  const copy = riskCopy();
+  const profiles = Array.isArray(result.company_profiles) ? result.company_profiles : [];
+  els.riskCompanyTable.innerHTML = profiles.length ? `
+    <div class="decision-table-wrap">
+      <table class="decision-table risk-table">
+        <thead><tr><th>${escapeHtml(copy.table.ticker)}</th><th>${escapeHtml(copy.table.risk)}</th><th>${escapeHtml(copy.table.level)}</th><th>${escapeHtml(copy.table.confidence)}</th><th>${escapeHtml(copy.table.solvency)}</th><th>${escapeHtml(copy.table.valuation)}</th><th>${escapeHtml(copy.table.market)}</th><th>${escapeHtml(copy.table.data)}</th></tr></thead>
+        <tbody>
+          ${profiles.map((profile) => {
+            const vectorScore = (name) => (profile.vectors || []).find((item) => item.vector === name)?.score;
+            const scope = [profile.coverage_scope, profile.asset_class].filter(Boolean).join(" · ");
+            const coverageNotes = (profile.coverage_notes || []).slice(0, 2).map((item) => riskDriverText(item));
+            return `
+              <tr>
+                <td><strong>${escapeHtml(profile.ticker || "")}</strong><br><small>${escapeHtml(profile.sector || profile.industry || scope || "")}</small>${scope ? `<br><small>${escapeHtml(scope)}</small>` : ""}</td>
+                <td>${escapeHtml(riskScoreText(profile.risk_index))}</td>
+                <td><span class="table-status ${escapeHtml(riskLevelStatus(profile.risk_level))}">${escapeHtml(localizedRiskStatus(profile.risk_level || "unknown"))}</span></td>
+                <td>${escapeHtml(riskScoreText(profile.confidence))}%</td>
+                <td>${escapeHtml(riskScoreText(vectorScore("company_solvency")))}</td>
+                <td>${escapeHtml(riskScoreText(vectorScore("valuation_fragility")))}</td>
+                <td>${escapeHtml(riskScoreText(vectorScore("market_behavior")))}</td>
+                <td>${profile.decision_usable ? escapeHtml(copy.status.usable) : escapeHtml(copy.status.blocked)}${coverageNotes.length ? `<br><small>${coverageNotes.map((item) => escapeHtml(item)).join(" / ")}</small>` : ""}</td>
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>
+  ` : decisionEmpty(copy.messages.unavailableCompany);
+}
+
+function renderRiskMacroPanel(result) {
+  if (!els.riskMacroPressurePanel) return;
+  const copy = riskCopy();
+  const backdrop = result.macro_backdrop || {};
+  const vectors = Array.isArray(backdrop.vectors) ? backdrop.vectors : [];
+  els.riskMacroPressurePanel.innerHTML = `
+    <div class="risk-macro-summary">
+      ${riskMetric(copy.metrics.regime, backdrop.regime || copy.status.unknown, riskLevelStatus(backdrop.risk_level), `${copy.metrics.confidence} ${riskScoreText(backdrop.confidence)}%`)}
+      ${(vectors.length ? vectors : []).map((vector) => riskMetric(
+        riskDisplayLabel("vectorLabels", vector.vector || ""),
+        riskScoreText(vector.score),
+        riskLevelStatus(vector.level),
+        (vector.top_drivers || []).join(", ")
+      )).join("")}
+    </div>
+    ${(backdrop.primary_pressures || []).length ? `<div class="risk-chip-row">${backdrop.primary_pressures.slice(0, 8).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : ""}
+  `;
+}
+
+function renderRiskTransmissionMatrix(result) {
+  if (!els.riskTransmissionMatrix) return;
+  const copy = riskCopy();
+  const rows = Array.isArray(result.transmission_channels) ? result.transmission_channels : [];
+  els.riskTransmissionMatrix.innerHTML = rows.length ? `
+    <div class="decision-table-wrap">
+      <table class="decision-table risk-table">
+        <thead><tr><th>${escapeHtml(copy.table.channel)}</th><th>${escapeHtml(copy.table.pressure)}</th><th>${escapeHtml(copy.table.sensitivity)}</th><th>${escapeHtml(copy.table.delta)}</th><th>${escapeHtml(copy.table.affected)}</th><th>${escapeHtml(copy.table.mechanism)}</th></tr></thead>
+        <tbody>
+          ${rows.map((row) => `
+            <tr>
+              <td>${escapeHtml(riskDisplayLabel("channelLabels", row.channel || ""))}</td>
+              <td><span class="table-status ${escapeHtml(riskLevelStatus(row.pressure))}">${escapeHtml(localizedRiskStatus(row.pressure || "unknown"))}</span></td>
+              <td>${escapeHtml(riskScoreText(Number(row.sensitivity || 0) * 100))}%</td>
+              <td>${escapeHtml(riskScoreText(row.risk_delta))}</td>
+              <td>${escapeHtml((row.affected_subjects || []).join(", ") || copy.status.all)}</td>
+              <td>${escapeHtml(riskCopy().channelMechanisms?.[row.channel] || row.mechanism || "")}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  ` : decisionEmpty(copy.messages.unavailableTransmission);
+}
+
+function renderRiskScenarioMatrix(result) {
+  if (!els.riskScenarioMatrix) return;
+  const copy = riskCopy();
+  const rows = Array.isArray(result.scenario_matrix) ? result.scenario_matrix : [];
+  els.riskScenarioMatrix.innerHTML = rows.length ? `
+    <div class="risk-scenario-grid">
+      ${rows.map((row) => `
+        <div class="risk-scenario-card ${escapeHtml(decisionStatusClass(row.severity === "severe" ? "fail" : row.severity === "adverse" ? "warn" : "ok"))}">
+          <span>${escapeHtml(localizedRiskStatus(row.severity || ""))}</span>
+          <strong>${escapeHtml(riskCopy().scenarioLabels?.[row.scenario_id] || row.label || row.scenario_id || "scenario")}</strong>
+          <p>${escapeHtml(copy.messages.projectedRisk)} ${escapeHtml(riskScoreText(row.projected_risk_index))} · ${escapeHtml(copy.table.delta)} ${escapeHtml(riskScoreText(row.risk_index_delta))}</p>
+          <small>${escapeHtml((row.top_damage_channels || []).join(", ") || copy.messages.channelsUnavailable)}</small>
+        </div>
+      `).join("")}
+    </div>
+  ` : decisionEmpty(copy.messages.unavailableScenario);
+}
+
+function renderRiskEvidence(result) {
+  if (!els.riskEvidenceContent) return;
+  const copy = riskCopy();
+  const evidence = Array.isArray(result.evidence) ? result.evidence : [];
+  const quality = result.data_quality || {};
+  const policy = result.calculation_policy || {};
+  const lineage = result.run_lineage || {};
+  const releasePacket = result.release_packet || {};
+  const evidenceCoverage = result.evidence_coverage || {};
+  const compatibilityMatrix = result.compatibility_matrix || {};
+  const aiControls = result.ai_output_controls || {};
+  const forecastPlan = result.forecast_validation_plan || {};
+  const adapterStatuses = Object.entries(lineage.adapter_statuses || {});
+  const freshnessCounts = Object.entries(lineage.freshness_counts || {});
+  const coverageItems = Array.isArray(evidenceCoverage.items) ? evidenceCoverage.items : [];
+  const compatibilityRows = Array.isArray(compatibilityMatrix.rows) ? compatibilityMatrix.rows : [];
+  const forecastPlanRunOrder = Array.isArray(forecastPlan.run_order) ? forecastPlan.run_order : [];
+  const forecastPlanControls = Array.isArray(forecastPlan.experiment_controls) ? forecastPlan.experiment_controls : [];
+  const forecastPlanCriteria = Array.isArray(forecastPlan.acceptance_criteria) ? forecastPlan.acceptance_criteria : [];
+  const forecastPlanBlocked = Array.isArray(forecastPlan.blocked_reasons) ? forecastPlan.blocked_reasons : [];
+  const releaseRoutes = [
+    ...(Array.isArray(releasePacket.api_routes) ? releasePacket.api_routes : []),
+    ...(Array.isArray(releasePacket.ui_routes) ? releasePacket.ui_routes : []),
+  ];
+  const releaseCommands = Array.isArray(releasePacket.validation_commands) ? releasePacket.validation_commands : [];
+  const aiRequiredRefs = Array.isArray(aiControls.required_evidence_refs) ? aiControls.required_evidence_refs : [];
+  const aiPromptContext = Array.isArray(aiControls.prompt_context) ? aiControls.prompt_context : [];
+  const aiAllowedClaims = Array.isArray(aiControls.allowed_claims) ? aiControls.allowed_claims : [];
+  const aiBlockedClaims = Array.isArray(aiControls.blocked_claims) ? aiControls.blocked_claims : [];
+  const aiCitationPolicy = Array.isArray(aiControls.citation_policy) ? aiControls.citation_policy : [];
+  const aiReviewInstructions = Array.isArray(aiControls.review_instructions) ? aiControls.review_instructions : [];
+  els.riskEvidenceContent.innerHTML = `
+    <div class="risk-evidence-summary">
+      ${riskMetric(copy.metrics.dataQuality, localizedRiskStatus(quality.freshness || "unknown"), quality.decision_usable ? "ok" : "fail", `${copy.messages.penalty} ${riskScoreText(quality.penalty)}`)}
+      ${riskMetric(copy.metrics.confidencePenalty, riskScoreText(quality.confidence_penalty), Number(quality.confidence_penalty || 0) > 30 ? "warn" : "ok", copy.messages.confidenceDeducted)}
+      ${riskMetric(copy.metrics.policy, policy.version || "risk-workbench-v1", "ok", policy.score_direction || "higher_is_riskier")}
+      ${riskMetric(copy.brief.runLineage, lineage.service_version || copy.brief.noLineage, "ok", `${copy.messages.source} ${Number(lineage.evidence_count || 0)} · ${copy.table.affected} ${Number(lineage.subject_count || 0)}`)}
+    </div>
+    ${(quality.missing_inputs || []).length ? `<div class="decision-warning">${escapeHtml(copy.messages.missing)}: ${escapeHtml(quality.missing_inputs.slice(0, 8).join(", "))}</div>` : ""}
+    ${(quality.stale_inputs || []).length ? `<div class="decision-warning">${escapeHtml(copy.messages.stale)}: ${escapeHtml(quality.stale_inputs.slice(0, 8).join(", "))}</div>` : ""}
+    ${coverageItems.length ? `
+      <div class="risk-evidence-coverage-detail">
+        <span>${escapeHtml(copy.brief.evidenceCoverage)}</span>
+        <div class="risk-lineage-grid">
+          <div><strong>${escapeHtml(localizedRiskStatus(evidenceCoverage.status || "review"))}</strong><small>${escapeHtml(copy.metrics.dataQuality)}</small></div>
+          <div><strong>${escapeHtml(riskScoreText(evidenceCoverage.score))}%</strong><small>${escapeHtml(copy.metrics.confidence)}</small></div>
+          <div><strong>${escapeHtml(String(coverageItems.length))}</strong><small>${escapeHtml(copy.messages.source)}</small></div>
+        </div>
+        <div class="risk-coverage-list">
+          ${coverageItems.map((item) => {
+            const status = riskActionStatusClass(item.status || "review");
+            const meta = [
+              String(item.domain || "").replaceAll("_", " "),
+              item.coverage_scope || "",
+              `${copy.messages.source} ${Number(item.evidence_count || 0)}`,
+              localizedRiskStatus(item.freshness || "unknown"),
+            ].filter(Boolean).join(" · ");
+            return `
+              <div class="risk-coverage-item ${escapeHtml(status)}">
+                <strong><span class="table-status ${escapeHtml(status)}">${escapeHtml(localizedRiskStatus(item.status || "review"))}</span>${escapeHtml(item.label || item.coverage_id || "")}</strong>
+                ${meta ? `<small>${escapeHtml(meta)}</small>` : ""}
+                ${item.next_step ? `<em>${escapeHtml(item.next_step)}</em>` : ""}
+              </div>
+            `;
+          }).join("")}
+        </div>
+      </div>
+    ` : ""}
+    ${compatibilityRows.length ? `
+      <div class="risk-compatibility-detail">
+        <span>${escapeHtml(copy.brief.compatibilityMatrix)}</span>
+        <div class="risk-lineage-grid">
+          <div><strong>${escapeHtml(localizedRiskStatus(compatibilityMatrix.status || "review"))}</strong><small>${escapeHtml(copy.brief.compatibilityMatrix)}</small></div>
+          <div><strong>${escapeHtml(String(compatibilityRows.length))}</strong><small>${escapeHtml(copy.table.affected)}</small></div>
+          <div><strong>${escapeHtml(String(compatibilityRows.filter((item) => item.forecast_launch_href).length))}</strong><small>${escapeHtml(copy.brief.forecastLaunch)}</small></div>
+        </div>
+        ${compatibilityMatrix.summary ? `<p>${escapeHtml(compatibilityMatrix.summary)}</p>` : ""}
+        <div class="risk-compatibility-list">
+          ${compatibilityRows.map((item) => {
+            const status = riskActionStatusClass(item.status || "review");
+            const supported = Array.isArray(item.supported_workflows) ? item.supported_workflows : [];
+            const blockedWorkflows = Array.isArray(item.blocked_workflows) ? item.blocked_workflows : [];
+            const rawHref = String(item.forecast_launch_href || "");
+            const href = rawHref.startsWith("/ui/?") || rawHref.startsWith("/ui/#") ? rawHref : "";
+            return `
+              <div class="risk-compatibility-row ${escapeHtml(status)}">
+                <strong><span class="table-status ${escapeHtml(status)}">${escapeHtml(localizedRiskStatus(item.status || "review"))}</span>${escapeHtml(item.subject || "")}${item.coverage_scope ? ` · ${escapeHtml(String(item.coverage_scope).replaceAll("_", " "))}` : ""}</strong>
+                ${supported.length ? `<small><b>${escapeHtml(copy.brief.supportedWorkflows)}</b>${escapeHtml(supported.join(" / "))}</small>` : ""}
+                ${blockedWorkflows.length ? `<small><b>${escapeHtml(copy.brief.blockedWorkflows)}</b>${escapeHtml(blockedWorkflows.join(" / "))}</small>` : ""}
+                ${item.decision_note ? `<small>${escapeHtml(item.decision_note)}</small>` : ""}
+                ${item.next_step ? `<em>${escapeHtml(item.next_step)}</em>` : ""}
+                ${href ? `<a class="risk-ml-validation-link" href="${escapeHtml(href)}">${escapeHtml(copy.brief.forecastLaunch)}</a>` : ""}
+              </div>
+            `;
+          }).join("")}
+        </div>
+        ${compatibilityMatrix.service_note ? `<small>${escapeHtml(compatibilityMatrix.service_note)}</small>` : ""}
+      </div>
+    ` : ""}
+    <div class="risk-run-lineage">
+      <span>${escapeHtml(copy.brief.runLineage)}</span>
+      <div class="risk-lineage-grid">
+        <div><strong>${escapeHtml(lineage.scenario_set || state.risk.scenarioSet || "base_adverse_severe")}</strong><small>${escapeHtml(copy.labels.scenario)}</small></div>
+        <div><strong>${escapeHtml(String(lineage.lookback_days || state.risk.lookbackDays || 756))}</strong><small>${escapeHtml(copy.labels.lookback)}</small></div>
+        <div><strong>${escapeHtml((lineage.subjects || []).join(", ") || copy.status.unknown)}</strong><small>${escapeHtml(copy.table.affected)}</small></div>
+      </div>
+      <div class="risk-chip-row">
+        ${adapterStatuses.length ? adapterStatuses.map(([name, status]) => `<span>${escapeHtml(name)}: ${escapeHtml(localizedRiskStatus(status))}</span>`).join("") : `<span>${escapeHtml(copy.brief.noLineage)}</span>`}
+        ${freshnessCounts.map(([name, count]) => `<span>${escapeHtml(localizedRiskStatus(name))}: ${escapeHtml(count)}</span>`).join("")}
+      </div>
+    </div>
+    ${releasePacket.contract_version ? `
+      <div class="risk-release-packet-detail">
+        <span>${escapeHtml(copy.brief.releasePacket)}</span>
+        <div class="risk-lineage-grid">
+          <div><strong>${escapeHtml(releasePacket.contract_version || "risk-release-packet-v1")}</strong><small>${escapeHtml(copy.metrics.policy)}</small></div>
+          <div><strong>${escapeHtml(localizedRiskStatus(releasePacket.status || "review_required"))}</strong><small>${escapeHtml(copy.brief.serviceGate)}</small></div>
+          <div><strong>${escapeHtml(releasePacket.deployment_target || "controlled_api_service")}</strong><small>${escapeHtml(copy.brief.serviceContract)}</small></div>
+        </div>
+        <div class="risk-chip-row">
+          ${releaseRoutes.slice(0, 8).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+        </div>
+        ${releaseCommands.length ? `<details class="risk-release-commands"><summary>${escapeHtml(copy.brief.releaseChecks)}</summary><ul>${releaseCommands.slice(0, 6).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></details>` : ""}
+      </div>
+    ` : ""}
+    ${forecastPlan.status ? `
+      <div class="risk-forecast-validation-detail">
+        <span>${escapeHtml(copy.brief.forecastValidationPlan)}</span>
+        <div class="risk-lineage-grid">
+          <div><strong>${escapeHtml(localizedRiskStatus(forecastPlan.status || "review"))}</strong><small>${escapeHtml(copy.brief.forecastValidation)}</small></div>
+          <div><strong>${escapeHtml(forecastPlan.primary_test_id || "-")}</strong><small>${escapeHtml(copy.brief.primaryTest)}</small></div>
+          <div><strong>${escapeHtml(String(forecastPlanRunOrder.length))}</strong><small>${escapeHtml(copy.brief.runOrder)}</small></div>
+        </div>
+        ${forecastPlan.readiness_note ? `<p>${escapeHtml(forecastPlan.readiness_note)}</p>` : ""}
+        ${forecastPlan.primary_launch_href ? `<a class="risk-ml-validation-link" href="${escapeHtml(forecastPlan.primary_launch_href)}">${escapeHtml(copy.brief.openForecastTest)}</a>` : ""}
+        <details class="risk-release-commands" open>
+          <summary>${escapeHtml(copy.brief.experimentControls)}</summary>
+          <ul>${[...forecastPlanBlocked, ...forecastPlanControls].filter(Boolean).slice(0, 10).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+        </details>
+        <details class="risk-release-commands">
+          <summary>${escapeHtml(copy.brief.acceptanceCriteria)}</summary>
+          <ul>${forecastPlanCriteria.filter(Boolean).slice(0, 8).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+        </details>
+      </div>
+    ` : ""}
+    ${aiControls.status ? `
+      <div class="risk-ai-output-detail">
+        <span>${escapeHtml(copy.brief.aiOutputControls)}</span>
+        <div class="risk-lineage-grid">
+          <div><strong>${escapeHtml(localizedRiskStatus(aiControls.status || "review"))}</strong><small>${escapeHtml(copy.brief.serviceGate)}</small></div>
+          <div><strong>${escapeHtml(aiControls.language || state.uiLanguage || "ko")}</strong><small>${escapeHtml(copy.labels.language || "Language")}</small></div>
+          <div><strong>${escapeHtml(String(aiRequiredRefs.length))}</strong><small>${escapeHtml(copy.messages.source)}</small></div>
+        </div>
+        ${aiControls.grounding_summary ? `<p>${escapeHtml(aiControls.grounding_summary)}</p>` : ""}
+        <div class="risk-chip-row">
+          ${aiPromptContext.slice(0, 12).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+        </div>
+        <details class="risk-release-commands" open>
+          <summary>${escapeHtml(copy.brief.citationPolicy)}</summary>
+          <ul>${[
+            ...aiCitationPolicy,
+            ...aiReviewInstructions,
+            ...aiAllowedClaims.slice(0, 2),
+            ...aiBlockedClaims.slice(0, 3),
+          ].filter(Boolean).slice(0, 10).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+        </details>
+      </div>
+    ` : ""}
+    <div class="risk-evidence-list">
+      ${evidence.length ? evidence.slice(0, 24).map((item) => `
+        <div class="risk-evidence-item">
+          <strong>${escapeHtml(item.label || item.evidence_id || "")}</strong>
+          <span>${escapeHtml(item.source || copy.messages.source)} · ${escapeHtml(localizedRiskStatus(item.freshness || "unknown"))} · ${escapeHtml(item.value ?? copy.messages.unavailable)}</span>
+          ${(item.notes || []).length ? `<small>${escapeHtml(item.notes.slice(0, 3).join(" / "))}</small>` : ""}
+        </div>
+      `).join("") : decisionEmpty(copy.messages.emptyEvidence)}
+    </div>
+  `;
+}
+
+function renderRiskWorkbench() {
+  if (!els.riskExecutiveStrip || !els.riskDriverWaterfall || !els.riskCompanyTable || !els.riskMacroPressurePanel || !els.riskTransmissionMatrix || !els.riskScenarioMatrix || !els.riskEvidenceContent) return;
+  const copy = riskCopy();
+  if (state.risk.loading) {
+    els.riskExecutiveStrip.innerHTML = `<div class="status-row">${escapeHtml(copy.messages.loading)}</div>`;
+    if (els.riskDecisionBrief) els.riskDecisionBrief.innerHTML = "";
+    els.riskDriverWaterfall.innerHTML = "";
+    els.riskCompanyTable.innerHTML = "";
+    els.riskMacroPressurePanel.innerHTML = "";
+    els.riskTransmissionMatrix.innerHTML = "";
+    els.riskScenarioMatrix.innerHTML = "";
+    els.riskEvidenceContent.innerHTML = "";
+    return;
+  }
+  if (state.risk.error) {
+    els.riskExecutiveStrip.innerHTML = `<div class="error-state">${escapeHtml(state.risk.error)}</div>`;
+    if (els.riskDecisionBrief) els.riskDecisionBrief.innerHTML = decisionEmpty(copy.messages.errorBrief);
+    els.riskDriverWaterfall.innerHTML = decisionEmpty(copy.messages.errorFix);
+    return;
+  }
+  const result = state.risk.response;
+  if (!result) {
+    els.riskExecutiveStrip.innerHTML = `<div class="empty-state">${escapeHtml(copy.messages.emptyExecutive)}</div>`;
+    if (els.riskDecisionBrief) els.riskDecisionBrief.innerHTML = decisionEmpty(copy.messages.emptyBrief);
+    els.riskDriverWaterfall.innerHTML = decisionEmpty(copy.messages.emptyWaterfall);
+    els.riskCompanyTable.innerHTML = decisionEmpty(copy.messages.emptyCompany);
+    els.riskMacroPressurePanel.innerHTML = decisionEmpty(copy.messages.emptyMacro);
+    els.riskTransmissionMatrix.innerHTML = decisionEmpty(copy.messages.emptyTransmission);
+    els.riskScenarioMatrix.innerHTML = decisionEmpty(copy.messages.emptyScenario);
+    els.riskEvidenceContent.innerHTML = decisionEmpty(copy.messages.emptyEvidence);
+    return;
+  }
+  renderRiskExecutiveStrip(result);
+  renderRiskDecisionBrief(result);
+  renderRiskDriverWaterfall(result);
+  renderRiskCompanyTable(result);
+  renderRiskMacroPanel(result);
+  renderRiskTransmissionMatrix(result);
+  renderRiskScenarioMatrix(result);
+  renderRiskEvidence(result);
+}
+
+async function loadRiskWorkbench(force = false) {
+  if (state.risk.loading) return;
+  if (state.risk.loaded && !force && state.risk.response) {
+    renderRiskWorkbench();
+    return;
+  }
+  state.risk.loading = true;
+  state.risk.error = "";
+  renderRiskWorkbench();
+  try {
+    const response = await fetch(API.risk.workbench, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(riskRequestPayload()),
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Risk request failed with HTTP ${response.status}: ${text.slice(0, 160)}`);
+    }
+    state.risk.response = await response.json();
+    state.risk.loaded = true;
+  } catch (error) {
+    state.risk.error = error instanceof Error ? error.message : String(error);
+  } finally {
+    state.risk.loading = false;
+    renderRiskWorkbench();
+  }
 }
 
 const DASHBOARD_PANEL_VIEWS = new Set(["overview", "details", "operations", "all"]);
@@ -4913,12 +6346,14 @@ function dashboardTabFromLocation() {
   if (fromParam === "ai-portfolio" || fromParam === "ai") return "ai-portfolio";
   if (fromParam === "ml-forecast" || fromParam === "forecast") return "forecast";
   if (fromParam === "macro") return "macro";
+  if (fromParam === "risk") return "risk";
   if (fromParam === "quantamental") return "quantamental";
   if (fromParam === "quant") return "quant";
   if (fromParam === "market") return "market";
   if (window.location.hash === "#ai-portfolio" || window.location.hash === "#ai") return "ai-portfolio";
   if (window.location.hash === "#ml-forecast" || window.location.hash === "#forecast-lab" || window.location.hash === "#forecast") return "forecast";
   if (window.location.hash === "#macro") return "macro";
+  if (window.location.hash === "#risk") return "risk";
   if (window.location.hash === "#quantamental") return "quantamental";
   if (window.location.hash === "#quant-lab" || window.location.hash === "#quant") return "quant";
   if (window.location.hash === "#market-dashboard" || window.location.hash === "#market") return "market";
@@ -4926,7 +6361,7 @@ function dashboardTabFromLocation() {
 }
 
 function setDashboardTab(tab = "market", options = {}) {
-  const active = tab === "quantamental" ? "quantamental" : (tab === "quant" ? "quant" : (tab === "forecast" || tab === "ml-forecast" ? "forecast" : (tab === "macro" ? "macro" : (tab === "ai-portfolio" || tab === "ai" ? "ai-portfolio" : "market"))));
+  const active = tab === "quantamental" ? "quantamental" : (tab === "quant" ? "quant" : (tab === "forecast" || tab === "ml-forecast" ? "forecast" : (tab === "macro" ? "macro" : (tab === "risk" ? "risk" : (tab === "ai-portfolio" || tab === "ai" ? "ai-portfolio" : "market")))));
   state.activeDashboardTab = active;
   if (els.homeSurfaceGrid) {
     els.homeSurfaceGrid.dataset.dashboardTab = active;
@@ -4937,6 +6372,7 @@ function setDashboardTab(tab = "market", options = {}) {
   const buttons = [
     { el: els.marketDashboardTab, tab: "market" },
     { el: els.macroDashboardTab, tab: "macro" },
+    { el: els.riskDashboardTab, tab: "risk" },
     { el: els.quantLabTab, tab: "quant" },
     { el: els.quantamentalTab, tab: "quantamental" },
     { el: els.mlForecastTab, tab: "forecast" },
@@ -4958,20 +6394,106 @@ function setDashboardTab(tab = "market", options = {}) {
     loadForecastLab(false);
   } else if (active === "macro") {
     loadMacro(false);
+  } else if (active === "risk") {
+    renderRiskWorkbench();
   } else if (active === "ai-portfolio") {
     loadAiPortfolio(false);
   } else {
     loadMarketDashboard(false);
   }
   if (options.updateUrl && window.history?.replaceState) {
-    const hash = active === "quantamental" ? "#quantamental" : (active === "quant" ? "#quant-lab" : (active === "forecast" ? "#ml-forecast" : (active === "macro" ? "#macro" : (active === "ai-portfolio" ? "#ai-portfolio" : "#market-dashboard"))));
+    const hash = active === "quantamental" ? "#quantamental" : (active === "quant" ? "#quant-lab" : (active === "forecast" ? "#ml-forecast" : (active === "macro" ? "#macro" : (active === "risk" ? "#risk" : (active === "ai-portfolio" ? "#ai-portfolio" : "#market-dashboard")))));
     window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${hash}`);
   }
+}
+
+function applyForecastPrefillFromLocation() {
+  const params = new URLSearchParams(window.location.search || "");
+  const ticker = normalizeTickerToken(params.get("forecastTicker") || "");
+  const benchmark = normalizeTickerToken(params.get("forecastBenchmark") || "");
+  const horizon = Number(params.get("forecastHorizon") || "");
+  const validation = String(params.get("forecastValidation") || "");
+  const targetType = String(params.get("forecastTargetType") || "");
+  const model = String(params.get("forecastModel") || "");
+  const riskValidation = String(params.get("riskValidation") || "");
+  const riskInputHash = String(params.get("riskInputHash") || "");
+  const riskTestType = String(params.get("riskTestType") || "");
+  const riskTestLabel = String(params.get("riskTestLabel") || "");
+  const riskPriority = Number(params.get("riskTestPriority") || "");
+  let applied = false;
+
+  if (ticker && els.forecastTicker) {
+    els.forecastTicker.value = ticker;
+    applied = true;
+  }
+  if (benchmark && els.forecastBenchmark) {
+    els.forecastBenchmark.value = benchmark;
+    applied = true;
+  }
+  if (Number.isFinite(horizon) && horizon >= 1 && horizon <= 252 && els.forecastHorizon) {
+    els.forecastHorizon.value = String(Math.round(horizon));
+    applied = true;
+  }
+  if (validation && setSelectValueIfPresent(els.forecastValidation, validation)) applied = true;
+  if (targetType && setSelectValueIfPresent(els.forecastTargetType, targetType)) applied = true;
+  if (model && setSelectValueIfPresent(els.forecastModel, model)) applied = true;
+  if (params.has("forecastIncludeMacro") && els.forecastIncludeMacro) {
+    els.forecastIncludeMacro.checked = ["1", "true", "yes", "on"].includes(String(params.get("forecastIncludeMacro")).toLowerCase());
+    applied = true;
+  }
+  if (params.has("forecastIncludeCrossAsset") && els.forecastIncludeCrossAsset) {
+    els.forecastIncludeCrossAsset.checked = ["1", "true", "yes", "on"].includes(String(params.get("forecastIncludeCrossAsset")).toLowerCase());
+    applied = true;
+  }
+  const riskHandoff = riskValidation || riskInputHash || riskTestType || riskTestLabel
+    ? {
+      source: "risk_workbench",
+      risk_validation_test_id: riskValidation,
+      risk_input_hash: riskInputHash,
+      risk_test_type: riskTestType,
+      risk_test_label: riskTestLabel,
+      risk_priority: Number.isFinite(riskPriority) && riskPriority >= 1 && riskPriority <= 5 ? Math.round(riskPriority) : null,
+    }
+    : null;
+  state.forecastRiskHandoff = applied && riskHandoff ? riskHandoff : null;
+  if (els.forecastRiskPrefillNotice) {
+    els.forecastRiskPrefillNotice.hidden = !applied;
+    els.forecastRiskPrefillNotice.innerHTML = applied ? renderForecastRiskHandoffNotice(state.forecastRiskHandoff) : "";
+  }
+  return applied;
+}
+
+function renderForecastRiskHandoffNotice(handoff = null) {
+  const isEnglish = selectedOutputLanguage() === "en";
+  const title = isEnglish ? "Risk validation handoff" : "Risk 검증 핸드오프";
+  const subtitle = isEnglish
+    ? "This forecast setup came from a Risk Workbench ML validation test."
+    : "이 Forecast 설정은 Risk Workbench의 ML 검증 테스트에서 전달되었습니다.";
+  const testLabel = handoff?.risk_test_label || handoff?.risk_validation_test_id || (isEnglish ? "Risk test" : "Risk 테스트");
+  const testType = handoff?.risk_test_type || "unknown";
+  const priority = handoff?.risk_priority ? `P${handoff.risk_priority}` : "P?";
+  const inputHash = handoff?.risk_input_hash || "unknown";
+  const steps = isEnglish
+    ? ["Preview dataset quality", "Run leakage check", "Queue or train the forecast", "Compare output against the Risk test criteria"]
+    : ["데이터셋 품질 미리보기", "누수 검증 실행", "Forecast 학습 또는 작업 큐 실행", "Risk 테스트 기준과 결과 비교"];
+  return `
+    <div class="risk-forecast-prefill-card">
+      <strong>${escapeHtml(title)}</strong>
+      <span>${escapeHtml(subtitle)}</span>
+      <div class="risk-forecast-prefill-grid">
+        <small>${escapeHtml(testLabel)}</small>
+        <small>${escapeHtml(testType)} · ${escapeHtml(priority)}</small>
+        <small>${escapeHtml(inputHash)}</small>
+      </div>
+      <ol>${steps.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}</ol>
+    </div>
+  `;
 }
 
 function applyUrlUiMode() {
   const params = new URLSearchParams(window.location.search);
   const requestedTab = dashboardTabFromLocation();
+  applyForecastPrefillFromLocation();
   if (requestedTab) setDashboardTab(requestedTab);
   else setDashboardTab(state.activeDashboardTab || "market");
   if (params.get("focus") !== "heatmap") return;
@@ -5006,6 +6528,7 @@ function normalizeStaticLabels() {
   setText(".home-market-panel .home-card-head h3", "내부 시장 스냅샷 (시장 테이프에 통합)");
   if (els.marketDashboardTab) els.marketDashboardTab.textContent = "Market Dashboard";
   if (els.macroDashboardTab) els.macroDashboardTab.textContent = "Macro";
+  if (els.riskDashboardTab) els.riskDashboardTab.textContent = "Risk";
   if (els.quantLabTab) els.quantLabTab.textContent = "Quant Lab";
   if (els.quantamentalTab) els.quantamentalTab.textContent = "Quantamental";
   if (els.mlForecastTab) els.mlForecastTab.textContent = "ML Forecast";
@@ -13300,6 +14823,14 @@ function forecastRunRequestFromControls() {
       show_position_exposure: true,
       show_model_comparison: true,
     },
+    source_context: state.forecastRiskHandoff ? {
+      source: "risk_workbench",
+      risk_validation_test_id: state.forecastRiskHandoff.risk_validation_test_id || "",
+      risk_input_hash: state.forecastRiskHandoff.risk_input_hash || "",
+      risk_test_type: state.forecastRiskHandoff.risk_test_type || "",
+      risk_test_label: state.forecastRiskHandoff.risk_test_label || "",
+      risk_priority: state.forecastRiskHandoff.risk_priority || null,
+    } : {},
   };
 }
 
@@ -17914,6 +19445,9 @@ function bindInputs() {
   if (els.macroDashboardTab) {
     els.macroDashboardTab.addEventListener("click", () => setDashboardTab("macro", { updateUrl: true }));
   }
+  if (els.riskDashboardTab) {
+    els.riskDashboardTab.addEventListener("click", () => setDashboardTab("risk", { updateUrl: true }));
+  }
   if (els.quantLabTab) {
     els.quantLabTab.addEventListener("click", () => setDashboardTab("quant", { updateUrl: true }));
   }
@@ -17944,6 +19478,18 @@ function bindInputs() {
       if (!nextView) return;
       event.preventDefault();
       setDashboardPanelView(nextView);
+    });
+  }
+  els.riskModeButtons().forEach((button) => {
+    button.addEventListener("click", () => setRiskMode(button.dataset.riskMode || "company"));
+  });
+  if (els.riskRefreshButton) els.riskRefreshButton.addEventListener("click", () => loadRiskWorkbench(true));
+  if (els.riskTickerInput) {
+    els.riskTickerInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        loadRiskWorkbench(true);
+      }
     });
   }
   if (els.macroRangeSelect) {

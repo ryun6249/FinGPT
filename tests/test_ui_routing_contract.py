@@ -132,8 +132,8 @@ class UiRoutingContractTests(unittest.TestCase):
         self.assertIn('src="modules/quant-ui.js?v=20260521-market-signals-v1"', html)
         self.assertIn('src="modules/ai-portfolio-ui.js?v=20260520-ai-portfolio-ops-v1"', html)
         self.assertIn('src="modules/quantamental-ui.js?v=20260521-quantamental-decision-v23"', html)
-        self.assertIn('href="styles.css?v=20260521-quant-decision-v26"', html)
-        self.assertIn('src="app.js?v=20260521-quant-decision-v29"', html)
+        self.assertIn('href="styles.css?v=20260521-risk-forecast-v35"', html)
+        self.assertIn('src="app.js?v=20260521-risk-forecast-v37"', html)
         self.assertIn('id="dashboardContextStrip"', html)
         self.assertIn("dashboardDecisionCards", self.source)
         self.assertIn("function loadDashboardDecisionCards", self.source)
@@ -157,7 +157,7 @@ class UiRoutingContractTests(unittest.TestCase):
         self.assertIn('DOMAIN_BUNDLE_VERSION = "20260521-market-signals-v1"', smoke_source)
         self.assertIn('AI_PORTFOLIO_BUNDLE_VERSION = "20260520-ai-portfolio-ops-v1"', smoke_source)
         self.assertIn('QUANTAMENTAL_BUNDLE_VERSION = "20260521-quantamental-decision-v23"', smoke_source)
-        self.assertIn('APP_BUNDLE_VERSION = "20260521-quant-decision-v29"', smoke_source)
+        self.assertIn('APP_BUNDLE_VERSION = "20260521-risk-forecast-v35"', smoke_source)
         self.assertIn("def _normalize_base_url", smoke_source)
         self.assertIn("modules/quantamental-ui.js", smoke_source)
         self.assertIn("FinGPTQuantamentalUi?.topSignals", smoke_source)
@@ -963,8 +963,27 @@ class UiRoutingContractTests(unittest.TestCase):
             self.assertTrue(matches, f"{tab}:#{element_id}")
             self.assertIn(f"order: {order};", matches[-1].group("body"))
 
+        assert_class_order("market", "market-overview-card", "1")
+        assert_class_order("market", "market-signals-card", "2")
         assert_class_order("market", "home-chart-card", "3")
         assert_class_order("market", "home-heatmap-card", "4")
+
+        for class_name in ("market-overview-card", "market-signals-card"):
+            pattern = rf'\.dashboard-surface-grid\[data-dashboard-tab="market"\] \.{class_name} \{{(?P<body>.*?)\}}'
+            matches = list(re.finditer(pattern, css, re.S))
+            self.assertTrue(matches, f"market:{class_name}")
+            self.assertIn("grid-column: 1 / -1;", matches[-1].group("body"))
+
+        self.assertIn(
+            '.dashboard-surface-grid[data-dashboard-tab="market"] .market-tape-grid',
+            css,
+        )
+        self.assertIn("grid-template-columns: repeat(4, minmax(190px, 1fr));", css)
+        self.assertIn(
+            '.dashboard-surface-grid[data-dashboard-tab="market"] .cross-asset-analysis-surface',
+            css,
+        )
+        self.assertIn("min-height: 620px;", css)
 
         expected_quantamental = {
             "quantamentalScreen": ("id", "quantamentalSurface", "1"),

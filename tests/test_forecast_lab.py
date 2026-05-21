@@ -18,6 +18,7 @@ from core.schemas.forecast import (
     ForecastResult,
     ForecastJobSubmitRequest,
     ForecastRunRequest,
+    ForecastSourceContext,
     ModelConfig,
     ModelRegistryItem,
     SignalConfig,
@@ -56,6 +57,25 @@ def _seed_prices(db_path, rows: int = 260) -> None:
             ]
         )
     repository.upsert_prices(prices, db_path=db_path)
+
+
+def test_forecast_run_request_accepts_risk_source_context() -> None:
+    request = ForecastRunRequest(
+        source_context=ForecastSourceContext(
+            source="risk_workbench",
+            risk_validation_test_id="walk_forward_baseline",
+            risk_input_hash="abc123",
+            risk_test_type="walk_forward",
+            risk_test_label="Run walk-forward baseline",
+            risk_priority=2,
+        )
+    )
+
+    payload = request.model_dump(mode="json")
+
+    assert payload["source_context"]["source"] == "risk_workbench"
+    assert payload["source_context"]["risk_validation_test_id"] == "walk_forward_baseline"
+    assert payload["source_context"]["risk_input_hash"] == "abc123"
 
 
 def test_feature_engineering_applies_one_bar_shift(tmp_path, monkeypatch) -> None:

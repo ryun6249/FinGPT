@@ -272,6 +272,7 @@ def run_experiment(request: ForecastRunRequest) -> dict[str, Any]:
         signal_config=request.signal_config,
         backtest_config=request.backtest_config,
         visualization_config=request.visualization_config,
+        source_context=request.source_context,
         status="success",
         warnings=forecast.warnings,
         data_quality=quality,
@@ -320,6 +321,7 @@ def run_experiment(request: ForecastRunRequest) -> dict[str, Any]:
         "signal_context": signal_context,
         "portfolio_advisory_signal": {},
         "research_context": {},
+        "source_context": request.source_context.model_dump(mode="json"),
         "warnings": forecast.warnings,
         "errors": [],
     }
@@ -660,6 +662,7 @@ def _failed_payload(
         "experiment_id": experiment_id,
         "forecast_result": forecast.model_dump(mode="json"),
         "data_snapshot": data_snapshot or {},
+        "source_context": request.source_context.model_dump(mode="json"),
         "leakage_check": leakage.model_dump(mode="json"),
         "artifact_refs": {
             "data_snapshot_json": (data_snapshot_artifact or {}).get("artifact_path", ""),
