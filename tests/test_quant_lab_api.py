@@ -542,6 +542,50 @@ def test_python_strategy_run_endpoint_returns_code_backtest_and_optimization(mon
     assert body["optimization"]["trial_count"] <= 6
 
 
+def test_python_strategy_run_endpoint_supports_moving_average_family(monkeypatch) -> None:
+    rows = []
+    prev_close = 100.0
+    for idx in range(220):
+        day = (date(2025, 1, 1) + timedelta(days=idx)).isoformat()
+        close = 100.0 + math.sin(idx / 7.0) * 10.0 + idx * 0.01
+        rows.append(
+            {
+                "ticker": "SPY",
+                "date": day,
+                "open": prev_close,
+                "high": max(prev_close, close) * 1.02,
+                "low": min(prev_close, close) * 0.98,
+                "close": close,
+                "adjusted_close": close,
+                "source": "test",
+            }
+        )
+        prev_close = close
+    monkeypatch.setattr("pipelines.strategies.python_generator.get_prices", lambda ticker, limit=252: rows[-limit:])
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/v1/quant/python-strategy/run",
+        json={
+            "prompt": "Create a moving average crossover Python strategy and optimize fast/slow windows.",
+            "ticker": "SPY",
+            "use_local_llm": False,
+            "max_trials": 6,
+            "parameter_overrides": {"fast_window": 5, "slow_window": 25, "enable_short": True},
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "success"
+    assert body["family"] == "moving_average_crossover"
+    assert "def simple_moving_average" in body["code"]
+    assert body["backtest"]["status"] == "success"
+    assert body["backtest"]["chart"]["indicators"]["overlays"][0]["key"] == "fast_ma"
+    assert body["optimization"]["status"] == "success"
+    assert set(body["optimization"]["recommended_parameters"]) <= {item["name"] for item in body["parameter_manifest"]}
+
+
 def test_model_profile_api_roundtrip_and_dry_run(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(quant_lab_router, "ARTIFACT_ROOT", tmp_path / "backtests")
     client = TestClient(app)

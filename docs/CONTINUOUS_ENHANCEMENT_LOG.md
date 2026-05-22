@@ -1,5 +1,17 @@
 # Continuous Enhancement Log
 
+## 2026-05-23 Python Strategy Family Expansion
+
+- Runtime: `2026-05-23 00:47 KST`.
+- Current status: continued the natural-language -> Python strategy code -> backtest -> Bayesian optimization workflow beyond a single Supertrend template. This remains research evidence only; live execution and recommendations stay out of scope.
+- Backend contract: `POST /api/v1/quant/python-strategy/run` now supports `supertrend`, `moving_average_crossover`, and `rsi_reversion` families. Each family renders controlled Python code, validates the same `strategy_parameters`/`generate_signals` interface, publishes a family-specific parameter manifest/search space, backtests through data-mart prices, and feeds Bayesian optimization from that manifest.
+- Visualization: `/ui/#auto-trading` now reads `backtest.chart.indicators`. Supertrend renders its trend line, moving-average crossover renders fast/slow MA overlays, and RSI reversion renders a separate RSI indicator panel with oversold/overbought/exit guide lines. Entry/exit markers remain execution-point markers across all families.
+- Cache safety: static assets were bumped to `app.js?v=20260523-python-strategy-v2` and `styles.css?v=20260523-python-strategy-v2`; the AI Portfolio smoke bundle guard and UI routing expectations were synchronized.
+- Verification: `python -m py_compile pipelines\strategies\python_generator.py app\api\routers\quant_lab.py pipelines\strategies\generator.py`; `node --check app\web\app.js`; `python scripts\check_ui_contract.py`; `python -m pytest tests\test_python_strategy_generator.py tests\test_strategy_generator.py tests\test_quant_lab_api.py tests\test_ui_routing_contract.py -q` (`71 passed, 4 subtests passed`) all passed.
+- Local LLM proof: direct API call on `http://127.0.0.1:8825/api/v1/quant/python-strategy/run` with a moving-average prompt and `use_local_llm=true` returned `family=moving_average_crossover`, `model_status=local_llm_plan_template_python`, `llm_status=success`, `fallback_used=false`, validated Python containing `simple_moving_average`, successful backtest/optimization, fast/slow overlays, and `17` chart markers.
+- Browser verification: fresh server `http://127.0.0.1:8825/ui/#auto-trading`; Browser/IAB confirmed v2 app/style bundles, moving-average Python code and fast/slow overlays with `22` entry and `21` exit markers, RSI Python code and RSI panel with guide lines plus `6` entry and `6` exit markers. Console errors `0`; desktop and mobile body overflow `0`.
+- Screenshots: `F:\LLM\python-strategy-family-ma-desktop-8825.png`, `F:\LLM\python-strategy-family-rsi-mobile-8825.png`.
+
 ## 2026-05-22 Python Strategy Lab
 
 - Runtime: `2026-05-22 21:45 KST`.

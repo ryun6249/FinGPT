@@ -13774,6 +13774,57 @@ html[data-theme="light"] .quality-context-item {
   vector-effect: non-scaling-stroke;
 }
 
+.python-strategy-overlay-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.python-fast-ma-line {
+  fill: none;
+  stroke: #2563eb;
+  stroke-width: 2.2;
+  vector-effect: non-scaling-stroke;
+}
+
+.python-slow-ma-line {
+  fill: none;
+  stroke: #f59e0b;
+  stroke-width: 2.2;
+  stroke-dasharray: 8 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.python-indicator-panel {
+  border-top: 1px solid var(--border);
+  margin-top: 10px;
+  padding-top: 10px;
+}
+
+.python-indicator-svg .python-rsi-line,
+.python-rsi-line {
+  fill: none;
+  stroke: #7c3aed;
+  stroke-width: 2.1;
+  vector-effect: non-scaling-stroke;
+}
+
+.python-rsi-guide line {
+  stroke-width: 1.2;
+  stroke-dasharray: 5 5;
+  vector-effect: non-scaling-stroke;
+}
+
+.python-rsi-guide text {
+  fill: var(--muted);
+  font-size: 0.72rem;
+}
+
+.python-rsi-guide.oversold line { stroke: color-mix(in srgb, var(--bull), transparent 15%); }
+.python-rsi-guide.overbought line { stroke: color-mix(in srgb, var(--bear), transparent 15%); }
+.python-rsi-guide.exit line { stroke: color-mix(in srgb, var(--accent), transparent 10%); }
+
 .auto-trading-legend {
   display: flex;
   flex-wrap: wrap;
@@ -13799,6 +13850,11 @@ html[data-theme="light"] .quality-context-item {
 .auto-trading-legend i.entry { background: var(--bull); }
 .auto-trading-legend i.exit { background: var(--bear); }
 .auto-trading-legend i.rebalance { background: var(--accent); }
+.auto-trading-legend i.python-supertrend-line,
+.auto-trading-legend i.python-strategy-overlay-line { background: var(--accent); }
+.auto-trading-legend i.python-fast-ma-line { background: #2563eb; }
+.auto-trading-legend i.python-slow-ma-line { background: #f59e0b; }
+.auto-trading-legend i.python-rsi-line { background: #7c3aed; }
 
 @media (max-width: 1180px) {
   .auto-trading-shell {

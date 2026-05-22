@@ -14792,6 +14792,81 @@ function renderPythonStrategyParameterManifest(data = {}) {
   `;
 }
 
+function pythonStrategyOverlayDefinitions(chart = {}, family = "") {
+  const raw = Array.isArray(chart.indicators?.overlays) ? chart.indicators.overlays : [];
+  if (raw.length) return raw.filter((item) => item && item.key);
+  if (family === "moving_average_crossover") {
+    return [
+      { key: "fast_ma", label: "Fast MA", class_name: "python-fast-ma-line" },
+      { key: "slow_ma", label: "Slow MA", class_name: "python-slow-ma-line" },
+    ];
+  }
+  return [{ key: "supertrend", label: "Supertrend", class_name: "python-supertrend-line" }];
+}
+
+function pythonStrategyPanelDefinitions(chart = {}) {
+  return (Array.isArray(chart.indicators?.panels) ? chart.indicators.panels : []).filter((item) => item && item.key);
+}
+
+function pythonStrategyPolylineForKey(points, key) {
+  return points
+    .map((point) => ({ x: point.x, y: point.overlayY?.[key] }))
+    .filter((point) => Number.isFinite(point.y))
+    .map((point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`)
+    .join(" ");
+}
+
+function renderPythonStrategyIndicatorPanel(rows, panels, width) {
+  if (!panels.length) return "";
+  const height = 150;
+  const padLeft = 74;
+  const padRight = 58;
+  const padTop = 18;
+  const padBottom = 32;
+  return panels.map((panel) => {
+    const key = String(panel.key || "");
+    const values = rows.map((row) => Number(row[key])).filter(Number.isFinite);
+    if (!key || !values.length) return "";
+    const minValue = Number.isFinite(Number(panel.min)) ? Number(panel.min) : Math.min(...values);
+    const maxValue = Number.isFinite(Number(panel.max)) ? Number(panel.max) : Math.max(...values);
+    const { min, max } = paddedChartDomain(values, [minValue, maxValue]);
+    const panelPoints = rows.map((row, index) => {
+      const value = Number(row[key]);
+      const x = padLeft + (index / Math.max(1, rows.length - 1)) * (width - padLeft - padRight);
+      return {
+        ...row,
+        x,
+        y: Number.isFinite(value) ? chartY(min, max, value, height, padTop, padBottom) : null,
+        value,
+      };
+    }).filter((point) => Number.isFinite(point.y));
+    const guideValues = [
+      { value: panel.oversold, label: "OS", className: "python-rsi-guide oversold" },
+      { value: panel.overbought, label: "OB", className: "python-rsi-guide overbought" },
+      { value: panel.exit, label: "Exit", className: "python-rsi-guide exit" },
+    ].filter((item) => Number.isFinite(Number(item.value)));
+    return `
+      <div class="python-indicator-panel" data-testid="python-strategy-indicator-panel">
+        <div class="internal-chart-head compact">
+          <strong>${escapeHtml(panel.label || key.toUpperCase())}</strong>
+          <span>${escapeHtml(guideValues.map((item) => `${item.label} ${fmtDecimal(item.value, 1)}`).join(" · ") || "indicator panel")}</span>
+        </div>
+        <div class="internal-chart-scroll" tabindex="0" aria-label="${escapeHtml(panel.label || key)} indicator horizontal scroll">
+          <svg class="internal-ohlc-chart python-indicator-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(panel.label || key)} Python strategy indicator">
+            ${renderChartYAxis({ width, height, padLeft, padRight, padTop, padBottom, min, max, formatter: (value) => fmtDecimal(value, 1) })}
+            ${guideValues.map((item) => {
+              const y = chartY(min, max, Number(item.value), height, padTop, padBottom);
+              return `<g class="${escapeHtml(item.className)}"><line x1="${padLeft}" x2="${width - padRight}" y1="${y.toFixed(2)}" y2="${y.toFixed(2)}"></line><text x="${width - padRight + 6}" y="${(y + 4).toFixed(2)}">${escapeHtml(item.label)}</text></g>`;
+            }).join("")}
+            <polyline points="${svgPolylinePoints(panelPoints)}" class="${escapeHtml(panel.class_name || "python-rsi-line")}"></polyline>
+            ${renderChartHoverTargets(panelPoints, (point) => `${point.date || "-"} · ${panel.label || key} ${fmtDecimal(point.value, 2)}`)}
+          </svg>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
 function renderPythonStrategyChart(data = {}) {
   const backtest = data.backtest || {};
   const chart = backtest.chart || {};
@@ -14799,22 +14874,34 @@ function renderPythonStrategyChart(data = {}) {
   if (rows.length < 2) {
     return decisionEmpty("Python strategy did not produce enough chart rows for visual entry/exit review.");
   }
+  const overlays = pythonStrategyOverlayDefinitions(chart, data.family || backtest.family || "");
+  const panels = pythonStrategyPanelDefinitions(chart);
   const width = Math.max(980, Math.min(5600, rows.length * 8 + 160));
   const height = 450;
   const padLeft = 74;
   const padRight = 58;
   const padTop = 28;
   const padBottom = 52;
-  const { min, max } = paddedChartDomain(rows.flatMap((row) => [row.high || row.close, row.low || row.close, row.close, row.supertrend]));
+  const { min, max } = paddedChartDomain(rows.flatMap((row) => [row.high || row.close, row.low || row.close, row.close, ...overlays.map((overlay) => row[overlay.key])]));
   const points = rows.map((row, index) => {
     const x = padLeft + (index / Math.max(1, rows.length - 1)) * (width - padLeft - padRight);
+    const overlayY = {};
+    overlays.forEach((overlay) => {
+      const value = Number(row[overlay.key]);
+      overlayY[overlay.key] = Number.isFinite(value) ? chartY(min, max, value, height, padTop, padBottom) : null;
+    });
     return {
       ...row,
       x,
       y: chartY(min, max, Number(row.close), height, padTop, padBottom),
-      stY: chartY(min, max, Number(row.supertrend), height, padTop, padBottom),
+      overlayY,
     };
   });
+  const overlayLines = overlays.map((overlay) => {
+    const linePoints = pythonStrategyPolylineForKey(points, overlay.key);
+    if (!linePoints) return "";
+    return `<polyline points="${linePoints}" class="${escapeHtml(overlay.class_name || "python-strategy-overlay-line")}"></polyline>`;
+  }).join("");
   const markers = (Array.isArray(chart.markers) ? chart.markers : []).slice(-160).map((marker, index) => {
     const point = nearestChartPoint(points, marker.date);
     if (!point) return "";
@@ -14856,15 +14943,23 @@ function renderPythonStrategyChart(data = {}) {
         <svg class="internal-ohlc-chart auto-trading-svg python-strategy-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(data.ticker || "asset")} Python strategy signal chart">
           ${renderChartYAxis({ width, height, padLeft, padRight, padTop, padBottom, min, max, formatter: (value) => fmtDecimal(value, Math.abs(value) >= 100 ? 0 : 2) })}
           <polyline points="${svgPolylinePoints(points)}" class="internal-close-line"></polyline>
-          <polyline points="${points.map((point) => `${point.x.toFixed(2)},${point.stY.toFixed(2)}`).join(" ")}" class="python-supertrend-line"></polyline>
+          ${overlayLines}
           ${markers}
-          ${renderChartHoverTargets(points.map((point) => ({ ...point, value: point.close })), (point) => `${point.date || "-"} · Close ${fmtDecimal(point.value, 2)} · Supertrend ${fmtDecimal(point.supertrend, 2)} · ${point.trend || "-"}`)}
+          ${renderChartHoverTargets(points.map((point) => ({ ...point, value: point.close })), (point) => {
+            const indicatorText = [
+              ...overlays.map((overlay) => `${overlay.label || overlay.key} ${fmtDecimal(point[overlay.key], 2)}`),
+              ...panels.map((panel) => `${panel.label || panel.key} ${fmtDecimal(point[panel.key], 2)}`),
+            ].join(" · ");
+            return `${point.date || "-"} · Close ${fmtDecimal(point.value, 2)}${indicatorText ? ` · ${indicatorText}` : ""}`;
+          })}
         </svg>
       </div>
+      ${renderPythonStrategyIndicatorPanel(rows, panels, width)}
       <div class="auto-trading-legend">
         <span><i class="entry"></i> Entry</span>
         <span><i class="exit"></i> Exit</span>
-        <span><i class="rebalance"></i> Supertrend line</span>
+        ${overlays.map((overlay) => `<span><i class="${escapeHtml(overlay.class_name || "python-strategy-overlay-line")}"></i> ${escapeHtml(overlay.label || overlay.key)}</span>`).join("")}
+        ${panels.map((panel) => `<span><i class="${escapeHtml(panel.class_name || "python-rsi-line")}"></i> ${escapeHtml(panel.label || panel.key)}</span>`).join("")}
       </div>
       <div class="decision-assumption">Signals are confirmed on the prior bar and executed on the next bar; visual markers show execution points, not live orders.</div>
     </div>

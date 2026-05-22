@@ -60,6 +60,60 @@ def test_python_strategy_lab_generates_valid_code_backtest_and_optimization(monk
     assert result["optimization"]["recommended_parameters"]
 
 
+def test_python_strategy_lab_generates_moving_average_strategy(monkeypatch) -> None:
+    monkeypatch.setattr(python_generator, "get_prices", lambda ticker, limit=252: _cycle_rows(limit))
+
+    result = run_python_strategy_lab(
+        PythonStrategyRunRequest(
+            prompt="Create a moving average crossover Python strategy with fast and slow SMA parameters.",
+            ticker="SPY",
+            use_local_llm=False,
+            optimize=True,
+            max_trials=6,
+            parameter_overrides={"fast_window": 5, "slow_window": 25, "enable_short": True},
+        )
+    )
+
+    assert result["status"] == "success"
+    assert result["family"] == "moving_average_crossover"
+    assert "def simple_moving_average" in result["code"]
+    manifest_names = {item["name"] for item in result["parameter_manifest"]}
+    assert manifest_names >= {"fast_window", "slow_window", "enable_short"}
+    assert result["validation"]["valid"] is True
+    assert result["backtest"]["status"] == "success"
+    assert result["backtest"]["chart"]["indicators"]["overlays"][0]["key"] == "fast_ma"
+    assert any("fast_ma" in row and "slow_ma" in row for row in result["backtest"]["chart"]["rows"])
+    assert result["optimization"]["status"] == "success"
+    assert set(result["optimization"]["recommended_parameters"]) <= manifest_names
+
+
+def test_python_strategy_lab_generates_rsi_reversion_strategy(monkeypatch) -> None:
+    monkeypatch.setattr(python_generator, "get_prices", lambda ticker, limit=252: _cycle_rows(limit))
+
+    result = run_python_strategy_lab(
+        PythonStrategyRunRequest(
+            prompt="Build an RSI mean reversion Python strategy using oversold and overbought entries.",
+            ticker="SPY",
+            use_local_llm=False,
+            optimize=True,
+            max_trials=6,
+            parameter_overrides={"rsi_period": 7, "oversold": 35, "overbought": 65, "exit_rsi": 50},
+        )
+    )
+
+    assert result["status"] == "success"
+    assert result["family"] == "rsi_reversion"
+    assert "def compute_rsi" in result["code"]
+    manifest_names = {item["name"] for item in result["parameter_manifest"]}
+    assert manifest_names >= {"rsi_period", "oversold", "overbought", "exit_rsi"}
+    assert result["validation"]["valid"] is True
+    assert result["backtest"]["status"] == "success"
+    assert result["backtest"]["chart"]["indicators"]["panels"][0]["key"] == "rsi"
+    assert any("rsi" in row for row in result["backtest"]["chart"]["rows"])
+    assert result["optimization"]["status"] == "success"
+    assert set(result["optimization"]["recommended_parameters"]) <= manifest_names
+
+
 def test_python_strategy_validation_rejects_missing_interface() -> None:
     manifest = [{"name": "atr_period", "default": 10}]
     result = python_generator.validate_python_strategy_code("def nope():\n    return 1\n", manifest)
