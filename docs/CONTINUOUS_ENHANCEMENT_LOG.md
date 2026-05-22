@@ -1,5 +1,16 @@
 # Continuous Enhancement Log
 
+## 2026-05-23 Python Strategy Robustness Validation
+
+- Runtime: `2026-05-23 01:40 KST`.
+- Current status: continued Python Strategy Lab toward a full natural-language -> Python code -> backtest -> Bayesian optimization -> robustness explanation workflow. This remains research evidence only; no live execution or recommendation path was added.
+- Backend contract: `POST /api/v1/quant/python-strategy/run` now returns `robustness_validation` with train/OOS split metrics, walk-forward segment results, 1x/2x/3x cost-stress scenarios, Monte Carlo trade resampling, validation checks, warnings, and a robustness verdict.
+- UI/UX: `/ui/#auto-trading` now renders a dedicated Python robustness validation surface with separate OOS, walk-forward, cost-stress, and Monte Carlo panels alongside the generated Python code, parameter manifest, optimization surface, explanation panel, and indicator entry/exit chart.
+- Cache safety: static assets were bumped to `app.js?v=20260523-python-strategy-v4` and `styles.css?v=20260523-python-strategy-v4`; the AI Portfolio smoke bundle guard and UI routing expectations were synchronized.
+- Verification: `python -m py_compile pipelines\strategies\python_generator.py app\api\routers\quant_lab.py pipelines\strategies\generator.py`; `node --check app\web\app.js`; `python scripts\check_ui_contract.py`; `python -m pytest tests\test_python_strategy_generator.py tests\test_strategy_generator.py tests\test_quant_lab_api.py tests\test_ui_routing_contract.py -q` (`71 passed, 4 subtests passed`); and `git diff --check` all passed. `git diff --check` reported only LF/CRLF working-copy warnings.
+- Browser verification: fresh server `http://127.0.0.1:8827/ui/#auto-trading`; MCP Playwright and local Python Playwright confirmed v4 app/style bundles, RSI Python code with `compute_rsi`, strategy parameters, dedicated OOS/walk-forward/cost-stress/Monte Carlo robustness panels, indicator panel, explanation panel, optimization surface, and entry/exit markers. Desktop `1440x1000` and mobile `390x900` checks had console errors `0`, body overflow `0`, and critical overflow `0`.
+- Screenshots: `F:\LLM\python-strategy-robustness-rsi-desktop-8827.png`, `F:\LLM\python-strategy-robustness-rsi-mobile-8827.png`.
+
 ## 2026-05-23 Python Strategy Explanation and Optimization Surface
 
 - Runtime: `2026-05-23 01:18 KST`.

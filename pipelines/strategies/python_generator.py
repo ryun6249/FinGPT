@@ -105,6 +105,17 @@ def run_python_strategy_lab(request: PythonStrategyRunRequest) -> dict[str, Any]
             max_trials=int(request.max_trials or 16),
             random_seed=int(request.random_seed or 42),
         )
+    robustness = {}
+    if backtest.get("status") != "failed":
+        robustness = validate_python_strategy_robustness(
+            rows,
+            plan,
+            manifest,
+            optimization=optimization,
+            ticker=ticker,
+            max_trials=max(4, min(int(request.max_trials or 16), 16)),
+            random_seed=int(request.random_seed or 42),
+        )
     explanation = explain_python_strategy_result(
         plan,
         manifest,
@@ -112,6 +123,7 @@ def run_python_strategy_lab(request: PythonStrategyRunRequest) -> dict[str, Any]
         freshness=freshness,
         backtest=backtest,
         optimization=optimization,
+        robustness=robustness,
     )
     return {
         "status": "success" if backtest.get("status") == "success" and validation.get("valid") else "partial",
@@ -138,8 +150,14 @@ def run_python_strategy_lab(request: PythonStrategyRunRequest) -> dict[str, Any]
         },
         "backtest": backtest,
         "optimization": optimization,
+        "robustness_validation": robustness,
         "explanation": explanation,
-        "warnings": _unique_strings(warnings + list(backtest.get("warnings") or []) + list(optimization.get("warnings") or [])),
+        "warnings": _unique_strings(
+            warnings
+            + list(backtest.get("warnings") or [])
+            + list(optimization.get("warnings") or [])
+            + list(robustness.get("warnings") or [])
+        ),
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
     }
 
@@ -821,6 +839,309 @@ def optimize_python_strategy(
     }
 
 
+def validate_python_strategy_robustness(
+    rows: list[dict[str, Any]],
+    plan: dict[str, Any],
+    manifest: list[dict[str, Any]],
+    *,
+    optimization: dict[str, Any],
+    ticker: str,
+    max_trials: int = 12,
+    random_seed: int = 42,
+) -> dict[str, Any]:
+    if len(rows) < 160:
+        return {
+            "status": "insufficient_data",
+            "method": "oos_walk_forward_cost_monte_carlo",
+            "warnings": [f"not_enough_rows_for_robustness:{len(rows)}<160"],
+            "checks": [],
+        }
+    base_params = dict(plan.get("parameters") or {})
+    recommended_params = {**base_params, **dict(optimization.get("recommended_parameters") or {})}
+    search_space = _search_space_from_manifest(manifest, dict(plan.get("search_space") or {}))
+    validation_trials = max(4, min(int(max_trials or 12), 24))
+    split_index = max(80, min(len(rows) - 60, int(len(rows) * 0.70)))
+    train_rows = rows[:split_index]
+    oos_rows = rows[split_index:]
+    train_pick = _optimize_candidate_slice(train_rows, plan, search_space, ticker=ticker, max_trials=validation_trials, seed=random_seed + 11)
+    oos_params = {**base_params, **train_pick.get("parameters", {})}
+    train_result = backtest_python_strategy(train_rows, oos_params, ticker=ticker, family=plan["family"])
+    oos_result = backtest_python_strategy(oos_rows, oos_params, ticker=ticker, family=plan["family"])
+    train_metrics = dict(train_result.get("metrics") or {})
+    oos_metrics = dict(oos_result.get("metrics") or {})
+    split_validation = {
+        "status": "success" if train_result.get("status") == "success" and oos_result.get("status") == "success" else "partial",
+        "train_range": _date_range(train_rows),
+        "oos_range": _date_range(oos_rows),
+        "train_parameters": train_pick.get("parameters") or {},
+        "train_score": train_pick.get("score"),
+        "train_metrics": train_metrics,
+        "oos_metrics": oos_metrics,
+        "degradation": _metric_degradation(train_metrics, oos_metrics),
+    }
+    walk_forward = _walk_forward_segments(rows, plan, search_space, ticker=ticker, max_trials=validation_trials, seed=random_seed + 101)
+    cost_stress = _cost_stress_results(rows, plan, recommended_params, ticker=ticker)
+    recommended_backtest = backtest_python_strategy(rows, recommended_params, ticker=ticker, family=plan["family"])
+    monte_carlo = _monte_carlo_trade_resampling(
+        recommended_backtest.get("trades") or [],
+        random_seed=random_seed + 503,
+    )
+    checks = _robustness_checks(split_validation, walk_forward, cost_stress, monte_carlo)
+    verdict = _robustness_verdict(checks)
+    warnings = [check["warning"] for check in checks if check.get("warning")]
+    return {
+        "status": "success",
+        "method": "oos_walk_forward_cost_monte_carlo",
+        "verdict": verdict,
+        "recommended_parameters": {key: recommended_params[key] for key in recommended_params if key in _all_parameter_names()},
+        "split_validation": split_validation,
+        "walk_forward": walk_forward,
+        "cost_stress": cost_stress,
+        "monte_carlo": monte_carlo,
+        "checks": checks,
+        "warnings": warnings,
+    }
+
+
+def _optimize_candidate_slice(
+    rows: list[dict[str, Any]],
+    plan: dict[str, Any],
+    search_space: dict[str, list[Any]],
+    *,
+    ticker: str,
+    max_trials: int,
+    seed: int,
+) -> dict[str, Any]:
+    if not search_space or not rows:
+        return {"parameters": {}, "score": 0.0, "metrics": {}, "status": "skipped"}
+    base_params = dict(plan.get("parameters") or {})
+    candidates = _candidate_parameters(search_space, max_trials=max_trials, seed=seed)
+    trials = []
+    for idx, candidate in enumerate(candidates, start=1):
+        result = backtest_python_strategy(rows, {**base_params, **candidate}, ticker=ticker, family=plan["family"])
+        score = _optimization_score(result.get("metrics") or {})
+        trials.append(
+            {
+                "trial_number": idx,
+                "parameters": candidate,
+                "score": round(score, 8),
+                "metrics": result.get("metrics") or {},
+                "status": result.get("status") or "failed",
+            }
+        )
+    if not trials:
+        return {"parameters": {}, "score": 0.0, "metrics": {}, "status": "failed"}
+    recommended = _recommended_trial(trials)
+    return {
+        "parameters": recommended.get("parameters") or {},
+        "score": recommended.get("score"),
+        "metrics": recommended.get("metrics") or {},
+        "status": recommended.get("status") or "success",
+    }
+
+
+def _walk_forward_segments(
+    rows: list[dict[str, Any]],
+    plan: dict[str, Any],
+    search_space: dict[str, list[Any]],
+    *,
+    ticker: str,
+    max_trials: int,
+    seed: int,
+) -> dict[str, Any]:
+    n = len(rows)
+    test_size = max(50, min(140, n // 5))
+    segments: list[dict[str, Any]] = []
+    for idx in range(3):
+        test_end = n - test_size * (2 - idx)
+        test_start = test_end - test_size
+        train_end = test_start
+        if train_end < 80 or test_start < 0 or test_end > n:
+            continue
+        train_rows = rows[:train_end]
+        test_rows = rows[test_start:test_end]
+        pick = _optimize_candidate_slice(train_rows, plan, search_space, ticker=ticker, max_trials=max_trials, seed=seed + idx)
+        test_params = {**dict(plan.get("parameters") or {}), **dict(pick.get("parameters") or {})}
+        test_result = backtest_python_strategy(test_rows, test_params, ticker=ticker, family=plan["family"])
+        train_metrics = dict(pick.get("metrics") or {})
+        test_metrics = dict(test_result.get("metrics") or {})
+        segments.append(
+            {
+                "segment": idx + 1,
+                "train_range": _date_range(train_rows),
+                "test_range": _date_range(test_rows),
+                "parameters": pick.get("parameters") or {},
+                "train_score": pick.get("score"),
+                "train_metrics": train_metrics,
+                "test_metrics": test_metrics,
+                "degradation": _metric_degradation(train_metrics, test_metrics),
+                "status": "success" if test_result.get("status") == "success" else "failed",
+            }
+        )
+    viable = [item for item in segments if item.get("status") == "success"]
+    positive = [
+        item for item in viable
+        if _float_or((item.get("test_metrics") or {}).get("total_return"), 0.0) > 0
+        and _float_or((item.get("test_metrics") or {}).get("max_drawdown"), 0.0) > -0.35
+    ]
+    return {
+        "status": "success" if viable else "insufficient_data",
+        "segment_count": len(segments),
+        "positive_segments": len(positive),
+        "pass_rate": round(len(positive) / max(len(segments), 1), 8),
+        "segments": segments,
+    }
+
+
+def _cost_stress_results(rows: list[dict[str, Any]], plan: dict[str, Any], params: dict[str, Any], *, ticker: str) -> dict[str, Any]:
+    scenarios = []
+    base_cost = _float_or(params.get("transaction_cost_bps"), 5.0)
+    base_slippage = _float_or(params.get("slippage_bps"), 2.0)
+    for multiplier in [1.0, 2.0, 3.0]:
+        stressed = {
+            **params,
+            "transaction_cost_bps": round(base_cost * multiplier, 6),
+            "slippage_bps": round(base_slippage * multiplier, 6),
+        }
+        result = backtest_python_strategy(rows, stressed, ticker=ticker, family=plan["family"])
+        scenarios.append(
+            {
+                "multiplier": multiplier,
+                "transaction_cost_bps": stressed["transaction_cost_bps"],
+                "slippage_bps": stressed["slippage_bps"],
+                "metrics": result.get("metrics") or {},
+                "status": result.get("status") or "failed",
+            }
+        )
+    worst_return = min((_float_or((item.get("metrics") or {}).get("total_return"), 0.0) for item in scenarios), default=0.0)
+    return {
+        "status": "success",
+        "scenarios": scenarios,
+        "worst_total_return": round(worst_return, 8),
+        "passes_3x_cost": bool(scenarios and _float_or((scenarios[-1].get("metrics") or {}).get("total_return"), 0.0) > 0),
+    }
+
+
+def _monte_carlo_trade_resampling(trades: list[dict[str, Any]], *, random_seed: int, simulations: int = 300) -> dict[str, Any]:
+    returns = [_float_or(trade.get("pnl_pct"), 0.0) for trade in trades if math.isfinite(_float_or(trade.get("pnl_pct"), 0.0))]
+    if len(returns) < 5:
+        return {
+            "status": "insufficient_trades",
+            "trade_count": len(returns),
+            "warnings": ["not_enough_trades_for_monte_carlo"],
+        }
+    rng = random.Random(random_seed)
+    ending_returns: list[float] = []
+    max_drawdowns: list[float] = []
+    for _ in range(max(50, min(int(simulations or 300), 1000))):
+        equity = 1.0
+        peak = 1.0
+        worst_dd = 0.0
+        for ret in (rng.choice(returns) for _ in returns):
+            equity *= 1.0 + ret
+            peak = max(peak, equity)
+            worst_dd = min(worst_dd, equity / peak - 1.0 if peak else 0.0)
+        ending_returns.append(equity - 1.0)
+        max_drawdowns.append(worst_dd)
+    ending_returns.sort()
+    max_drawdowns.sort()
+    return {
+        "status": "success",
+        "trade_count": len(returns),
+        "simulations": len(ending_returns),
+        "median_total_return": round(_percentile(ending_returns, 0.50), 8),
+        "p05_total_return": round(_percentile(ending_returns, 0.05), 8),
+        "p95_total_return": round(_percentile(ending_returns, 0.95), 8),
+        "p05_max_drawdown": round(_percentile(max_drawdowns, 0.05), 8),
+        "loss_probability": round(sum(1 for value in ending_returns if value < 0) / len(ending_returns), 8),
+    }
+
+
+def _robustness_checks(
+    split_validation: dict[str, Any],
+    walk_forward: dict[str, Any],
+    cost_stress: dict[str, Any],
+    monte_carlo: dict[str, Any],
+) -> list[dict[str, Any]]:
+    oos_metrics = dict((split_validation.get("oos_metrics") or {}))
+    oos_return = _float_or(oos_metrics.get("total_return"), 0.0)
+    oos_dd = _float_or(oos_metrics.get("max_drawdown"), 0.0)
+    pass_rate = _float_or(walk_forward.get("pass_rate"), 0.0)
+    cost_pass = bool(cost_stress.get("passes_3x_cost"))
+    mc_status = str(monte_carlo.get("status") or "")
+    mc_p05 = _float_or(monte_carlo.get("p05_total_return"), 0.0)
+    mc_loss = _float_or(monte_carlo.get("loss_probability"), 1.0)
+    return [
+        {
+            "name": "Out-of-sample split",
+            "status": "pass" if oos_return > 0 and oos_dd > -0.35 else ("warn" if oos_return > -0.05 else "fail"),
+            "detail": f"OOS return {oos_return:.2%}, max drawdown {oos_dd:.2%}",
+            "warning": "" if oos_return > 0 else "oos_return_non_positive",
+        },
+        {
+            "name": "Walk-forward consistency",
+            "status": "pass" if pass_rate >= 0.67 else ("warn" if pass_rate >= 0.34 else "fail"),
+            "detail": f"{walk_forward.get('positive_segments') or 0}/{walk_forward.get('segment_count') or 0} segments passed",
+            "warning": "" if pass_rate >= 0.34 else "walk_forward_low_pass_rate",
+        },
+        {
+            "name": "3x cost stress",
+            "status": "pass" if cost_pass else "warn",
+            "detail": f"worst stressed return {_float_or(cost_stress.get('worst_total_return'), 0.0):.2%}",
+            "warning": "" if cost_pass else "cost_stress_eroded_return",
+        },
+        {
+            "name": "Monte Carlo resampling",
+            "status": "pass" if mc_status == "success" and mc_p05 > -0.20 and mc_loss < 0.35 else ("warn" if mc_status == "success" else "warn"),
+            "detail": f"p05 return {mc_p05:.2%}, loss probability {mc_loss:.2%}" if mc_status == "success" else "not enough closed trades",
+            "warning": "" if mc_status == "success" else "monte_carlo_insufficient_trades",
+        },
+    ]
+
+
+def _robustness_verdict(checks: list[dict[str, Any]]) -> dict[str, str]:
+    statuses = [str(check.get("status") or "") for check in checks]
+    if any(status == "fail" for status in statuses):
+        return {"status": "reject_or_rework", "label": "재검토 필요", "tone": "fail"}
+    if statuses and all(status == "pass" for status in statuses):
+        return {"status": "robust_candidate", "label": "강건성 후보", "tone": "ok"}
+    return {"status": "needs_more_validation", "label": "추가 검증 필요", "tone": "warn"}
+
+
+def _date_range(rows: list[dict[str, Any]]) -> dict[str, str]:
+    if not rows:
+        return {"start": "", "end": ""}
+    return {"start": str(rows[0].get("date") or ""), "end": str(rows[-1].get("date") or "")}
+
+
+def _metric_degradation(train_metrics: dict[str, Any], test_metrics: dict[str, Any]) -> dict[str, float]:
+    train_sharpe = _float_or(train_metrics.get("sharpe"), 0.0)
+    test_sharpe = _float_or(test_metrics.get("sharpe"), 0.0)
+    train_return = _float_or(train_metrics.get("total_return"), 0.0)
+    test_return = _float_or(test_metrics.get("total_return"), 0.0)
+    train_dd = _float_or(train_metrics.get("max_drawdown"), 0.0)
+    test_dd = _float_or(test_metrics.get("max_drawdown"), 0.0)
+    return {
+        "sharpe_delta": round(test_sharpe - train_sharpe, 8),
+        "return_delta": round(test_return - train_return, 8),
+        "drawdown_delta": round(test_dd - train_dd, 8),
+    }
+
+
+def _percentile(values: list[float], pct: float) -> float:
+    if not values:
+        return 0.0
+    if len(values) == 1:
+        return values[0]
+    pos = max(0.0, min(1.0, pct)) * (len(values) - 1)
+    lower = int(math.floor(pos))
+    upper = int(math.ceil(pos))
+    if lower == upper:
+        return values[lower]
+    weight = pos - lower
+    return values[lower] * (1.0 - weight) + values[upper] * weight
+
+
 def explain_python_strategy_result(
     plan: dict[str, Any],
     manifest: list[dict[str, Any]],
@@ -829,6 +1150,7 @@ def explain_python_strategy_result(
     freshness: dict[str, Any],
     backtest: dict[str, Any],
     optimization: dict[str, Any],
+    robustness: dict[str, Any],
 ) -> dict[str, Any]:
     metrics = dict(backtest.get("metrics") or {})
     family = str(plan.get("family") or "strategy")
@@ -842,10 +1164,12 @@ def explain_python_strategy_result(
     validation_ok = bool(validation.get("valid"))
     freshness_ok = not bool(freshness.get("strict_freshness_violation"))
     optimization_ok = optimization.get("status") == "success"
+    robustness_verdict = dict(robustness.get("verdict") or {})
     verdict = _strategy_verdict(
         validation_ok=validation_ok,
         freshness_ok=freshness_ok,
         optimization_ok=optimization_ok,
+        robustness_ok=robustness_verdict.get("status") == "robust_candidate",
         trade_count=trade_count,
         max_drawdown=max_drawdown,
         sharpe=sharpe,
@@ -877,6 +1201,14 @@ def explain_python_strategy_result(
             "detail": f"{trial_count} trials using {optimization.get('bayesian_backend') or 'not_run'}",
         },
     ]
+    robustness_checks.extend(
+        {
+            "name": check.get("name") or "Robustness check",
+            "status": check.get("status") or "warn",
+            "detail": check.get("detail") or "",
+        }
+        for check in list(robustness.get("checks") or [])
+    )
     parameter_insights = _parameter_insights(manifest, plan.get("parameters") or {}, recommended, best)
     reasons = [
         f"Backtest return {total_return:.2%}, Sharpe {sharpe:.2f}, max drawdown {max_drawdown:.2%}, trades {trade_count}.",
@@ -889,6 +1221,8 @@ def explain_python_strategy_result(
         reasons.append("Trade count is thin; treat this as a research candidate until walk-forward and OOS checks pass.")
     elif max_drawdown < -0.35:
         reasons.append("Drawdown is severe enough to require rejection or stricter risk controls before promotion.")
+    elif robustness_verdict:
+        reasons.append(f"Robustness validation verdict: {robustness_verdict.get('label') or robustness_verdict.get('status')}.")
     else:
         reasons.append("The result can be reviewed as a research candidate, not as an execution recommendation.")
     summary = (
@@ -904,6 +1238,11 @@ def explain_python_strategy_result(
         "reasons": reasons,
         "parameter_insights": parameter_insights,
         "parameter_sensitivity": list(optimization.get("parameter_sensitivity") or []),
+        "robustness_validation": {
+            "status": robustness.get("status") or "not_run",
+            "verdict": robustness_verdict,
+            "method": robustness.get("method") or "",
+        },
         "robustness_checks": robustness_checks,
         "next_steps": [
             "Run walk-forward and out-of-sample validation before accepting the strategy.",
@@ -918,6 +1257,7 @@ def _strategy_verdict(
     validation_ok: bool,
     freshness_ok: bool,
     optimization_ok: bool,
+    robustness_ok: bool,
     trade_count: int,
     max_drawdown: float,
     sharpe: float,
@@ -930,6 +1270,8 @@ def _strategy_verdict(
         return {"status": "insufficient_sample", "label": "표본 부족", "tone": "warn"}
     if max_drawdown < -0.35:
         return {"status": "risk_reject", "label": "위험 과다", "tone": "fail"}
+    if robustness_ok and sharpe > 0.8 and trade_count >= 5 and max_drawdown >= -0.25:
+        return {"status": "robust_research_candidate", "label": "강건성 리서치 후보", "tone": "ok"}
     if sharpe > 0.8 and trade_count >= 5 and max_drawdown >= -0.25:
         return {"status": "research_candidate", "label": "리서치 후보", "tone": "ok"}
     return {"status": "review_required", "label": "추가 검증 필요", "tone": "warn"}

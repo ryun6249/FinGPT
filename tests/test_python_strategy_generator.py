@@ -58,6 +58,11 @@ def test_python_strategy_lab_generates_valid_code_backtest_and_optimization(monk
     assert result["optimization"]["status"] == "success"
     assert result["optimization"]["trial_count"] <= 8
     assert result["optimization"]["recommended_parameters"]
+    assert result["robustness_validation"]["status"] == "success"
+    assert result["robustness_validation"]["split_validation"]["oos_metrics"]
+    assert result["robustness_validation"]["walk_forward"]["segment_count"] >= 1
+    assert result["robustness_validation"]["cost_stress"]["scenarios"]
+    assert result["robustness_validation"]["monte_carlo"]["status"] in {"success", "insufficient_trades"}
     assert result["explanation"]["source"] == "verified_backtest_and_optimizer"
     assert result["explanation"]["summary"]
     assert result["explanation"]["parameter_insights"]
@@ -67,6 +72,10 @@ def test_python_strategy_lab_generates_valid_code_backtest_and_optimization(monk
         "Trade sample",
         "Drawdown guard",
         "Bayesian search",
+        "Out-of-sample split",
+        "Walk-forward consistency",
+        "3x cost stress",
+        "Monte Carlo resampling",
     }
 
 
@@ -97,6 +106,8 @@ def test_python_strategy_lab_generates_moving_average_strategy(monkeypatch) -> N
     assert set(result["optimization"]["recommended_parameters"]) <= manifest_names
     assert result["optimization"]["parameter_sensitivity"]
     assert any(item["name"] in {"fast_window", "slow_window"} for item in result["explanation"]["parameter_insights"])
+    assert result["robustness_validation"]["split_validation"]["train_parameters"]
+    assert result["robustness_validation"]["walk_forward"]["segments"]
 
 
 def test_python_strategy_lab_generates_rsi_reversion_strategy(monkeypatch) -> None:
@@ -126,6 +137,7 @@ def test_python_strategy_lab_generates_rsi_reversion_strategy(monkeypatch) -> No
     assert set(result["optimization"]["recommended_parameters"]) <= manifest_names
     assert result["optimization"]["parameter_sensitivity"]
     assert any(item["name"] == "rsi_period" for item in result["explanation"]["parameter_insights"])
+    assert result["robustness_validation"]["cost_stress"]["scenarios"][-1]["multiplier"] == 3.0
 
 
 def test_python_strategy_validation_rejects_missing_interface() -> None:

@@ -13418,7 +13418,12 @@ html[data-theme="light"] .quality-context-item {
 .dashboard-surface-grid[data-dashboard-tab="macro"] .macro-brief-card { order: 22; }
 
 .strategy-research-card .strategy-research-form {
-  grid-template-columns: minmax(220px, 1.4fr) minmax(150px, 0.8fr) minmax(90px, 0.4fr) repeat(4, minmax(92px, auto));
+  grid-template-columns: minmax(180px, 1.3fr) minmax(130px, 0.75fr) minmax(80px, 0.4fr) repeat(4, minmax(86px, 1fr));
+  min-width: 0;
+}
+
+.strategy-research-card .strategy-research-form select {
+  text-overflow: ellipsis;
 }
 
 .strategy-research-grid {
@@ -13713,6 +13718,161 @@ html[data-theme="light"] .quality-context-item {
   color: var(--muted);
   font-size: 0.74rem;
   line-height: 1.35;
+}
+
+.python-robustness-validation {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent), transparent 68%);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface), transparent 12%);
+}
+
+.python-robustness-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(245px, 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+
+.python-robustness-item {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel), transparent 17%);
+}
+
+.python-robustness-item-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.python-robustness-item-head strong {
+  color: var(--text);
+  font-size: 0.84rem;
+}
+
+.python-robustness-item-head span {
+  flex: 0 1 auto;
+  max-width: 48%;
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.python-validation-metrics,
+.python-monte-carlo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(94px, 1fr));
+  gap: 7px;
+  min-width: 0;
+}
+
+.python-validation-metrics .decision-metric,
+.python-monte-carlo-grid .decision-metric {
+  padding: 8px;
+}
+
+.python-validation-metrics .decision-metric span,
+.python-monte-carlo-grid .decision-metric span {
+  font-size: 0.68rem;
+}
+
+.python-validation-metrics .decision-metric strong,
+.python-monte-carlo-grid .decision-metric strong {
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.python-walk-forward-grid,
+.python-cost-stress-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+  gap: 7px;
+  min-width: 0;
+}
+
+.python-walk-forward-segment,
+.python-cost-stress-scenario {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface), transparent 18%);
+}
+
+.python-walk-forward-segment strong,
+.python-cost-stress-scenario strong {
+  color: var(--text);
+  font-size: 0.78rem;
+}
+
+.python-walk-forward-segment span,
+.python-walk-forward-segment small,
+.python-cost-stress-scenario span,
+.python-cost-stress-scenario small,
+.python-robustness-item > small {
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.python-walk-forward-segment.success,
+.python-cost-stress-scenario.ok {
+  border-color: color-mix(in srgb, var(--bull), transparent 56%);
+}
+
+.python-walk-forward-segment.failed,
+.python-cost-stress-scenario.warn {
+  border-color: color-mix(in srgb, var(--warn), transparent 50%);
+}
+
+.python-robustness-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.python-robustness-checks span {
+  max-width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.python-robustness-checks span.pass {
+  border-color: color-mix(in srgb, var(--bull), transparent 56%);
+  color: var(--bull);
+}
+
+.python-robustness-checks span.warn {
+  border-color: color-mix(in srgb, var(--warn), transparent 52%);
+  color: var(--warn);
+}
+
+.python-robustness-checks span.fail {
+  border-color: color-mix(in srgb, var(--bear), transparent 48%);
+  color: var(--bear);
 }
 
 .python-check-item.pass {

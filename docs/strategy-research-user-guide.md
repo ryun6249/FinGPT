@@ -48,6 +48,7 @@ Use `Python strategy` in `Auto Trading Workbench` when you want natural language
 - AST/interface validation before the code is treated as usable
 - repo-local backtest over data-mart prices
 - Bayesian optimization over the same manifest search space
+- robustness validation using a train/OOS split, walk-forward segments, 1x/2x/3x cost stress, and Monte Carlo trade resampling
 - verified Korean result explanation, parameter-change notes, robustness checks, and parameter sensitivity
 - SVG chart with family-specific indicator overlays or panels plus entry/exit execution markers
 

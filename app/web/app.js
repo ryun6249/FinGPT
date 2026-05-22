@@ -15055,6 +15055,117 @@ function renderPythonStrategyOptimizationVisual(data = {}) {
   `;
 }
 
+function renderPythonStrategyRobustness(data = {}) {
+  const robustness = data.robustness_validation || {};
+  if (!robustness.status) return "";
+  const verdict = robustness.verdict || {};
+  const split = robustness.split_validation || {};
+  const walk = robustness.walk_forward || {};
+  const cost = robustness.cost_stress || {};
+  const monte = robustness.monte_carlo || {};
+  const checks = Array.isArray(robustness.checks) ? robustness.checks : [];
+  const segments = Array.isArray(walk.segments) ? walk.segments : [];
+  const scenarios = Array.isArray(cost.scenarios) ? cost.scenarios : [];
+  const oosMetrics = split.oos_metrics || {};
+  const trainMetrics = split.train_metrics || {};
+  const degradation = split.degradation || {};
+  const monteSuccess = monte.status === "success";
+  return `
+    <div class="python-robustness-validation" data-testid="python-strategy-robustness-validation">
+      <div class="decision-section-title">Python robustness validation</div>
+      <div class="decision-status-row">
+        <span class="decision-badge ${escapeHtml(decisionStatusClass(verdict.tone || robustness.status || "partial"))}">${escapeHtml(verdict.label || robustness.status || "review")}</span>
+        <span>${escapeHtml(robustness.method || "oos_walk_forward_cost_monte_carlo")}</span>
+      </div>
+      <div class="python-robustness-grid">
+        <div class="python-robustness-item" data-testid="python-strategy-oos-validation">
+          <div class="python-robustness-item-head">
+            <strong>Out-of-sample split</strong>
+            <span>${escapeHtml(split.status || "not_run")}</span>
+          </div>
+          <div class="python-validation-metrics">
+            ${decisionMetric("Train score", formatQuantValue(split.train_score), Number(split.train_score || 0) > 0 ? "ok" : "warn")}
+            ${decisionMetric("Train return", formatQuantValue(trainMetrics.total_return), Number(trainMetrics.total_return || 0) >= 0 ? "ok" : "warn")}
+            ${decisionMetric("OOS return", formatQuantValue(oosMetrics.total_return), Number(oosMetrics.total_return || 0) >= 0 ? "ok" : "warn")}
+            ${decisionMetric("OOS DD", formatQuantValue(oosMetrics.max_drawdown), Number(oosMetrics.max_drawdown || 0) < -0.25 ? "warn" : "ok")}
+          </div>
+          <small>${escapeHtml((split.train_range?.start || "-") + " -> " + (split.oos_range?.end || "-"))}</small>
+          <small>Degradation return ${escapeHtml(formatQuantValue(degradation.return_delta))} · Sharpe ${escapeHtml(formatQuantValue(degradation.sharpe_delta))}</small>
+        </div>
+        <div class="python-robustness-item" data-testid="python-strategy-walk-forward">
+          <div class="python-robustness-item-head">
+            <strong>Walk-forward</strong>
+            <span>${escapeHtml(_fmtNumber(walk.positive_segments || 0))} / ${escapeHtml(_fmtNumber(walk.segment_count || 0))}</span>
+          </div>
+          <div class="python-validation-metrics">
+            ${decisionMetric("Pass rate", formatQuantValue(walk.pass_rate), Number(walk.pass_rate || 0) >= 0.67 ? "ok" : "warn")}
+            ${decisionMetric("Segments", _fmtNumber(walk.segment_count || 0), Number(walk.segment_count || 0) >= 3 ? "ok" : "warn")}
+          </div>
+          <div class="python-walk-forward-grid">
+            ${segments.slice(0, 3).map((item) => {
+              const testMetrics = item.test_metrics || {};
+              return `
+                <div class="python-walk-forward-segment ${escapeHtml(item.status || "warn")}">
+                  <strong>S${escapeHtml(_fmtNumber(item.segment || 0))}</strong>
+                  <span>${escapeHtml((item.test_range?.start || "-") + " -> " + (item.test_range?.end || "-"))}</span>
+                  <small>Return ${escapeHtml(formatQuantValue(testMetrics.total_return))} · DD ${escapeHtml(formatQuantValue(testMetrics.max_drawdown))}</small>
+                </div>
+              `;
+            }).join("") || `<span class="muted">segments unavailable</span>`}
+          </div>
+        </div>
+        <div class="python-robustness-item" data-testid="python-strategy-cost-stress">
+          <div class="python-robustness-item-head">
+            <strong>Cost stress</strong>
+            <span>${escapeHtml(cost.passes_3x_cost ? "3x pass" : "3x review")}</span>
+          </div>
+          <div class="python-validation-metrics">
+            ${decisionMetric("Worst return", formatQuantValue(cost.worst_total_return), Number(cost.worst_total_return || 0) >= 0 ? "ok" : "warn")}
+            ${decisionMetric("Scenarios", _fmtNumber(scenarios.length), scenarios.length >= 3 ? "ok" : "warn")}
+          </div>
+          <div class="python-cost-stress-grid">
+            ${scenarios.map((item) => {
+              const metrics = item.metrics || {};
+              return `
+                <div class="python-cost-stress-scenario ${escapeHtml(Number(metrics.total_return || 0) >= 0 ? "ok" : "warn")}">
+                  <strong>${escapeHtml(String(item.multiplier ?? "-"))}x</strong>
+                  <span>${escapeHtml(formatQuantValue(metrics.total_return))}</span>
+                  <small>cost ${escapeHtml(formatQuantValue(item.transaction_cost_bps))}bps · slip ${escapeHtml(formatQuantValue(item.slippage_bps))}bps</small>
+                </div>
+              `;
+            }).join("") || `<span class="muted">cost stress not run</span>`}
+          </div>
+        </div>
+        <div class="python-robustness-item" data-testid="python-strategy-monte-carlo">
+          <div class="python-robustness-item-head">
+            <strong>Monte Carlo resampling</strong>
+            <span>${escapeHtml(monte.status || "not_run")}</span>
+          </div>
+          ${monteSuccess ? `
+            <div class="python-monte-carlo-grid">
+              ${decisionMetric("Median", formatQuantValue(monte.median_total_return), Number(monte.median_total_return || 0) >= 0 ? "ok" : "warn")}
+              ${decisionMetric("p05 return", formatQuantValue(monte.p05_total_return), Number(monte.p05_total_return || 0) > -0.2 ? "ok" : "warn")}
+              ${decisionMetric("p95 return", formatQuantValue(monte.p95_total_return), "muted")}
+              ${decisionMetric("p05 DD", formatQuantValue(monte.p05_max_drawdown), Number(monte.p05_max_drawdown || 0) < -0.35 ? "warn" : "ok")}
+              ${decisionMetric("Loss prob", formatQuantValue(monte.loss_probability), Number(monte.loss_probability || 0) < 0.35 ? "ok" : "warn")}
+              ${decisionMetric("Sims", _fmtNumber(monte.simulations || 0), Number(monte.simulations || 0) >= 100 ? "ok" : "warn")}
+            </div>
+          ` : `
+            <div class="decision-empty compact">Monte Carlo needs at least five closed trades. Current closed trades: ${escapeHtml(_fmtNumber(monte.trade_count || 0))}.</div>
+          `}
+        </div>
+      </div>
+      ${checks.length ? `
+        <div class="python-robustness-checks">
+          ${checks.map((check) => `
+            <span class="${escapeHtml(check.status || "warn")}">${escapeHtml(check.name || "check")} · ${escapeHtml(check.detail || "-")}</span>
+          `).join("")}
+        </div>
+      ` : ""}
+    </div>
+  `;
+}
+
 function renderPythonStrategyResult(data = {}, startedAt = Date.now()) {
   const backtest = data.backtest || {};
   const metrics = backtest.metrics || {};
@@ -15085,6 +15196,7 @@ function renderPythonStrategyResult(data = {}, startedAt = Date.now()) {
       <p>${escapeHtml(data.rationale || "Python strategy code, backtest, and optimization were generated from the validated manifest.")}</p>
     </div>
     ${renderPythonStrategyOptimizationVisual(data)}
+    ${renderPythonStrategyRobustness(data)}
     ${warnings.length ? `<div class="decision-warning">${escapeHtml(formatQuantWarnings(warnings))}</div>` : ""}
   `;
 }
@@ -15112,7 +15224,7 @@ async function runPythonStrategyLab() {
     if (els.pythonStrategyCode) els.pythonStrategyCode.value = data.code || "";
     if (els.pythonStrategyParamSurface) els.pythonStrategyParamSurface.innerHTML = renderPythonStrategyParameterManifest(data);
     if (els.pythonStrategyResultSurface) els.pythonStrategyResultSurface.innerHTML = renderPythonStrategyResult(data, startedAt);
-    if (els.autoTradingOptimizationSurface) els.autoTradingOptimizationSurface.innerHTML = renderPythonStrategyOptimizationVisual(data);
+    if (els.autoTradingOptimizationSurface) els.autoTradingOptimizationSurface.innerHTML = `${renderPythonStrategyOptimizationVisual(data)}${renderPythonStrategyRobustness(data)}`;
     if (els.autoTradingChartSurface) els.autoTradingChartSurface.innerHTML = renderPythonStrategyChart(data);
     const scroller = els.autoTradingChartSurface?.querySelector?.(".internal-chart-scroll");
     if (scroller) window.requestAnimationFrame(() => { scroller.scrollLeft = Math.max(0, scroller.scrollWidth - scroller.clientWidth); });
