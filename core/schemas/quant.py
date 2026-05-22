@@ -4,12 +4,26 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
+from core.schemas.forecast import BacktestConfig, FeatureConfig, ForecastUniverseRankingMetric, ModelConfig, SignalConfig, TargetConfig, ValidationConfig
+
 
 FreshnessStatus = Literal["fresh", "stale", "unknown"]
 ProviderEntitlementStatus = Literal["ok", "warning", "entitlement_required", "unavailable", "unknown"]
 QuantStatus = Literal["success", "partial", "failed", "empty"]
 ResearchScoreStatus = Literal["disabled", "fresh", "expired", "sparse_evidence", "unavailable", "invalid"]
 FreshnessProfile = Literal["research_default", "decision_review", "historical_lab"]
+QuantModelRunMode = Literal["single_asset", "universe_per_asset", "cross_sectional_rank"]
+StrategyResearchStatus = Literal[
+    "queued",
+    "running",
+    "succeeded",
+    "failed",
+    "pending",
+    "accepted",
+    "rejected",
+    "archived",
+]
+StrategyOptimizationMethod = Literal["grid_search", "random_search", "bayesian"]
 
 
 class ProviderStatus(BaseModel):
@@ -292,6 +306,79 @@ class QuantBacktestRequest(BaseModel):
         return cleaned or None
 
 
+def _clean_profile_id(value: Any, default: str = "") -> str:
+    cleaned = str(value or default).strip()
+    return cleaned or default
+
+
+def _clean_profile_ticker(value: Any, default: str = "SPY") -> str:
+    ticker = str(value or default).strip().upper()
+    return ticker or default
+
+
+def _clean_profile_tickers(value: Any) -> list[str]:
+    if isinstance(value, str):
+        raw = value.replace(",", " ").split()
+    elif isinstance(value, list):
+        raw = value
+    else:
+        raw = []
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in raw:
+        ticker = _clean_profile_ticker(item, default="")
+        if ticker and ticker not in seen:
+            seen.add(ticker)
+            out.append(ticker)
+    return out
+
+
+class QuantModelProfile(BaseModel):
+    profile_id: str = "core_universe_forecast_v1"
+    schema_version: str = "quant_model_profile_v1"
+    strategy_id: str = "momentum_ranking_v1"
+    universe_id: str = "custom"
+    tickers: list[str] = Field(default_factory=lambda: ["MSFT", "NVDA", "AAPL", "AMZN", "META"])
+    benchmark: str = "SPY"
+    start_date: str | None = None
+    end_date: str | None = None
+    include_macro: bool = False
+    include_cross_asset: bool = False
+    target_config: TargetConfig = Field(default_factory=lambda: TargetConfig(target_type="forward_return", horizon=5, benchmark="SPY"))
+    feature_config: FeatureConfig = Field(default_factory=FeatureConfig)
+    validation_config: ValidationConfig = Field(default_factory=ValidationConfig)
+    model_candidates: list[ModelConfig] = Field(default_factory=lambda: [ModelConfig(model_name="ridge_regression", model_type="regression")])
+    signal_config: SignalConfig = Field(default_factory=SignalConfig)
+    backtest_config: BacktestConfig = Field(default_factory=BacktestConfig)
+    ranking_metric: ForecastUniverseRankingMetric = "confidence"
+    max_assets: int = Field(default=6, ge=1, le=25)
+    run_mode: QuantModelRunMode = "universe_per_asset"
+    notes: str = ""
+    created_at: str = ""
+    updated_at: str = ""
+
+    @field_validator("profile_id", "strategy_id", "universe_id", mode="before")
+    @classmethod
+    def _clean_ids(cls, value: Any) -> str:
+        return _clean_profile_id(value)
+
+    @field_validator("benchmark", mode="before")
+    @classmethod
+    def _clean_benchmark_symbol(cls, value: Any) -> str:
+        return _clean_profile_ticker(value, default="SPY")
+
+    @field_validator("tickers", mode="before")
+    @classmethod
+    def _clean_profile_tickers(cls, value: Any) -> list[str]:
+        return _clean_profile_tickers(value)
+
+    @field_validator("start_date", "end_date", mode="before")
+    @classmethod
+    def _clean_profile_date(cls, value: Any) -> str | None:
+        cleaned = str(value or "").strip()
+        return cleaned or None
+
+
 class QuantBacktestResponse(BaseModel):
     run_id: str
     status: QuantStatus
@@ -307,3 +394,283 @@ class QuantBacktestResponse(BaseModel):
     weights: list[dict[str, Any]] = Field(default_factory=list)
     diagnostics: QuantRunDiagnostics = Field(default_factory=QuantRunDiagnostics)
     artifacts: QuantArtifactManifest | None = None
+
+
+class StrategyResearchConfig(BaseModel):
+    strategy_id: str = "risk_adjusted_momentum_v1"
+    version_id: str | None = None
+    tickers: list[str] = Field(default_factory=lambda: ["SPY", "QQQ", "TLT"])
+    benchmark: str = "SPY"
+    template: str = "risk_adjusted_momentum"
+    timeframe: str = "1d"
+    start_date: str | None = None
+    end_date: str | None = None
+    parameters: dict[str, Any] = Field(default_factory=dict)
+    filter_config: dict[str, Any] = Field(default_factory=dict)
+    risk_config: dict[str, Any] = Field(default_factory=dict)
+    exit_config: dict[str, Any] = Field(default_factory=dict)
+    position_sizing_config: dict[str, Any] = Field(default_factory=dict)
+    evidence_class: str = "repo_local_deterministic"
+    evidence_notes: list[str] = Field(default_factory=list)
+
+    @field_validator("strategy_id", "version_id", mode="before")
+    @classmethod
+    def _clean_optional_ids(cls, value: Any) -> str | None:
+        if value is None:
+            return None
+        cleaned = str(value or "").strip()
+        return cleaned or None
+
+    @field_validator("tickers", mode="before")
+    @classmethod
+    def _clean_strategy_tickers(cls, value: Any) -> list[str]:
+        return _clean_tickers(value)
+
+    @field_validator("benchmark", mode="before")
+    @classmethod
+    def _clean_strategy_benchmark(cls, value: Any) -> str:
+        return str(value or "SPY").strip().upper() or "SPY"
+
+    @field_validator("template", "timeframe", mode="before")
+    @classmethod
+    def _clean_strategy_text(cls, value: Any) -> str:
+        return str(value or "").strip().lower()
+
+    @field_validator("start_date", "end_date", mode="before")
+    @classmethod
+    def _clean_strategy_date(cls, value: Any) -> str | None:
+        cleaned = str(value or "").strip()
+        return cleaned or None
+
+
+class StrategyResearchStrategy(BaseModel):
+    strategy_id: str
+    name: str
+    description: str = ""
+    asset: str = "multi_asset"
+    timeframe: str = "1d"
+    core_logic_json: dict[str, Any] = Field(default_factory=dict)
+    default_config_json: dict[str, Any] = Field(default_factory=dict)
+    status: StrategyResearchStatus = "pending"
+    evidence_class: str = "repo_local_deterministic"
+    evidence_notes: list[str] = Field(default_factory=list)
+    created_at: str = ""
+    updated_at: str = ""
+
+
+class StrategyResearchVersion(BaseModel):
+    version_id: str
+    strategy_id: str
+    version_name: str = "base"
+    core_config_json: dict[str, Any] = Field(default_factory=dict)
+    filter_config_json: dict[str, Any] = Field(default_factory=dict)
+    risk_config_json: dict[str, Any] = Field(default_factory=dict)
+    exit_config_json: dict[str, Any] = Field(default_factory=dict)
+    position_sizing_config_json: dict[str, Any] = Field(default_factory=dict)
+    complexity_score: float = Field(default=1.0, ge=0.0)
+    parent_version_id: str | None = None
+    source_experiment_id: str | None = None
+    metrics_summary: dict[str, Any] = Field(default_factory=dict)
+    decision_reason: str = ""
+    status: StrategyResearchStatus = "pending"
+    created_at: str = ""
+    updated_at: str = ""
+
+
+class StrategyResearchExperiment(BaseModel):
+    experiment_id: str
+    strategy_id: str
+    version_id: str = ""
+    source_backtest_id: str = ""
+    experiment_type: str = "optimization"
+    optimization_method: StrategyOptimizationMethod = "grid_search"
+    test_period_start: str | None = None
+    test_period_end: str | None = None
+    in_sample_start: str | None = None
+    in_sample_end: str | None = None
+    out_of_sample_start: str | None = None
+    out_of_sample_end: str | None = None
+    market_regime_scope_json: dict[str, Any] = Field(default_factory=dict)
+    request_json: dict[str, Any] = Field(default_factory=dict)
+    status: StrategyResearchStatus = "queued"
+    created_at: str = ""
+    updated_at: str = ""
+
+
+class StrategyOptimizationRequest(BaseModel):
+    version_id: str | None = None
+    method: StrategyOptimizationMethod = "grid_search"
+    objective_name: str = "robust_composite"
+    objective_config: dict[str, Any] = Field(default_factory=dict)
+    search_space: dict[str, list[Any]] = Field(default_factory=dict)
+    max_trials: int = Field(default=12, ge=1, le=120)
+    random_seed: int = Field(default=42, ge=0, le=999_999)
+    base_config: StrategyResearchConfig = Field(default_factory=StrategyResearchConfig)
+    notes: str = ""
+
+    @field_validator("version_id", mode="before")
+    @classmethod
+    def _clean_version_id(cls, value: Any) -> str | None:
+        cleaned = str(value or "").strip()
+        return cleaned or None
+
+
+class StrategyOptimizationTrial(BaseModel):
+    trial_id: str
+    optimization_id: str
+    trial_number: int
+    parameters_json: dict[str, Any] = Field(default_factory=dict)
+    score: float = 0.0
+    metrics_json: dict[str, Any] = Field(default_factory=dict)
+    constraint_flags_json: dict[str, Any] = Field(default_factory=dict)
+    rejection_flags_json: dict[str, Any] = Field(default_factory=dict)
+    notes: list[str] = Field(default_factory=list)
+    status: StrategyResearchStatus = "succeeded"
+    created_at: str = ""
+
+
+class StrategyOptimizationRun(BaseModel):
+    optimization_id: str
+    strategy_id: str
+    version_id: str = ""
+    experiment_id: str = ""
+    job_id: str = ""
+    method: StrategyOptimizationMethod = "grid_search"
+    objective_name: str = "robust_composite"
+    objective_config_json: dict[str, Any] = Field(default_factory=dict)
+    search_space_json: dict[str, Any] = Field(default_factory=dict)
+    best_parameters_json: dict[str, Any] = Field(default_factory=dict)
+    recommended_parameters_json: dict[str, Any] = Field(default_factory=dict)
+    best_score: float = 0.0
+    recommended_score: float = 0.0
+    robustness_score: float = 0.0
+    overfitting_score: float = 0.0
+    trial_count: int = 0
+    notes_json: dict[str, Any] = Field(default_factory=dict)
+    artifacts: dict[str, str] = Field(default_factory=dict)
+    status: StrategyResearchStatus = "queued"
+    created_at: str = ""
+    updated_at: str = ""
+
+
+class StrategyDiagnosticsRequest(BaseModel):
+    version_id: str | None = None
+    source_backtest_id: str | None = None
+    optimization_id: str | None = None
+    parameters: dict[str, Any] = Field(default_factory=dict)
+    base_config: StrategyResearchConfig = Field(default_factory=StrategyResearchConfig)
+    min_trade_count: int = Field(default=10, ge=1, le=5000)
+
+
+class StrategyFailureTag(BaseModel):
+    tag: str
+    count: int = 0
+    share_pct: float = 0.0
+    severity: str = "medium"
+    decision_use: str = ""
+    evidence: dict[str, Any] = Field(default_factory=dict)
+
+
+class StrategyDiagnosticsRun(BaseModel):
+    diagnostics_id: str
+    strategy_id: str
+    version_id: str = ""
+    experiment_id: str = ""
+    source_backtest_id: str = ""
+    summary: str = ""
+    failure_distribution_json: list[StrategyFailureTag] = Field(default_factory=list)
+    top_failure_causes: list[str] = Field(default_factory=list)
+    drawdown_analysis_json: dict[str, Any] = Field(default_factory=dict)
+    regime_analysis_json: dict[str, Any] = Field(default_factory=dict)
+    trade_cluster_json: dict[str, Any] = Field(default_factory=dict)
+    cost_impact_analysis: dict[str, Any] = Field(default_factory=dict)
+    parameter_sensitivity_notes: list[str] = Field(default_factory=list)
+    recommended_experiments_json: list[dict[str, Any]] = Field(default_factory=list)
+    rejected_experiments_json: list[dict[str, Any]] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    artifacts: dict[str, str] = Field(default_factory=dict)
+    status: StrategyResearchStatus = "succeeded"
+    created_at: str = ""
+
+
+class StrategyHypothesis(BaseModel):
+    hypothesis_id: str
+    strategy_id: str
+    version_id: str = ""
+    source_experiment_id: str = ""
+    source_diagnostics_id: str = ""
+    problem: str
+    hypothesis: str
+    proposed_change_json: dict[str, Any] = Field(default_factory=dict)
+    expected_effect: str
+    risk: str
+    validation_required_json: list[str] = Field(default_factory=list)
+    decision: StrategyResearchStatus = "pending"
+    decision_reason: str = ""
+    status: StrategyResearchStatus = "pending"
+    created_at: str = ""
+    updated_at: str = ""
+
+
+class StrategyHypothesisDecisionRequest(BaseModel):
+    decision_reason: str = ""
+    validation_id: str | None = None
+
+
+class StrategyValidationRequest(BaseModel):
+    version_id: str | None = None
+    optimization_id: str | None = None
+    hypothesis_id: str | None = None
+    validation_type: str = "full_mvp"
+    parameters: dict[str, Any] = Field(default_factory=dict)
+    base_config: StrategyResearchConfig = Field(default_factory=StrategyResearchConfig)
+    out_of_sample_ratio: float = Field(default=0.3, ge=0.1, le=0.8)
+    walk_forward_splits: int = Field(default=3, ge=1, le=8)
+    random_seed: int = Field(default=42, ge=0, le=999_999)
+
+
+class StrategyValidationSummary(BaseModel):
+    decision: StrategyResearchStatus = "pending"
+    decision_reason: str = ""
+    acceptance_flags: list[str] = Field(default_factory=list)
+    rejection_flags: list[str] = Field(default_factory=list)
+    evidence_notes: list[str] = Field(default_factory=list)
+    insufficient_evidence: bool = False
+
+
+class StrategyValidationResult(BaseModel):
+    validation_id: str
+    strategy_id: str
+    version_id: str = ""
+    experiment_id: str = ""
+    hypothesis_id: str = ""
+    validation_type: str = "full_mvp"
+    in_sample_metrics_json: dict[str, Any] = Field(default_factory=dict)
+    out_of_sample_metrics_json: dict[str, Any] = Field(default_factory=dict)
+    walk_forward_results_json: list[dict[str, Any]] = Field(default_factory=list)
+    monte_carlo_results_json: dict[str, Any] = Field(default_factory=dict)
+    parameter_stability_json: dict[str, Any] = Field(default_factory=dict)
+    cost_stress_json: list[dict[str, Any]] = Field(default_factory=list)
+    summary: StrategyValidationSummary = Field(default_factory=StrategyValidationSummary)
+    artifacts: dict[str, str] = Field(default_factory=dict)
+    status: StrategyResearchStatus = "succeeded"
+    created_at: str = ""
+
+
+class StrategyResearchBackendStatus(BaseModel):
+    status: str = "success"
+    backend: str = "fingpt_quant_lab_strategy_research"
+    schema_version: str = "strategy_research_v1"
+    evidence_class: str = "repo_local_deterministic"
+    deterministic_available: bool = True
+    live_llm_required: bool = False
+    optuna_available: bool = False
+    bayesian_backend: str = "deterministic_surrogate"
+    protected_runtime_available: bool = False
+    live_broker_available: bool = False
+    protected_runtime_details: dict[str, Any] = Field(default_factory=dict)
+    artifact_root: str = ""
+    supported_methods: list[StrategyOptimizationMethod] = Field(
+        default_factory=lambda: ["grid_search", "random_search", "bayesian"]
+    )
+    warnings: list[str] = Field(default_factory=list)

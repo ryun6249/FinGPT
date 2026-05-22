@@ -2212,7 +2212,7 @@ def _build_decision_path(
     else:
         headline = _risk_text(
             language,
-            f"Risk run is usable; validate forecasts and retain lineage before service use.",
+            "Risk run is usable; validate forecasts and retain lineage before service use.",
             "Risk 실행은 사용 가능하므로 Forecast 검증과 실행 감사를 보존한 뒤 서비스에 연결하세요.",
         )
 

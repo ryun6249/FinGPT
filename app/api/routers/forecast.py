@@ -17,6 +17,7 @@ from core.schemas.forecast import (
     ForecastRunRequest,
     ForecastSignalGenerateRequest,
     ForecastTargetBuildRequest,
+    ForecastUniverseRunRequest,
 )
 from pipelines.forecast import jobs
 from pipelines.forecast import service
@@ -231,6 +232,11 @@ async def get_portfolio_signal(ticker: str) -> dict[str, Any]:
 @router.post("/batch-predict")
 async def post_batch_predict(request: ForecastBatchPredictRequest) -> dict[str, Any]:
     return service.batch_predict(request)
+
+
+@router.post("/universe/run")
+async def post_universe_run(request: ForecastUniverseRunRequest) -> dict[str, Any]:
+    return service.universe_run(request)
 
 
 @router.post("/drift/check")

@@ -351,6 +351,35 @@ def upsert_sec_company_registry(
     return {"inserted": inserted, "updated": updated}
 
 
+def get_sec_company_registry(
+    tickers: Iterable[str] | None = None,
+    *,
+    db_path: str | Path | None = None,
+) -> list[dict[str, Any]]:
+    clean = [str(ticker or "").upper().strip() for ticker in (tickers or []) if str(ticker or "").strip()]
+    with _conn(db_path) as conn:
+        if clean:
+            placeholders = ",".join(["?"] * len(clean))
+            rows = conn.execute(
+                f"""
+                SELECT ticker, cik, company_name, exchange, source, updated_at
+                FROM sec_company_registry
+                WHERE ticker IN ({placeholders})
+                ORDER BY ticker
+                """,
+                clean,
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT ticker, cik, company_name, exchange, source, updated_at
+                FROM sec_company_registry
+                ORDER BY ticker
+                """
+            ).fetchall()
+    return [dict(row) for row in rows]
+
+
 def _sec_fact_id(item: dict[str, Any]) -> str:
     seed = "|".join(
         [

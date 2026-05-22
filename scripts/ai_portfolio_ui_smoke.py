@@ -19,7 +19,7 @@ REPORTS_DIR = PROJECT_ROOT / "reports"
 DOMAIN_BUNDLE_VERSION = "20260521-market-signals-v1"
 AI_PORTFOLIO_BUNDLE_VERSION = "20260520-ai-portfolio-ops-v1"
 QUANTAMENTAL_BUNDLE_VERSION = "20260521-quantamental-decision-v23"
-APP_BUNDLE_VERSION = "20260521-risk-forecast-v35"
+APP_BUNDLE_VERSION = "20260522-risk-visual-v6"
 VERSIONED_SCRIPT_SELECTORS = [
     f'script[src="modules/market-ui.js?v={DOMAIN_BUNDLE_VERSION}"]',
     f'script[src="modules/macro-ui.js?v={DOMAIN_BUNDLE_VERSION}"]',
@@ -51,31 +51,31 @@ DASHBOARD_TAB_CHECKS = [
         "macro-dashboard-tab",
         "macro",
         "#macro",
-        ["#macroSurface", "#macroProviderHealthSurface", "#macroDataQualitySurface"],
+        ["#macroSurface", "#macroOverviewSurface"],
     ),
     (
         "quant-lab-tab",
         "quant",
         "#quant-lab",
-        ["#quantFeatureSurface", "#quantSignalSurface", "#quantRunHistorySurface"],
+        ["#quantFeatureSurface", "#quantSignalSurface", "#backtestSurface"],
     ),
     (
         "ml-forecast-tab",
         "forecast",
         "#ml-forecast",
-        ["#mlForecastSurface", "#forecastJobsSurface", "#forecastRegistrySurface"],
+        ["#mlForecastSurface", "#forecastDatasetSurface", "#forecastResultSurface", "#forecastUniverseSurface"],
     ),
     (
         "quantamental-tab",
         "quantamental",
         "#quantamental",
-        ["#quantamentalSurface", "#quantamentalScreenSurface", "#quantamentalDataQualitySurface"],
+        ["#quantamentalSurface", "#quantamentalScreenSurface", "#quantamentalScoreScreenSurface"],
     ),
     (
         "ai-portfolio-tab",
         "ai-portfolio",
         "#ai-portfolio",
-        ["#aiPortfolioOverviewSurface", "#aiPortfolioOpsSurface", "#aiPortfolioOperationsSurface"],
+        ["#aiPortfolioOverviewSurface", "#aiPortfolioRecommendationSurface", "#aiPortfolioPerformanceSurface"],
     ),
 ]
 
@@ -168,19 +168,28 @@ def _run_playwright_flow(base_url: str, *, timeout_s: int, screenshot_dir: Path)
 
             for selector in [
                 "#aiPortfolioOverviewSurface",
+                "#aiPortfolioGenerate",
+            ]:
+                page.locator(selector).wait_for(state="visible", timeout=timeout_ms)
+            _mark(checked, "ai portfolio core surfaces")
+
+            _open_quality_panel(page, timeout_ms)
+            for selector in [
                 "#aiPortfolioOpsSurface",
                 "#aiPortfolioCoverageSurface",
                 "#aiPortfolioSnapshotTimelineSurface",
                 "#aiPortfolioOperationsSurface",
                 '[data-testid="ai-portfolio-dashboard-meta"]',
                 '[data-testid="ai-portfolio-dashboard-timing"]',
-                "#aiPortfolioGenerate",
                 "#aiPortfolioHydrateData",
                 "#aiPortfolioSnapshotJob",
                 "#aiPortfolioSecRefresh",
+                "#dataAutoRefreshRun",
+                "#dataAutoRefreshStatus",
             ]:
                 page.locator(selector).wait_for(state="visible", timeout=timeout_ms)
-            _mark(checked, "ai portfolio core surfaces")
+            _close_quality_panel(page, timeout_ms)
+            _mark(checked, "quality panel operations surfaces")
 
             for tab_test_id, tab_value, hash_value, selectors in DASHBOARD_TAB_CHECKS:
                 _select_dashboard_tab(page, tab_test_id, tab_value, hash_value, timeout_ms)
@@ -193,6 +202,7 @@ def _run_playwright_flow(base_url: str, *, timeout_s: int, screenshot_dir: Path)
             _mark(checked, "dashboard action smoke")
 
             page.get_by_test_id("ai-portfolio-tab").click()
+            _open_quality_panel(page, timeout_ms)
             page.locator('[data-testid="ai-portfolio-dashboard-meta"]').wait_for(state="visible", timeout=timeout_ms)
             meta_text = page.locator('[data-testid="ai-portfolio-dashboard-meta"]').inner_text(timeout=timeout_ms)
             if not any(token in meta_text for token in ["cache hit", "fresh build", "generated", "total"]):
@@ -262,6 +272,20 @@ def _wait_surface_settled(page: Any, selector: str, loading_text: str, timeout_m
     return page.locator(selector).inner_text(timeout=timeout_ms)
 
 
+def _open_quality_panel(page: Any, timeout_ms: int) -> None:
+    if page.locator("#qualityPanel").is_visible():
+        return
+    page.locator("#qualityDashBtn").click(timeout=timeout_ms)
+    page.locator("#qualityPanel").wait_for(state="visible", timeout=timeout_ms)
+
+
+def _close_quality_panel(page: Any, timeout_ms: int) -> None:
+    if not page.locator("#qualityPanel").is_visible():
+        return
+    page.locator("#qualityClose").click(timeout=timeout_ms)
+    page.locator("#qualityPanel").wait_for(state="hidden", timeout=timeout_ms)
+
+
 def _run_dashboard_action_smoke(page: Any, *, checked: list[str], timeout_ms: int) -> None:
     _select_dashboard_tab(page, "market-dashboard-tab", "market", "#market-dashboard", timeout_ms)
     _show_all_dashboard_panels(page, timeout_ms)
@@ -292,13 +316,16 @@ def _run_dashboard_action_smoke(page: Any, *, checked: list[str], timeout_ms: in
 
     _select_dashboard_tab(page, "quant-lab-tab", "quant", "#quant-lab", timeout_ms)
     _show_all_dashboard_panels(page, timeout_ms)
+    _open_quality_panel(page, timeout_ms)
     page.get_by_test_id("quant-run-history-refresh").click()
     quant_text = _wait_surface_settled(page, "#quantRunHistorySurface", "\ubd88\ub7ec\uc624\ub294 \uc911", timeout_ms)
     if "\uc2e4\ud589 \uc774\ub825 \ub85c\ub4dc \uc2e4\ud328" in quant_text:
         raise AssertionError(quant_text)
+    _close_quality_panel(page, timeout_ms)
 
     _select_dashboard_tab(page, "ml-forecast-tab", "forecast", "#ml-forecast", timeout_ms)
     _show_all_dashboard_panels(page, timeout_ms)
+    _open_quality_panel(page, timeout_ms)
     page.get_by_test_id("ml-forecast-ai-provider-check").click()
     provider_text = _wait_surface_settled(page, "#forecastAiProviderSurface", "\ud655\uc778", timeout_ms)
     if "AI provider \uc0c1\ud0dc \ud655\uc778 \uc2e4\ud328" in provider_text:
@@ -307,6 +334,7 @@ def _run_dashboard_action_smoke(page: Any, *, checked: list[str], timeout_ms: in
     jobs_text = _wait_surface_settled(page, "#forecastJobsSurface", "\ub85c\ub4dc", timeout_ms)
     if "Forecast job \ub85c\ub4dc \uc2e4\ud328" in jobs_text:
         raise AssertionError(jobs_text)
+    _close_quality_panel(page, timeout_ms)
 
     _select_dashboard_tab(page, "quantamental-tab", "quantamental", "#quantamental", timeout_ms)
     _show_all_dashboard_panels(page, timeout_ms)
@@ -357,10 +385,12 @@ def _run_dashboard_action_smoke(page: Any, *, checked: list[str], timeout_ms: in
 
     _select_dashboard_tab(page, "ai-portfolio-tab", "ai-portfolio", "#ai-portfolio", timeout_ms)
     _show_all_dashboard_panels(page, timeout_ms)
+    _open_quality_panel(page, timeout_ms)
     page.locator("#aiPortfolioOpsRefresh").click()
     ops_text = _wait_surface_settled(page, "#aiPortfolioOpsSurface", "\ud655\uc778\ud558\ub294 \uc911", timeout_ms)
     if "\uc6b4\uc601 \uc0c1\ud0dc \uc870\ud68c \uc2e4\ud328" in ops_text:
         raise AssertionError(ops_text)
+    _close_quality_panel(page, timeout_ms)
 
 
 def _find_free_port() -> int:

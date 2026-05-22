@@ -376,7 +376,10 @@ class DashboardApiTests(unittest.TestCase):
         self.assertIn("no synthetic scores", body["scope"])
         items = body["items"]
         tabs = {item["tab"] for item in items}
-        self.assertEqual(tabs, {"market", "macro", "risk", "quant", "quantamental", "forecast", "ai-portfolio"})
+        self.assertEqual(
+            tabs,
+            {"market", "macro", "risk", "auto-trading", "quant", "quantamental", "forecast", "ai-portfolio"},
+        )
         for item in items:
             self.assertIn("decision_question", item)
             self.assertIn("primary_output", item)

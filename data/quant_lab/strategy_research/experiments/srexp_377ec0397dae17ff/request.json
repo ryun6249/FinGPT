@@ -1,0 +1,58 @@
+{
+  "created_at": "2026-05-22T06:15:31.604255+00:00",
+  "experiment_id": "srexp_377ec0397dae17ff",
+  "experiment_type": "optimization",
+  "in_sample_end": null,
+  "in_sample_start": null,
+  "market_regime_scope_json": {},
+  "optimization_method": "bayesian",
+  "out_of_sample_end": null,
+  "out_of_sample_start": null,
+  "request_json": {
+    "base_config": {
+      "benchmark": "SPY",
+      "end_date": null,
+      "evidence_class": "repo_local_deterministic",
+      "evidence_notes": [
+        "UI request from Quant Lab controls",
+        "repo-local deterministic evidence"
+      ],
+      "exit_config": {},
+      "filter_config": {},
+      "parameters": {
+        "lookback": 20,
+        "rebalance_every": 21,
+        "slippage_bps": 2,
+        "top_n": 1,
+        "transaction_cost_bps": 5
+      },
+      "position_sizing_config": {},
+      "risk_config": {},
+      "start_date": null,
+      "strategy_id": "risk_adjusted_momentum_v1",
+      "template": "buy_and_hold",
+      "tickers": [
+        "SPY",
+        "TLT",
+        "GLD"
+      ],
+      "timeframe": "1d",
+      "version_id": null
+    },
+    "max_trials": 5,
+    "method": "bayesian",
+    "notes": "",
+    "objective_config": {},
+    "objective_name": "robust_composite",
+    "random_seed": 42,
+    "search_space": {},
+    "version_id": null
+  },
+  "source_backtest_id": "",
+  "status": "succeeded",
+  "strategy_id": "risk_adjusted_momentum_v1",
+  "test_period_end": null,
+  "test_period_start": null,
+  "updated_at": "2026-05-22T06:15:36.343492+00:00",
+  "version_id": "risk_adjusted_momentum_v1_base"
+}

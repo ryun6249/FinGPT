@@ -1,0 +1,302 @@
+[
+  {
+    "constraint_flags_json": {
+      "invalid_or_failed": false,
+      "large_drawdown": false,
+      "low_trade_count": true,
+      "negative_expectancy": false,
+      "return_concentration": false
+    },
+    "created_at": "2026-05-22T06:06:24.747194+00:00",
+    "metrics_json": {
+      "avg_loss_pct": -0.540469,
+      "avg_win_pct": 0.505941,
+      "best_trade_pct": 4.929882,
+      "cagr_pct": 9.2013,
+      "calmar": 0.404686,
+      "consecutive_losses": 7,
+      "consecutive_wins": 10,
+      "expectancy_pct": 0.037374,
+      "exposure_time_pct": 100.0,
+      "fee_total": 0.0005,
+      "long_return_pct": 55.5058,
+      "max_drawdown_pct": -22.737,
+      "payoff_ratio": 0.936114,
+      "profit_factor": 1.15443,
+      "recovery_factor": 2.44121,
+      "return_concentration_top_1_pct": 0.748026,
+      "return_concentration_top_5_pct": 2.795886,
+      "sharpe": 0.829421,
+      "short_return_pct": 0.0,
+      "slippage_total": 0.0001,
+      "sortino": 1.225989,
+      "total_return_pct": 55.5058,
+      "trade_count": 3,
+      "turnover_pct": 100.0,
+      "win_rate_pct": 55.221519,
+      "worst_trade_pct": -3.710579
+    },
+    "notes": [
+      "score uses sharpe, calmar, profit factor, expectancy, drawdown, costs, and concentration",
+      "best parameters are not automatically accepted"
+    ],
+    "optimization_id": "sropt_8a7dafc049d36d5d",
+    "parameters_json": {
+      "lookback": 42,
+      "rebalance_every": 10,
+      "slippage_bps": 1.0,
+      "top_n": 1,
+      "transaction_cost_bps": 5.0
+    },
+    "rejection_flags_json": {
+      "cost_drag": false,
+      "insufficient_trades": true,
+      "invalid_parameters": false,
+      "unstable_concentration": false
+    },
+    "score": 0.190709,
+    "status": "succeeded",
+    "trial_id": "sropt_8a7dafc049d36d5d_t001",
+    "trial_number": 1
+  },
+  {
+    "constraint_flags_json": {
+      "invalid_or_failed": false,
+      "large_drawdown": false,
+      "low_trade_count": true,
+      "negative_expectancy": false,
+      "return_concentration": false
+    },
+    "created_at": "2026-05-22T06:06:24.747194+00:00",
+    "metrics_json": {
+      "avg_loss_pct": -0.540576,
+      "avg_win_pct": 0.505941,
+      "best_trade_pct": 4.929882,
+      "cagr_pct": 9.1882,
+      "calmar": 0.404108,
+      "consecutive_losses": 7,
+      "consecutive_wins": 10,
+      "expectancy_pct": 0.037327,
+      "exposure_time_pct": 100.0,
+      "fee_total": 0.001,
+      "long_return_pct": 55.412,
+      "max_drawdown_pct": -22.737,
+      "payoff_ratio": 0.93593,
+      "profit_factor": 1.154204,
+      "recovery_factor": 2.437085,
+      "return_concentration_top_1_pct": 0.747958,
+      "return_concentration_top_5_pct": 2.795632,
+      "sharpe": 0.828188,
+      "short_return_pct": 0.0,
+      "slippage_total": 0.0002,
+      "sortino": 1.224221,
+      "total_return_pct": 55.412,
+      "trade_count": 3,
+      "turnover_pct": 100.0,
+      "win_rate_pct": 55.221519,
+      "worst_trade_pct": -3.710579
+    },
+    "notes": [
+      "score uses sharpe, calmar, profit factor, expectancy, drawdown, costs, and concentration",
+      "best parameters are not automatically accepted"
+    ],
+    "optimization_id": "sropt_8a7dafc049d36d5d",
+    "parameters_json": {
+      "lookback": 42,
+      "rebalance_every": 10,
+      "slippage_bps": 2.0,
+      "top_n": 3,
+      "transaction_cost_bps": 10.0
+    },
+    "rejection_flags_json": {
+      "cost_drag": false,
+      "insufficient_trades": true,
+      "invalid_parameters": false,
+      "unstable_concentration": false
+    },
+    "score": 0.19061,
+    "status": "succeeded",
+    "trial_id": "sropt_8a7dafc049d36d5d_t002",
+    "trial_number": 2
+  },
+  {
+    "constraint_flags_json": {
+      "invalid_or_failed": false,
+      "large_drawdown": false,
+      "low_trade_count": true,
+      "negative_expectancy": false,
+      "return_concentration": false
+    },
+    "created_at": "2026-05-22T06:06:24.747194+00:00",
+    "metrics_json": {
+      "avg_loss_pct": -0.540469,
+      "avg_win_pct": 0.505941,
+      "best_trade_pct": 4.929882,
+      "cagr_pct": 9.2013,
+      "calmar": 0.404686,
+      "consecutive_losses": 7,
+      "consecutive_wins": 10,
+      "expectancy_pct": 0.037374,
+      "exposure_time_pct": 100.0,
+      "fee_total": 0.0005,
+      "long_return_pct": 55.5058,
+      "max_drawdown_pct": -22.737,
+      "payoff_ratio": 0.936114,
+      "profit_factor": 1.15443,
+      "recovery_factor": 2.44121,
+      "return_concentration_top_1_pct": 0.748026,
+      "return_concentration_top_5_pct": 2.795886,
+      "sharpe": 0.829421,
+      "short_return_pct": 0.0,
+      "slippage_total": 0.0001,
+      "sortino": 1.225989,
+      "total_return_pct": 55.5058,
+      "trade_count": 3,
+      "turnover_pct": 100.0,
+      "win_rate_pct": 55.221519,
+      "worst_trade_pct": -3.710579
+    },
+    "notes": [
+      "score uses sharpe, calmar, profit factor, expectancy, drawdown, costs, and concentration",
+      "best parameters are not automatically accepted"
+    ],
+    "optimization_id": "sropt_8a7dafc049d36d5d",
+    "parameters_json": {
+      "lookback": 63,
+      "rebalance_every": 42,
+      "slippage_bps": 1.0,
+      "top_n": 3,
+      "transaction_cost_bps": 5.0
+    },
+    "rejection_flags_json": {
+      "cost_drag": false,
+      "insufficient_trades": true,
+      "invalid_parameters": false,
+      "unstable_concentration": false
+    },
+    "score": 0.190709,
+    "status": "succeeded",
+    "trial_id": "sropt_8a7dafc049d36d5d_t003",
+    "trial_number": 3
+  },
+  {
+    "constraint_flags_json": {
+      "invalid_or_failed": false,
+      "large_drawdown": false,
+      "low_trade_count": true,
+      "negative_expectancy": false,
+      "return_concentration": false
+    },
+    "created_at": "2026-05-22T06:06:24.747194+00:00",
+    "metrics_json": {
+      "avg_loss_pct": -0.540576,
+      "avg_win_pct": 0.505941,
+      "best_trade_pct": 4.929882,
+      "cagr_pct": 9.1882,
+      "calmar": 0.404108,
+      "consecutive_losses": 7,
+      "consecutive_wins": 10,
+      "expectancy_pct": 0.037327,
+      "exposure_time_pct": 100.0,
+      "fee_total": 0.001,
+      "long_return_pct": 55.412,
+      "max_drawdown_pct": -22.737,
+      "payoff_ratio": 0.93593,
+      "profit_factor": 1.154204,
+      "recovery_factor": 2.437085,
+      "return_concentration_top_1_pct": 0.747958,
+      "return_concentration_top_5_pct": 2.795632,
+      "sharpe": 0.828188,
+      "short_return_pct": 0.0,
+      "slippage_total": 0.0002,
+      "sortino": 1.224221,
+      "total_return_pct": 55.412,
+      "trade_count": 3,
+      "turnover_pct": 100.0,
+      "win_rate_pct": 55.221519,
+      "worst_trade_pct": -3.710579
+    },
+    "notes": [
+      "score uses sharpe, calmar, profit factor, expectancy, drawdown, costs, and concentration",
+      "best parameters are not automatically accepted"
+    ],
+    "optimization_id": "sropt_8a7dafc049d36d5d",
+    "parameters_json": {
+      "lookback": 63,
+      "rebalance_every": 10,
+      "slippage_bps": 2.0,
+      "top_n": 1,
+      "transaction_cost_bps": 10.0
+    },
+    "rejection_flags_json": {
+      "cost_drag": false,
+      "insufficient_trades": true,
+      "invalid_parameters": false,
+      "unstable_concentration": false
+    },
+    "score": 0.19061,
+    "status": "succeeded",
+    "trial_id": "sropt_8a7dafc049d36d5d_t004",
+    "trial_number": 4
+  },
+  {
+    "constraint_flags_json": {
+      "invalid_or_failed": false,
+      "large_drawdown": false,
+      "low_trade_count": true,
+      "negative_expectancy": false,
+      "return_concentration": false
+    },
+    "created_at": "2026-05-22T06:06:24.747194+00:00",
+    "metrics_json": {
+      "avg_loss_pct": -0.540576,
+      "avg_win_pct": 0.505941,
+      "best_trade_pct": 4.929882,
+      "cagr_pct": 9.1882,
+      "calmar": 0.404108,
+      "consecutive_losses": 7,
+      "consecutive_wins": 10,
+      "expectancy_pct": 0.037327,
+      "exposure_time_pct": 100.0,
+      "fee_total": 0.001,
+      "long_return_pct": 55.412,
+      "max_drawdown_pct": -22.737,
+      "payoff_ratio": 0.93593,
+      "profit_factor": 1.154204,
+      "recovery_factor": 2.437085,
+      "return_concentration_top_1_pct": 0.747958,
+      "return_concentration_top_5_pct": 2.795632,
+      "sharpe": 0.828188,
+      "short_return_pct": 0.0,
+      "slippage_total": 0.0002,
+      "sortino": 1.224221,
+      "total_return_pct": 55.412,
+      "trade_count": 3,
+      "turnover_pct": 100.0,
+      "win_rate_pct": 55.221519,
+      "worst_trade_pct": -3.710579
+    },
+    "notes": [
+      "score uses sharpe, calmar, profit factor, expectancy, drawdown, costs, and concentration",
+      "best parameters are not automatically accepted"
+    ],
+    "optimization_id": "sropt_8a7dafc049d36d5d",
+    "parameters_json": {
+      "lookback": 84,
+      "rebalance_every": 21,
+      "slippage_bps": 2.0,
+      "top_n": 3,
+      "transaction_cost_bps": 10.0
+    },
+    "rejection_flags_json": {
+      "cost_drag": false,
+      "insufficient_trades": true,
+      "invalid_parameters": false,
+      "unstable_concentration": false
+    },
+    "score": 0.19061,
+    "status": "succeeded",
+    "trial_id": "sropt_8a7dafc049d36d5d_t005",
+    "trial_number": 5
+  }
+]

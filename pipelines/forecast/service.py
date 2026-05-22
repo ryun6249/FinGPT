@@ -7,6 +7,7 @@ from core.schemas.forecast import (
     ForecastExperiment,
     ForecastResult,
     ForecastRunRequest,
+    ForecastUniverseRunRequest,
     ModelEvaluation,
     ModelRegistryItem,
 )
@@ -474,10 +475,12 @@ def predict(request: ForecastRunRequest) -> dict[str, Any]:
     payload = run_experiment(request)
     return {
         "status": payload.get("status"),
+        "experiment": payload.get("experiment"),
         "forecast_result": payload.get("forecast_result"),
         "signal_result": payload.get("signal_result"),
         "leakage_check": payload.get("leakage_check"),
         "data_quality": (payload.get("forecast_result") or {}).get("data_quality"),
+        "source_context": payload.get("source_context"),
         "generated_at": payload.get("generated_at"),
         "warnings": payload.get("warnings", []),
         "errors": payload.get("errors", []),
@@ -609,6 +612,247 @@ def batch_predict(request) -> dict[str, Any]:
             items.append({"ticker": ticker, "status": "failed", "errors": [f"batch_item_failed:{type(exc).__name__}:{exc}"]})
     status = "success" if all(item.get("status") == "success" for item in items) else "partial"
     return {"status": status, "items": items, "count": len(items), "generated_at": now_iso(), "errors": []}
+
+
+def _forecast_float(value: Any) -> float | None:
+    try:
+        num = float(value)
+    except (TypeError, ValueError):
+        return None
+    return num if num == num and num not in (float("inf"), float("-inf")) else None
+
+
+def _forecast_clean_ticker(value: Any) -> str:
+    return str(value or "").strip().upper()
+
+
+def _resolve_forecast_universe(request: ForecastUniverseRunRequest) -> dict[str, Any]:
+    universe_id = str(request.universe_id or "custom").strip() or "custom"
+    warnings: list[str] = []
+    source = "custom"
+    label = "Custom"
+    raw_tickers: list[str] = []
+    if request.tickers:
+        raw_tickers = list(request.tickers)
+        source = "direct_input"
+        label = "Custom"
+    elif universe_id.lower() != "custom":
+        try:
+            from pipelines.ai_portfolio.engine import load_universe, universe_label
+
+            assets, universe_warnings = load_universe(universe_id)
+            raw_tickers = [asset.ticker for asset in assets]
+            warnings.extend(universe_warnings or [])
+            source = "preset"
+            label = universe_label(universe_id)
+        except Exception as exc:  # noqa: BLE001
+            warnings.append(f"universe_resolve_failed:{type(exc).__name__}:{exc}")
+            raw_tickers = []
+    if not raw_tickers:
+        fallback = _forecast_clean_ticker(request.request.dataset_config.ticker)
+        if fallback:
+            raw_tickers = [fallback]
+            warnings.append("universe_empty_single_ticker_fallback")
+    seen: set[str] = set()
+    resolved: list[str] = []
+    for ticker in raw_tickers:
+        clean = _forecast_clean_ticker(ticker)
+        if clean and clean not in seen:
+            seen.add(clean)
+            resolved.append(clean)
+    selected = resolved[: request.max_assets]
+    excluded = resolved[request.max_assets :]
+    if excluded:
+        warnings.append(f"universe_capped:{len(resolved)}->{len(selected)}")
+    return {
+        "universe_id": universe_id,
+        "label": label,
+        "source": source,
+        "requested_count": len(raw_tickers),
+        "resolved_count": len(resolved),
+        "selected_count": len(selected),
+        "selected": selected,
+        "excluded": excluded,
+        "warnings": warnings,
+    }
+
+
+def resolve_universe(request: ForecastUniverseRunRequest) -> dict[str, Any]:
+    return _resolve_forecast_universe(request)
+
+
+def _forecast_universe_row(ticker: str, item: dict[str, Any], ranking_metric: str) -> dict[str, Any]:
+    forecast = item.get("forecast_result") or {}
+    signal = item.get("signal_result") or {}
+    confidence = forecast.get("model_confidence") or {}
+    leakage = item.get("leakage_check") or {}
+    data_quality = forecast.get("data_quality") or item.get("data_quality") or {}
+    expected_return = _forecast_float(forecast.get("expected_return"))
+    probability_up = _forecast_float(forecast.get("probability_up"))
+    forecast_volatility = _forecast_float(forecast.get("forecast_volatility"))
+    confidence_score = _forecast_float(confidence.get("score"))
+    signal_score = _forecast_float(signal.get("signal_score"))
+    if confidence_score is None:
+        confidence_score = _forecast_float(signal.get("confidence"))
+    rank_source = {
+        "confidence": confidence_score,
+        "expected_return": expected_return,
+        "probability_up": probability_up,
+        "signal_score": signal_score,
+        "risk_adjusted": (
+            expected_return / max(abs(forecast_volatility or 0.0), 1e-6)
+            if expected_return is not None and forecast_volatility not in (None, 0)
+            else None
+        ),
+    }
+    raw_signal = str(signal.get("signal") or forecast.get("signal") or "unavailable")
+    if item.get("status") != "success":
+        bucket = "unavailable"
+    elif "bullish" in raw_signal:
+        bucket = "bullish"
+    elif "bearish" in raw_signal:
+        bucket = "bearish"
+    elif expected_return is not None and expected_return > 0.01 and (probability_up or 0) >= 0.52:
+        bucket = "bullish"
+    elif expected_return is not None and expected_return < -0.01:
+        bucket = "bearish"
+    else:
+        bucket = "neutral"
+    return {
+        "ticker": ticker,
+        "status": item.get("status") or "unknown",
+        "rank": None,
+        "rank_score": rank_source.get(ranking_metric),
+        "ranking_metric": ranking_metric,
+        "decision_bucket": bucket,
+        "signal": raw_signal,
+        "expected_return": expected_return,
+        "probability_up": probability_up,
+        "forecast_volatility": forecast_volatility,
+        "signal_score": signal_score,
+        "confidence": confidence_score,
+        "confidence_level": confidence.get("level") or "",
+        "as_of": forecast.get("as_of") or signal.get("as_of") or "",
+        "experiment_id": forecast.get("experiment_id") or "",
+        "model_id": forecast.get("model_id") or "",
+        "data_quality_status": data_quality.get("status") or "unknown",
+        "leakage_status": leakage.get("status") or "unknown",
+        "source_context": item.get("source_context") or {},
+        "warnings": list(item.get("warnings") or []) + list(forecast.get("warnings") or []) + list(signal.get("warnings") or []),
+        "errors": list(item.get("errors") or []),
+    }
+
+
+def _forecast_universe_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    successful = [row for row in rows if row.get("status") == "success"]
+    failed = [row for row in rows if row.get("status") != "success"]
+
+    def avg(key: str) -> float | None:
+        values = [_forecast_float(row.get(key)) for row in successful]
+        clean = [value for value in values if value is not None]
+        return sum(clean) / len(clean) if clean else None
+
+    return {
+        "success_count": len(successful),
+        "failed_count": len(failed),
+        "average_confidence": avg("confidence"),
+        "average_expected_return": avg("expected_return"),
+        "average_probability_up": avg("probability_up"),
+        "bullish_count": sum(1 for row in rows if row.get("decision_bucket") == "bullish"),
+        "neutral_count": sum(1 for row in rows if row.get("decision_bucket") == "neutral"),
+        "bearish_count": sum(1 for row in rows if row.get("decision_bucket") == "bearish"),
+        "unavailable_count": sum(1 for row in rows if row.get("decision_bucket") == "unavailable"),
+        "advisory_only": True,
+    }
+
+
+def universe_run(request: ForecastUniverseRunRequest) -> dict[str, Any]:
+    universe = _resolve_forecast_universe(request)
+    selected = list(universe.get("selected") or [])
+    generated_at = now_iso()
+    if not selected:
+        return {
+            "status": "failed",
+            "universe": universe,
+            "items": [],
+            "summary": _forecast_universe_summary([]),
+            "count": 0,
+            "ranking_metric": request.ranking_metric,
+            "generated_at": generated_at,
+            "errors": ["forecast_universe_empty"],
+            "warnings": universe.get("warnings", []),
+        }
+    rows: list[dict[str, Any]] = []
+    for ticker in selected:
+        try:
+            dataset_config = request.request.dataset_config.model_copy(update={"ticker": ticker, "universe_id": universe.get("universe_id")})
+            source_context = request.request.source_context
+            if not source_context.source:
+                source_context = source_context.model_copy(update={"source": "forecast_universe"})
+            run_request = request.request.model_copy(update={"dataset_config": dataset_config, "source_context": source_context})
+            item = predict(run_request)
+            rows.append(_forecast_universe_row(ticker, item, request.ranking_metric))
+        except Exception as exc:  # noqa: BLE001
+            rows.append(
+                {
+                    "ticker": ticker,
+                    "status": "failed",
+                    "rank": None,
+                    "rank_score": None,
+                    "ranking_metric": request.ranking_metric,
+                    "decision_bucket": "unavailable",
+                    "signal": "unavailable",
+                    "expected_return": None,
+                    "probability_up": None,
+                    "forecast_volatility": None,
+                    "signal_score": None,
+                    "confidence": None,
+                    "confidence_level": "",
+                    "as_of": "",
+                    "experiment_id": "",
+                    "model_id": "",
+                    "data_quality_status": "unknown",
+                    "leakage_status": "unknown",
+                    "warnings": [],
+                    "errors": [f"forecast_universe_item_failed:{type(exc).__name__}:{exc}"],
+                }
+            )
+    rows.sort(
+        key=lambda row: (
+            row.get("status") == "success",
+            row.get("rank_score") is not None,
+            row.get("rank_score") if row.get("rank_score") is not None else float("-inf"),
+        ),
+        reverse=True,
+    )
+    for idx, row in enumerate(rows, start=1):
+        row["rank"] = idx if row.get("status") == "success" else None
+    summary = _forecast_universe_summary(rows)
+    if summary["success_count"] == len(rows):
+        status = "success"
+    elif summary["success_count"]:
+        status = "partial"
+    else:
+        status = "failed"
+    errors = [error for row in rows for error in row.get("errors", [])]
+    return {
+        "status": status,
+        "universe": universe,
+        "items": rows,
+        "summary": summary,
+        "count": len(rows),
+        "ranking_metric": request.ranking_metric,
+        "request_summary": {
+            "model": request.request.ml_model_config.model_name,
+            "target": request.request.target_config.target_type,
+            "horizon": request.request.target_config.horizon,
+            "validation": request.request.validation_config.validation_method,
+            "benchmark": request.request.dataset_config.benchmark,
+        },
+        "generated_at": generated_at,
+        "errors": errors,
+        "warnings": list(universe.get("warnings") or []),
+    }
 
 
 def drift_check(*, ticker: str | None = None, experiment_id: str | None = None, recent_window: int = 63) -> dict[str, Any]:

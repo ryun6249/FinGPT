@@ -1,0 +1,67 @@
+[
+  {
+    "count": 45,
+    "decision_use": "Test volatility sizing and drawdown guard before accepting more exposure.",
+    "evidence": {
+      "loss_count": 587,
+      "max_drawdown_pct": -44.2562,
+      "min_drawdown": -0.44256183,
+      "trade_count": 87
+    },
+    "severity": "high",
+    "share_pct": 7.666099,
+    "tag": "Volatility Spike"
+  },
+  {
+    "count": 1,
+    "decision_use": "Test exit module changes with OOS and cost stress.",
+    "evidence": {
+      "loss_count": 587,
+      "max_drawdown_pct": -44.2562,
+      "min_drawdown": -0.44256183,
+      "trade_count": 87
+    },
+    "severity": "high",
+    "share_pct": 0.170358,
+    "tag": "Poor Reward/Risk"
+  },
+  {
+    "count": 412,
+    "decision_use": "Test a trend-strength filter, but reject it if trade count collapses.",
+    "evidence": {
+      "loss_count": 587,
+      "max_drawdown_pct": -44.2562,
+      "min_drawdown": -0.44256183,
+      "trade_count": 87
+    },
+    "severity": "medium",
+    "share_pct": 70.187394,
+    "tag": "Choppy Market Loss"
+  },
+  {
+    "count": 1,
+    "decision_use": "Stress costs and rebalance cadence; do not evaluate gross returns only.",
+    "evidence": {
+      "loss_count": 587,
+      "max_drawdown_pct": -44.2562,
+      "min_drawdown": -0.44256183,
+      "trade_count": 87
+    },
+    "severity": "medium",
+    "share_pct": 0.170358,
+    "tag": "Fee Drag"
+  },
+  {
+    "count": 1,
+    "decision_use": "Use as a validation target, not an automatic strategy change.",
+    "evidence": {
+      "loss_count": 587,
+      "max_drawdown_pct": -44.2562,
+      "min_drawdown": -0.44256183,
+      "trade_count": 87
+    },
+    "severity": "medium",
+    "share_pct": 0.170358,
+    "tag": "Parameter Instability"
+  }
+]

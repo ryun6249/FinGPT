@@ -15,8 +15,8 @@ DEFAULT_OUTPUT = PROJECT_ROOT / "reports" / "universe_freshness_latest.json"
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.api.routers.market_utils import clean_ticker_list
-from pipelines.ai_portfolio.engine import load_universe
+from app.api.routers.market_utils import clean_ticker_list  # noqa: E402
+from pipelines.ai_portfolio.engine import load_universe  # noqa: E402
 
 
 def now_iso() -> str:

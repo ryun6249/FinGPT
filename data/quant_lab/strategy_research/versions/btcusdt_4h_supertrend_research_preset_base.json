@@ -1,0 +1,41 @@
+{
+  "complexity_score": 1.25,
+  "core_config_json": {
+    "entry": "long when Supertrend flips bullish",
+    "exit": "long exit when Supertrend flips bearish",
+    "module": "core_logic",
+    "protected": true,
+    "stop_trigger_models": [
+      "intrabar",
+      "close_confirmed"
+    ]
+  },
+  "created_at": "2026-05-22T05:27:50.239571+00:00",
+  "decision_reason": "Seed version for repo-local deterministic BTCUSDT 4H Supertrend research.",
+  "exit_config_json": {
+    "execution_model": "close_confirmed",
+    "take_profit_atr_multiplier": 4.0
+  },
+  "filter_config_json": {
+    "use_adx_filter": false,
+    "use_rsi_filter": false
+  },
+  "metrics_summary": {},
+  "parent_version_id": null,
+  "position_sizing_config_json": {
+    "fraction": 1.0,
+    "method": "fixed_fraction"
+  },
+  "risk_config_json": {
+    "fee_bps": 5.0,
+    "slippage_bps": 5.0,
+    "stop_atr_multiplier": 2.0,
+    "stop_trigger_model": "close_confirmed"
+  },
+  "source_experiment_id": null,
+  "status": "accepted",
+  "strategy_id": "btcusdt_4h_supertrend_research_preset",
+  "updated_at": "2026-05-22T05:27:50.239571+00:00",
+  "version_id": "btcusdt_4h_supertrend_research_preset_base",
+  "version_name": "Base deterministic Supertrend version"
+}

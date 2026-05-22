@@ -1,0 +1,58 @@
+{
+  "created_at": "2026-05-22T06:44:43.561726+00:00",
+  "experiment_id": "srexp_b935eaf2364ff23a",
+  "experiment_type": "optimization",
+  "in_sample_end": null,
+  "in_sample_start": null,
+  "market_regime_scope_json": {},
+  "optimization_method": "bayesian",
+  "out_of_sample_end": null,
+  "out_of_sample_start": null,
+  "request_json": {
+    "base_config": {
+      "benchmark": "SPY",
+      "end_date": null,
+      "evidence_class": "repo_local_deterministic",
+      "evidence_notes": [
+        "UI request from Auto Trading Workbench",
+        "repo-local deterministic evidence"
+      ],
+      "exit_config": {},
+      "filter_config": {},
+      "parameters": {
+        "lookback": 63,
+        "rebalance_every": 21,
+        "slippage_bps": 2,
+        "top_n": 2,
+        "transaction_cost_bps": 5
+      },
+      "position_sizing_config": {},
+      "risk_config": {},
+      "start_date": null,
+      "strategy_id": "risk_adjusted_momentum_v1",
+      "template": "risk_adjusted_momentum",
+      "tickers": [
+        "SPY",
+        "QQQ",
+        "TLT"
+      ],
+      "timeframe": "1d",
+      "version_id": null
+    },
+    "max_trials": 5,
+    "method": "bayesian",
+    "notes": "",
+    "objective_config": {},
+    "objective_name": "robust_composite",
+    "random_seed": 42,
+    "search_space": {},
+    "version_id": null
+  },
+  "source_backtest_id": "",
+  "status": "succeeded",
+  "strategy_id": "risk_adjusted_momentum_v1",
+  "test_period_end": null,
+  "test_period_start": null,
+  "updated_at": "2026-05-22T06:44:45.809175+00:00",
+  "version_id": "risk_adjusted_momentum_v1_base"
+}

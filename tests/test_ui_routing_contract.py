@@ -18,6 +18,7 @@ FORECAST_UI_JS = Path(__file__).resolve().parents[1] / "app" / "web" / "modules"
 QUANT_UI_JS = Path(__file__).resolve().parents[1] / "app" / "web" / "modules" / "quant-ui.js"
 QUANTAMENTAL_UI_JS = Path(__file__).resolve().parents[1] / "app" / "web" / "modules" / "quantamental-ui.js"
 AI_PORTFOLIO_UI_SMOKE = Path(__file__).resolve().parents[1] / "scripts" / "ai_portfolio_ui_smoke.py"
+RUN_WEB_PS1 = Path(__file__).resolve().parents[1] / "scripts" / "run_web.ps1"
 
 
 class UiRoutingContractTests(unittest.TestCase):
@@ -87,6 +88,22 @@ class UiRoutingContractTests(unittest.TestCase):
         for bad in ["鍮", "怨", "諛", "吏", "由", "遺", "媛", "쨌", "濡"]:
             self.assertNotIn(bad, html)
 
+    def test_run_web_enables_data_mart_auto_refresh_by_default(self):
+        launcher = RUN_WEB_PS1.read_text(encoding="utf-8")
+        self.assertIn("DATA_MART_AUTO_REFRESH_ENABLED", launcher)
+        self.assertIn("DATA_MART_AUTO_REFRESH_PRICES_ENABLED", launcher)
+        self.assertIn("DATA_MART_AUTO_REFRESH_SEC_ENABLED", launcher)
+        self.assertIn("DATA_MART_AUTO_REFRESH_MACRO_ENABLED", launcher)
+        self.assertIn("DATA_MART_AUTO_REFRESH_QUALITY_CHECKS_ENABLED", launcher)
+        self.assertIn("DATA_MART_AUTO_REFRESH_PRICE_MARKETS", launcher)
+        self.assertIn('$env:DATA_MART_AUTO_REFRESH_ENABLED = "true"', launcher)
+        self.assertIn('$env:DATA_MART_AUTO_REFRESH_PRICES_ENABLED = "true"', launcher)
+        self.assertIn('$env:DATA_MART_AUTO_REFRESH_SEC_ENABLED = "true"', launcher)
+        self.assertIn('$env:DATA_MART_AUTO_REFRESH_MACRO_ENABLED = "true"', launcher)
+        self.assertIn('$env:DATA_MART_AUTO_REFRESH_QUALITY_CHECKS_ENABLED = "true"', launcher)
+        self.assertIn('$env:DATA_MART_AUTO_REFRESH_PRICE_MARKETS = "us,kr"', launcher)
+        self.assertIn('$env:DATA_MART_AUTO_REFRESH_INTERVAL_HOURS = "24"', launcher)
+
     def test_progress_stage_helpers_are_null_safe(self):
         self.assertIn("function progressNode(stage)", self.source)
         self.assertIn("if (!node) return", self.source)
@@ -132,8 +149,8 @@ class UiRoutingContractTests(unittest.TestCase):
         self.assertIn('src="modules/quant-ui.js?v=20260521-market-signals-v1"', html)
         self.assertIn('src="modules/ai-portfolio-ui.js?v=20260520-ai-portfolio-ops-v1"', html)
         self.assertIn('src="modules/quantamental-ui.js?v=20260521-quantamental-decision-v23"', html)
-        self.assertIn('href="styles.css?v=20260521-risk-forecast-v35"', html)
-        self.assertIn('src="app.js?v=20260521-risk-forecast-v37"', html)
+        self.assertIn('href="styles.css?v=20260522-risk-visual-v6"', html)
+        self.assertIn('src="app.js?v=20260522-risk-visual-v6"', html)
         self.assertIn('id="dashboardContextStrip"', html)
         self.assertIn("dashboardDecisionCards", self.source)
         self.assertIn("function loadDashboardDecisionCards", self.source)
@@ -157,7 +174,7 @@ class UiRoutingContractTests(unittest.TestCase):
         self.assertIn('DOMAIN_BUNDLE_VERSION = "20260521-market-signals-v1"', smoke_source)
         self.assertIn('AI_PORTFOLIO_BUNDLE_VERSION = "20260520-ai-portfolio-ops-v1"', smoke_source)
         self.assertIn('QUANTAMENTAL_BUNDLE_VERSION = "20260521-quantamental-decision-v23"', smoke_source)
-        self.assertIn('APP_BUNDLE_VERSION = "20260521-risk-forecast-v35"', smoke_source)
+        self.assertIn('APP_BUNDLE_VERSION = "20260522-risk-visual-v6"', smoke_source)
         self.assertIn("def _normalize_base_url", smoke_source)
         self.assertIn("modules/quantamental-ui.js", smoke_source)
         self.assertIn("FinGPTQuantamentalUi?.topSignals", smoke_source)
@@ -489,6 +506,8 @@ class UiRoutingContractTests(unittest.TestCase):
             'id="portfolioBenchmarkOpen"',
             'id="forecastTickerOpen"',
             'id="forecastBenchmarkOpen"',
+            'id="forecastUniverseOpen"',
+            'id="forecastUniverseChips"',
             'id="quantamentalTickerOpen"',
             'id="aiPortfolioCustomUniverseOpen"',
             'id="aiPortfolioCustomUniverseChips"',
@@ -505,9 +524,11 @@ class UiRoutingContractTests(unittest.TestCase):
             'openSymbolPicker("backtestBenchmark")',
             'openSymbolPicker("portfolio")',
             'openSymbolPicker("forecastTicker")',
+            'openSymbolPicker("forecastUniverse")',
             'openSymbolPicker("quantamentalTicker")',
             'openSymbolPicker("aiPortfolioCustomUniverse")',
             'renderSymbolTargetChips("portfolio")',
+            'renderSymbolTargetChips("forecastUniverse")',
             'renderSymbolTargetChips("aiPortfolioCustomUniverse")',
         ]:
             self.assertIn(marker, self.source)
@@ -539,11 +560,14 @@ class UiRoutingContractTests(unittest.TestCase):
         html = INDEX_HTML.read_text(encoding="utf-8")
         self.assertIn('id="homeDashboardTabs"', html)
         self.assertIn('data-dashboard-tab="quant"', html)
+        self.assertIn('data-dashboard-tab="auto-trading"', html)
+        self.assertIn('data-testid="auto-trading-tab"', html)
         self.assertIn('data-dashboard-tab="ai-portfolio"', html)
         self.assertIn('data-dashboard-tab="macro"', html)
         self.assertIn("function dashboardTabFromLocation", self.source)
         self.assertIn("hashchange", self.source)
         self.assertIn('"#macro"', self.source)
+        self.assertIn('"#auto-trading"', self.source)
         self.assertIn('"#quant-lab"', self.source)
         self.assertIn('"#ai-portfolio"', self.source)
         self.assertIn("setDashboardTab(nextTab", self.source)
@@ -558,7 +582,6 @@ class UiRoutingContractTests(unittest.TestCase):
         for marker in [
             "initializeTradingViewDashboard(false);",
             "loadDashboardEquityHeatmap(false);",
-            "loadDashboardMarket(false);",
             "loadDataHealth(false);",
             "loadDashboardNews(false);",
         ]:
@@ -571,7 +594,7 @@ class UiRoutingContractTests(unittest.TestCase):
         market_body = market_match.group("body")
         self.assertIn("initializeTradingViewDashboard(force)", market_body)
         self.assertIn("loadDashboardEquityHeatmap(force)", market_body)
-        self.assertIn("loadDashboardMarket(force)", market_body)
+        self.assertNotIn("loadDashboardMarket(force)", market_body)
         self.assertIn("loadDashboardNews(force)", market_body)
 
     def test_tradingview_chart_controls_are_real_and_persistent(self):
@@ -614,6 +637,8 @@ class UiRoutingContractTests(unittest.TestCase):
             'id="macroOverviewSurface"',
             'id="macroCoverageSurface"',
             'id="macroProviderHealthSurface"',
+            'id="qualityMacroData"',
+            'class="quality-diagnostic-grid"',
             'id="macroProviderFilter"',
             'id="macroCategoryFilter"',
             'id="macroCompareSurface"',
@@ -651,7 +676,6 @@ class UiRoutingContractTests(unittest.TestCase):
             '<section class="home-card market-signals-card market-surface" data-panel-tier="primary">',
             '<section class="home-card home-chart-card market-surface" data-panel-tier="primary">',
             '<section class="home-card home-heatmap-card market-surface" data-panel-tier="primary">',
-            '<section class="home-card home-market-panel market-surface" data-panel-tier="details">',
             '<section class="home-card home-news-card market-surface" data-panel-tier="details">',
             'id="globalQualitySummary"',
             'id="macroRangeControls"',
@@ -670,9 +694,15 @@ class UiRoutingContractTests(unittest.TestCase):
             'id="qualityArtifactPaths"',
             'class="quality-detail-list quality-eval-detail"',
             'id="qualityDataHealth"',
+            'id="dataAutoRefreshRun"',
+            'id="dataAutoRefreshStatus"',
             'id="qualityQuantamentalData"',
             'id="qualityForecastData"',
             'id="qualityAiPortfolioData"',
+            'id="qualityOpsQuant"',
+            'id="qualityOpsForecast"',
+            'id="qualityOpsQuantamental"',
+            'id="qualityOpsAiPortfolio"',
             'data-quality-detail="source"',
             'data-quality-detail="cache"',
             'data-quality-detail="range-support"',
@@ -692,6 +722,9 @@ class UiRoutingContractTests(unittest.TestCase):
         self.assertIn(".quality-detail-block", css)
         self.assertIn(".quality-artifact-paths", css)
         self.assertIn(".quality-eval-detail", css)
+        self.assertIn(".quality-refresh-command", css)
+        self.assertIn(".quality-ops-grid", css)
+        self.assertIn(".quality-ops-stack", css)
         self.assertIn(".dashboard-range-controls", css)
         self.assertIn(".dashboard-range-controls--macro-search", css)
         self.assertIn(".empty-state > .dashboard-range-controls:not(.dashboard-range-controls--macro-search)", css)
@@ -714,12 +747,37 @@ class UiRoutingContractTests(unittest.TestCase):
         self.assertNotIn('id="dashboardRangeControls"', html)
         self.assertIn("Macro Explorer 검색과 매크로 차트에만 적용됩니다", self.source)
         self.assertNotIn("els.crossAssetHorizon", self.source[self.source.index("function applyGlobalRangeToControls") : self.source.index("function updateGlobalRangeUrl")])
-        self.assertIn('.dashboard-surface-grid[data-dashboard-tab="market"][data-panel-view="details"] .home-market-panel', css)
+        self.assertGreater(html.index('id="macroDataQualitySurface"'), html.index('id="qualityMacroData"'))
+        self.assertGreater(html.index('id="macroCoverageSurface"'), html.index('id="qualityMacroData"'))
+        self.assertGreater(html.index('id="macroProviderHealthSurface"'), html.index('id="qualityMacroData"'))
+        self.assertLess(html.index('id="macroDataQualitySurface"'), html.index('id="macroCoverageSurface"'))
+        self.assertLess(html.index('id="macroCoverageSurface"'), html.index('id="macroProviderHealthSurface"'))
+        self.assertIn('id="macroDataQualitySurface" class="decision-surface compact-surface quality-diagnostic-surface"', html)
+        self.assertNotIn("macro-coverage-card", html)
+        self.assertNotIn("macro-provider-card", html)
+        self.assertNotIn("macro-quality-card", html)
+        self.assertNotIn(".macro-coverage-card", css)
+        self.assertNotIn(".macro-provider-card", css)
+        self.assertNotIn(".macro-quality-card", css)
+        self.assertNotIn("home-market-panel", html)
+        self.assertNotIn("home-market-panel", css)
+        self.assertNotIn('id="homeMarketList"', html)
         self.assertIn("DEFAULT_DASHBOARD_PANEL_VIEWS", self.source)
         self.assertIn("function renderLocalQualitySections", self.source)
         self.assertIn("function renderQualityArtifactPaths", self.source)
         self.assertIn("function qualityDetailBlock", self.source)
         self.assertIn("function qualityDetailTable", self.source)
+        self.assertIn("const QUALITY_PORTAL_CARDS", self.source)
+        self.assertIn("function moveOperationalQualityCardsToQualityPanel", self.source)
+        self.assertNotIn('["quantRunHistorySurface", "qualityOpsQuant"]', self.source)
+        self.assertIn("function loadQuantModelProfiles", self.source)
+        self.assertIn('["forecastJobsSurface", "qualityOpsForecast"]', self.source)
+        self.assertIn('["quantamentalDataQualitySurface", "qualityOpsQuantamental"]', self.source)
+        self.assertIn('["aiPortfolioOperationsSurface", "qualityOpsAiPortfolio"]', self.source)
+        self.assertIn('dataAutoRefreshStatus: "/api/v1/data/auto-refresh/status"', self.source)
+        self.assertIn('dataAutoRefreshRun: "/api/v1/data/auto-refresh/run"', self.source)
+        self.assertIn("function renderDataAutoRefreshStatus", self.source)
+        self.assertIn("async function refreshAllDataNow", self.source)
         self.assertIn("상세 경로와 raw 진단은 접힘 영역에 보관합니다.", self.source)
         self.assertNotIn("parts.push(`results:", self.source)
         self.assertIn("const QUALITY_DASHBOARD_TIMEOUT_MS = 45000", self.source)
@@ -843,6 +901,11 @@ class UiRoutingContractTests(unittest.TestCase):
             'data-testid="quant-strategy-dry-run"',
             'data-testid="quant-strategy-save"',
             'data-testid="quant-strategy-delete"',
+            'data-testid="strategy-research-lab"',
+            'data-testid="strategy-research-optimize"',
+            'data-testid="strategy-research-diagnose"',
+            'data-testid="strategy-research-hypotheses"',
+            'data-testid="strategy-research-validate"',
             'data-testid="quant-backtest-run"',
             'data-testid="quant-export-storage-report"',
             'data-testid="quant-cross-run-cleanup-preview"',
@@ -858,6 +921,9 @@ class UiRoutingContractTests(unittest.TestCase):
             "function renderBacktestSignalMatrixPanel",
             "function renderBacktestEngineeringPanel",
             "function renderBacktestReturnHeatmap",
+            "function loadStrategyResearchLab",
+            "async function runStrategyResearchOptimize",
+            "async function runStrategyResearchValidation",
             "function renderPortfolioEngineeringPanel",
             "function renderPortfolioAllocationMap",
             "function renderPortfolioStressPanel",
@@ -874,7 +940,8 @@ class UiRoutingContractTests(unittest.TestCase):
             "portfolio-risk-budget-row",
             "correlation-heatmap",
         ]:
-            self.assertIn(marker, self.source if marker.startswith("function") or marker == "비교 0/2" else STYLES_CSS.read_text(encoding="utf-8"))
+            source = self.source if marker.startswith(("function", "async function")) or marker == "비교 0/2" else STYLES_CSS.read_text(encoding="utf-8")
+            self.assertIn(marker, source)
         self.assertIn('title="내보내기 저장소 리포트">리포트</button>', html)
         self.assertIn('title="실행 간 내보내기 정리 미리보기">정리</button>', html)
         self.assertIn('title="실행 이력 새로고침">갱신</button>', html)
@@ -934,16 +1001,56 @@ class UiRoutingContractTests(unittest.TestCase):
     def test_quant_lab_visual_flow_keeps_history_after_portfolio(self):
         css = STYLES_CSS.read_text(encoding="utf-8")
         expected_orders = {
-            "feature-card": "1",
-            "signal-card": "2",
-            "backtest-card": "3",
-            "portfolio-card": "4",
-            "quant-run-history-card": "5",
-            "asset-detail-card": "6",
-            "strategy-governance-card": "7",
+            "backtest-card": "1",
+            "portfolio-card": "2",
+            "model-profile-card": "3",
+            "quant-rank-card": "4",
+            "forecast-universe-card": "5",
+            "feature-card": "6",
+            "signal-card": "7",
+            "quant-run-history-card": "8",
+            "asset-detail-card": "9",
+            "forecast-viz-card": "14",
         }
         for class_name, order in expected_orders.items():
             pattern = rf'\.dashboard-surface-grid\[data-dashboard-tab="quant"\] \.{class_name} \{{(?P<body>.*?)\}}'
+            matches = list(re.finditer(pattern, css, re.S))
+            self.assertTrue(matches, class_name)
+            self.assertIn(f"order: {order};", matches[-1].group("body"))
+
+    def test_auto_trading_tab_owns_strategy_operation_surfaces(self):
+        html = INDEX_HTML.read_text(encoding="utf-8")
+        css = STYLES_CSS.read_text(encoding="utf-8")
+        self.assertIn('id="autoTradingTab"', html)
+        self.assertIn('data-testid="auto-trading-tab"', html)
+        self.assertIn('data-testid="auto-trading-workbench"', html)
+        self.assertIn('id="autoTradingTicker"', html)
+        self.assertIn('id="autoTradingStrategySelect"', html)
+        self.assertIn('id="autoTradingSignalLookback"', html)
+        self.assertIn('id="autoTradingCode"', html)
+        self.assertIn('data-testid="auto-trading-backtest"', html)
+        self.assertIn('data-testid="auto-trading-optimize"', html)
+        self.assertIn('data-testid="auto-trading-chart-surface"', html)
+        self.assertIn('data-testid="auto-trading-control-plane"', html)
+        self.assertIn('class="home-card strategy-governance-card auto-trading-surface"', html)
+        self.assertIn('class="home-card strategy-research-card auto-trading-surface"', html)
+        self.assertNotIn('class="home-card strategy-governance-card quant-surface"', html)
+        self.assertNotIn('class="home-card strategy-research-card quant-surface"', html)
+        self.assertIn('state.activeDashboardTab === "auto-trading"', self.source)
+        self.assertIn('async function runAutoTradingBacktest', self.source)
+        self.assertIn('function renderAutoTradingSignalChart', self.source)
+        self.assertIn('async function runAutoTradingOptimize', self.source)
+        self.assertIn('loadStrategyResearchLab(false)', self.source)
+        self.assertIn('[data-dashboard-tab="auto-trading"]', css)
+        self.assertIn('.auto-trading-signal-marker.entry', css)
+        self.assertIn('.auto-trading-signal-marker.exit', css)
+        for class_name, order in {
+            "auto-trading-workbench-card": "1",
+            "auto-trading-control-card": "2",
+            "strategy-governance-card": "3",
+            "strategy-research-card": "4",
+        }.items():
+            pattern = rf'\.dashboard-surface-grid\[data-dashboard-tab="auto-trading"\] \.{class_name} \{{(?P<body>.*?)\}}'
             matches = list(re.finditer(pattern, css, re.S))
             self.assertTrue(matches, class_name)
             self.assertIn(f"order: {order};", matches[-1].group("body"))
@@ -1002,11 +1109,79 @@ class UiRoutingContractTests(unittest.TestCase):
             else:
                 assert_class_order("quantamental", selector, order)
 
-        assert_class_order("forecast", "forecast-history-card", "13")
-        assert_class_order("forecast", "forecast-jobs-card", "14")
+        assert_class_order("forecast", "forecast-universe-card", "6")
+        assert_class_order("forecast", "forecast-viz-card", "7")
+        assert_class_order("forecast", "forecast-history-card", "14")
+        assert_class_order("forecast", "forecast-jobs-card", "15")
         html = INDEX_HTML.read_text(encoding="utf-8")
-        self.assertIn('<section class="home-card forecast-card forecast-surface forecast-signal-card" data-panel-tier="primary">', html)
-        self.assertIn('<section class="home-card forecast-card forecast-viz-card forecast-surface" data-panel-tier="primary">', html)
+        self.assertIn('<section class="home-card forecast-card forecast-surface model-lab-surface quant-surface forecast-signal-card" data-panel-tier="primary">', html)
+        self.assertIn('<section class="home-card forecast-card forecast-viz-card forecast-surface model-lab-surface quant-surface" data-panel-tier="primary">', html)
+        self.assertIn('<section class="home-card forecast-card forecast-universe-card forecast-surface model-lab-surface quant-surface" data-panel-tier="primary">', html)
+        self.assertIn("축 설명과 해석이 포함된 예측 품질", html)
+        for marker in [
+            "function renderForecastVizSection",
+            "function renderForecastChartCard",
+            "function forecastChartMeta",
+            "Actual vs Predicted",
+            "X축은 모델이 예측한 forward return",
+            "Y축은 이후 실제로 발생한 OOS forward return",
+        ]:
+            self.assertIn(marker, self.source)
+        for marker in [
+            ".forecast-viz-overview",
+            ".forecast-chart-section",
+            ".forecast-axis-note",
+            ".forecast-chart-interpretation",
+            ".forecast-axis-title",
+        ]:
+            self.assertIn(marker, css)
+
+    def test_ml_forecast_universe_lab_contract(self):
+        html = INDEX_HTML.read_text(encoding="utf-8")
+        css = STYLES_CSS.read_text(encoding="utf-8")
+        for marker in [
+            'id="forecastUniversePreset"',
+            'id="forecastUniverseTickers"',
+            'id="forecastUniverseOpen"',
+            'id="forecastUniverseChips"',
+            'id="forecastUniverseMaxAssets"',
+            'id="forecastUniverseRankMetric"',
+            'id="forecastRunUniverse"',
+            'data-testid="ml-forecast-universe-run"',
+            'id="forecastUniverseStatus"',
+            'id="forecastUniverseSurface"',
+            'id="quantModelProfileDryRun"',
+            'data-testid="quant-model-lab-run"',
+            'id="quantRankSurface"',
+            '<option value="cross_sectional_rank">패널 랭킹 Forecast</option>',
+        ]:
+            self.assertIn(marker, html)
+        for marker in [
+            "quantModelProfileDryRun: \"/api/v1/quant/model-profile/dry-run\"",
+            "quantModelLabRun: \"/api/v1/quant/model-lab/run\"",
+            "function quantModelProfileFromControls",
+            "async function runQuantModelLab",
+            "forecastUniverseRun: \"/api/v1/forecast/universe/run\"",
+            "function forecastUniverseRequestFromControls",
+            "function renderForecastUniverseResult",
+            "function renderQuantCrossSectionalRank",
+            "quant_model_lab_cross_sectional_rank_v1",
+            "async function runForecastUniverse",
+            "lastForecastUniversePayload: null",
+            'target?.dataset?.action === "forecast-universe-detail"',
+        ]:
+            self.assertIn(marker, self.source)
+        for marker in [
+            ".forecast-universe-controls",
+            ".forecast-universe-summary",
+            ".forecast-universe-readout",
+            ".forecast-universe-table",
+            ".forecast-universe-rank",
+            ".quant-rank-card",
+            ".quant-rank-surface",
+            ".quant-rank-visual",
+        ]:
+            self.assertIn(marker, css)
 
     def test_quantamental_static_ui_contract(self):
         html = INDEX_HTML.read_text(encoding="utf-8")

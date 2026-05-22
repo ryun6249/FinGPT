@@ -1,6 +1,6 @@
 # ML Forecast Implementation Checklist
 
-Updated: 2026-05-09
+Updated: 2026-05-22
 Source of truth for the ML Forecast implementation in `F:\LLM\FinGPT`.
 
 ## 1. Repository Inspection
@@ -43,6 +43,7 @@ Source of truth for the ML Forecast implementation in `F:\LLM\FinGPT`.
 - AI interpretation design: Korean deterministic fallback plus prompt template guardrails; optional Ollama-backed generation is guarded by numeric-grounding, decimal/percent equivalence, and advisory-only validators. Provider health and a live guarded provider call are verified; unsafe provider output still falls back.
 - Macro tab connection: Historical FRED macro observations are hydrated into the data mart and exposed as shifted macro features; macro alignment/regime conflict is now passed into the signal context as a warning-only filter.
 - AI Portfolio connection: Advisory-only portfolio signal endpoint exists; no auto rebalance.
+- Universe forecast design: `ForecastUniverseRunRequest` resolves preset or custom universes, reuses the existing `ForecastRunRequest`/`predict()` path per asset, caps the synchronous run, preserves per-asset failures, and ranks advisory-only candidates by confidence, expected return, probability, signal score, or risk-adjusted score.
 - live data fallback policy: No fake values. Return unavailable/insufficient/failed with warnings and errors.
 - future extension points: richer cross-asset regime modeling, purged combinatorial CV, queue-based long-running training, registry audit UI, and team-grade artifact key management.
 
@@ -60,6 +61,7 @@ Source of truth for the ML Forecast implementation in `F:\LLM\FinGPT`.
 - Phase 11: tests, validation, smoke checks, documentation - Status: DONE
 - Priority continuation 2026-05-09: data snapshot governance, registry audit UI, and purged combinatorial CV diagnostics - Status: DONE
 - Priority continuation 2026-05-11: async forecast jobs and experiment detail drawer - Status: DONE
+- Priority continuation 2026-05-22: universe ML Forecast Lab, batch ranking, and UI placement - Status: DONE
 
 ## 4. Detailed Task Format
 
@@ -222,6 +224,40 @@ Source of truth for the ML Forecast implementation in `F:\LLM\FinGPT`.
   - Live API smoke on fresh `http://127.0.0.1:8142` submitted `fj_e7a7d32eacbf46a6ae3d`; it completed `succeeded` with experiment `exp_e0b38904da258988cf7d`.
   - Browser smoke on `http://127.0.0.1:8142/ui/#ml-forecast` verified `Queue Job`, `Forecast Jobs`, job result link, experiment detail drawer with `Data Snapshot`, `Feature / Target / Validation`, `Registry Audit`, and zero console errors.
 
+### [MF-008] Universe ML Forecast Lab
+- Status: DONE
+- Target Files:
+  - `core/schemas/forecast.py`
+  - `pipelines/forecast/service.py`
+  - `app/api/routers/forecast.py`
+  - `app/web/index.html`
+  - `app/web/app.js`
+  - `app/web/styles.css`
+  - `scripts/check_ui_contract.py`
+  - `scripts/ai_portfolio_ui_smoke.py`
+  - `tests/test_forecast_lab.py`
+  - `tests/test_ui_routing_contract.py`
+- Expected Behavior:
+  - ML Forecast supports both single-ticker deep analysis and a universe-level lab that applies the same model, target, validation, leakage, and advisory-only rules across a bounded custom or preset universe.
+  - Results preserve failed/unavailable assets, expose data quality and leakage status per ticker, rank successful assets, and allow experiment detail drill-down for generated runs.
+- Implementation Notes:
+  - Added `POST /api/v1/forecast/universe/run`.
+  - Presets reuse the shared AI Portfolio universe resolver; custom symbols reuse the shared symbol picker.
+  - Synchronous UI default is capped to 6 assets and backend cap is 25 assets to avoid hiding long-running work in the request path.
+- Leakage / Bias Check:
+  - Each asset reuses the existing `ForecastRunRequest` path, keeping `feature_shift=1`, walk-forward validation, purge/embargo, and 1-bar delay unchanged.
+- Visualization Notes:
+  - The new card is placed after `Forecast Result` and before the full `Visualization Dashboard`, so universe ranking acts as a candidate-selection layer without displacing single-asset diagnostics.
+- Verification Method:
+  - compile, JS syntax, UI contract, targeted unit/API tests, browser smoke.
+- Verification Command:
+  - `python -m py_compile core\schemas\forecast.py pipelines\forecast\service.py app\api\routers\forecast.py`
+  - `node --check app\web\app.js`
+  - `python scripts\check_ui_contract.py --output reports\ui_contract_forecast_universe.json`
+  - `python -m pytest tests\test_forecast_lab.py tests\test_ui_routing_contract.py -q`
+- Result Notes:
+  - DONE. Final command results are recorded in the current verification section below.
+
 ## 5. Backend Checklist
 - forecast module/package creation: DONE
 - schemas/types creation: DONE
@@ -239,6 +275,7 @@ Source of truth for the ML Forecast implementation in `F:\LLM\FinGPT`.
 - signed reproducible model artifact packaging: DONE
 - trainer: DONE
 - predictor: DONE
+- universe forecast resolver/API: DONE
 - evaluator: DONE
 - forecast signal generator: DONE
 - signal quality evaluator: DONE
@@ -268,6 +305,7 @@ Source of truth for the ML Forecast implementation in `F:\LLM\FinGPT`.
 - Target Builder: DONE
 - Model Trainer panel: DONE
 - Forecast Result panel: DONE
+- Forecast Universe Lab panel: DONE
 - Signal Generator panel: DONE
 - Signal Quality panel: DONE
 - Backtest Result panel: DONE
@@ -407,6 +445,7 @@ Source of truth for the ML Forecast implementation in `F:\LLM\FinGPT`.
 - backtest result displays: DONE
 - transaction cost setting/default exists: DONE
 - key visualization charts exist: DONE
+- universe ML ranking exists: DONE
 - AI interpretation uses structured ML output only: DONE
 - experiment history is saved: DONE
 - data snapshot artifact is saved: DONE
@@ -421,8 +460,8 @@ Source of truth for the ML Forecast implementation in `F:\LLM\FinGPT`.
 |---|---:|---:|---:|---:|---|
 | Repository Inspection | 1 | 0 | 0 | 0 | Repo surfaces recorded. |
 | Architecture | 20 | 0 | 0 | 0 | Provider health, live guarded provider call, optional model boundaries, and signed artifact integrity are implemented. |
-| Backend | 34 | 0 | 0 | 0 | Scikit-learn MVP models, XGBoost/LightGBM, optional PyTorch sequence models, signed artifacts, permutation importance, and Shapley fallback are done. |
-| Frontend | 26 | 0 | 0 | 0 | Browser smoke verified, including provider health, drift/model comparison, and registry promote/deprecate actions. |
+| Backend | 35 | 0 | 0 | 0 | Scikit-learn MVP models, XGBoost/LightGBM, optional PyTorch sequence models, signed artifacts, universe forecast ranking, permutation importance, and Shapley fallback are done. |
+| Frontend | 27 | 0 | 0 | 0 | Browser smoke verified, including provider health, drift/model comparison, registry actions, visualization, and universe ranking surface. |
 | Data Loader | 5 | 0 | 0 | 0 | Data mart plus yfinance/FRED hydrate API; no fake prices. |
 | Feature Engineering | 8 | 0 | 0 | 0 | Macro features use historical FRED observations with timestamp alignment. |
 | Target Builder | 6 | 0 | 0 | 0 | Forward, direction, volatility, excess, quantile, triple barrier. |
@@ -436,10 +475,18 @@ Source of truth for the ML Forecast implementation in `F:\LLM\FinGPT`.
 | Experiment History | 2 | 0 | 0 | 0 | Runtime artifacts and local signing key are git-ignored. |
 | Model Registry | 4 | 0 | 0 | 0 | Promote/deprecate endpoints and UI actions verified. |
 | Integrations | 5 | 0 | 0 | 0 | Macro context, advisory portfolio signal, and research context endpoints exist. |
-| Tests | 24 | 0 | 0 | 0 | Targeted tests after continuation passed; full suite result is refreshed below. |
-| Acceptance Criteria | 26 | 0 | 0 | 0 | Core and optional-runtime acceptance items are done; remaining roadmap items are enhancement work, not open implementation gaps. |
+| Tests | 25 | 0 | 0 | 0 | Targeted tests after continuation passed; full suite result is refreshed below. |
+| Acceptance Criteria | 27 | 0 | 0 | 0 | Core, optional-runtime, and universe forecast acceptance items are done; remaining roadmap items are enhancement work, not open implementation gaps. |
 
 ### Commands Executed
+- 2026-05-22 universe continuation: `python -m py_compile core\schemas\forecast.py pipelines\forecast\service.py app\api\routers\forecast.py`
+- 2026-05-22 universe continuation: `node --check app\web\app.js`
+- 2026-05-22 universe continuation: `python scripts\check_ui_contract.py --output reports\ui_contract_forecast_universe.json`
+- 2026-05-22 universe continuation: `python -m pytest tests\test_forecast_lab.py tests\test_ui_routing_contract.py -q`
+- 2026-05-22 universe continuation: restarted `http://127.0.0.1:8000` with `scripts\run_web.ps1`; `/api/v1/health` and `/ui/` returned 200.
+- 2026-05-22 universe continuation: live API smoke `POST /api/v1/forecast/universe/run` with custom `MSFT`, `historical_mean`, `max_assets=1`.
+- 2026-05-22 universe continuation: Playwright browser smoke on `http://127.0.0.1:8000/ui/?v=20260522-forecast-universe-v1#ml-forecast`, executed `Run Universe ML`, and saved `reports\forecast_universe_smoke.png`.
+- 2026-05-22 universe continuation: `python scripts\ai_portfolio_ui_smoke.py --base-url http://127.0.0.1:8000 --timeout-s 180 --output reports\ai_portfolio_ui_smoke_forecast_universe.json`
 - `python -m compileall core\schemas\forecast.py pipelines\forecast app\api\routers\forecast.py pipelines\data_mart\storage\repository.py`
 - `python -m compileall app core pipelines scripts`
 - `node --check app\web\app.js`
@@ -480,6 +527,13 @@ Source of truth for the ML Forecast implementation in `F:\LLM\FinGPT`.
 - Browser smoke: `http://127.0.0.1:8126/ui/?fresh=20260508current#ml-forecast`
 
 ### Test Results
+- 2026-05-22 universe continuation: py_compile passed for forecast schema, service, and router.
+- 2026-05-22 universe continuation: `node --check app\web\app.js` passed.
+- 2026-05-22 universe continuation: UI contract passed with `missing_markers: []`; output saved to `reports\ui_contract_forecast_universe.json`.
+- 2026-05-22 universe continuation: targeted pytest passed, `78 passed, 4 subtests passed`.
+- 2026-05-22 universe continuation: live API smoke returned `status=success`, `count=1`, selected `MSFT`, first item `MSFT/success`.
+- 2026-05-22 universe continuation: Playwright UI smoke found the Forecast Universe Lab, rendered `MSFT` ranking table, and reported zero console errors.
+- 2026-05-22 universe continuation: cross-dashboard smoke passed with zero console errors; output saved to `reports\ai_portfolio_ui_smoke_forecast_universe.json`.
 - compileall: passed.
 - `node --check app\web\app.js`: passed.
 - `python -m ruff check pipelines\forecast app\api\routers\forecast.py core\schemas\forecast.py tests\test_forecast_lab.py`: passed.

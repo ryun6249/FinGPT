@@ -29,6 +29,7 @@ numpy>=2.1.0,<3.0.0; python_version >= "3.13"
 numpy>=1.26.0,<2.0.0; python_version < "3.13"
 pandas
 scikit-learn>=1.4.0,<2.0.0
+optuna>=4.6.0,<5.0.0
 
 # Legacy overrides
 setuptools>=41.4.0

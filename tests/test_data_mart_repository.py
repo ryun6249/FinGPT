@@ -164,6 +164,7 @@ def test_sec_company_registry_and_facts_are_queryable(tmp_path) -> None:
         db_path=db_path,
     )
     availability = repository.sec_data_availability(["AAPL", "MSFT"], db_path=db_path)
+    registry_rows = repository.get_sec_company_registry(["AAPL", "MSFT"], db_path=db_path)
     filings = repository.latest_filings("AAPL", forms=["10-K"], db_path=db_path)
     facts = repository.latest_sec_financial_facts("AAPL", concepts=["RevenueFromContractWithCustomerExcludingAssessedTax"], db_path=db_path)
     health = repository.data_health(db_path=db_path)
@@ -175,6 +176,16 @@ def test_sec_company_registry_and_facts_are_queryable(tmp_path) -> None:
     assert availability["AAPL"]["filing_count"] == 1
     assert availability["AAPL"]["fact_count"] == 1
     assert availability["MSFT"]["status"] == "missing"
+    assert registry_rows == [
+        {
+            "ticker": "AAPL",
+            "cik": "0000320193",
+            "company_name": "Apple Inc.",
+            "exchange": "Nasdaq",
+            "source": "sec_company_tickers",
+            "updated_at": registry_rows[0]["updated_at"],
+        }
+    ]
     assert filings[0]["accession_number"] == "0000320193-26-000001"
     assert facts[0]["value"] == 390000000000
     assert health["table_counts"]["sec_company_registry"] == 1

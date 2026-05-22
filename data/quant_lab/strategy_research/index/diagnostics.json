@@ -1,0 +1,2306 @@
+[
+  {
+    "artifacts": {
+      "diagnostics_summary": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_e932d05207cb6afa\\diagnostics-summary.json",
+      "failure_distribution": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_e932d05207cb6afa\\failure-distribution.json"
+    },
+    "cost_impact_analysis": {
+      "configured_slippage_bps": 1.0,
+      "configured_transaction_cost_bps": 2.0,
+      "cost_to_expectancy_ratio": 0.816771,
+      "fee_total": 0.0002,
+      "slippage_total": 0.0001
+    },
+    "created_at": "2026-05-22T04:56:43.257160+00:00",
+    "diagnostics_id": "srdiag_e932d05207cb6afa",
+    "drawdown_analysis_json": {
+      "decision_use": "Use this to reject improvements that increase depth or duration of drawdowns.",
+      "recovery_factor": 1.698379,
+      "underwater_observations_gt_2pct": 808,
+      "worst_drawdown_pct": -30.058623
+    },
+    "experiment_id": "srdiag_exp_e932d05207cb6afa",
+    "failure_distribution_json": [
+      {
+        "count": 24,
+        "decision_use": "Test volatility sizing and drawdown guard before accepting more exposure.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "high",
+        "share_pct": 4.026846,
+        "tag": "Volatility Spike"
+      },
+      {
+        "count": 469,
+        "decision_use": "Test a trend-strength filter, but reject it if trade count collapses.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 78.691275,
+        "tag": "Choppy Market Loss"
+      },
+      {
+        "count": 1,
+        "decision_use": "Do not accept added filters until sample size improves.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.167785,
+        "tag": "Low Trade Count Risk"
+      },
+      {
+        "count": 1,
+        "decision_use": "Use as a validation target, not an automatic strategy change.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.167785,
+        "tag": "Parameter Instability"
+      }
+    ],
+    "parameter_sensitivity_notes": [
+      "lookback=63 and rebalance_every=21 should be checked in a local neighborhood.",
+      "trade_count=3 controls whether the evidence is broad enough for decisions."
+    ],
+    "recommended_experiments_json": [
+      {
+        "condition": "reduce_size_when_high_vol",
+        "indicator": "volatility_percentile",
+        "module": "risk_module",
+        "parameter_range": {
+          "volatility_cap": [
+            0.75,
+            0.85,
+            0.95
+          ]
+        }
+      },
+      {
+        "condition": "trend_strength > threshold",
+        "indicator": "ADX",
+        "module": "optional_filter",
+        "parameter_range": {
+          "threshold": [
+            18,
+            20,
+            22,
+            25
+          ]
+        }
+      },
+      {
+        "condition": "validate_before_accept",
+        "indicator": "evidence_gate",
+        "module": "validation"
+      }
+    ],
+    "regime_analysis_json": {
+      "decision_use": "Check whether losses cluster in weak or high-volatility regimes before adding filters.",
+      "loss_observation_share_pct": 47.151899,
+      "trend_state": "positive",
+      "volatility_state": "normal"
+    },
+    "rejected_experiments_json": [
+      {
+        "module": "optional_filter",
+        "reason": "trade count is already too low"
+      }
+    ],
+    "source_backtest_id": "qlab_20260522T045642998337Z_buy_and_hold_22348928",
+    "status": "succeeded",
+    "strategy_id": "risk_adjusted_momentum_v1",
+    "summary": "Top failure driver is Volatility Spike. This is decision-useful because it links losses to a validation target instead of a generic return summary.",
+    "top_failure_causes": [
+      "Volatility Spike",
+      "Choppy Market Loss",
+      "Low Trade Count Risk"
+    ],
+    "trade_cluster_json": {
+      "actions": {
+        "enter": 3
+      },
+      "decision_use": "High turnover clusters should be checked against fee drag and rebalance cadence.",
+      "return_observations": 1264
+    },
+    "version_id": "risk_adjusted_momentum_v1_base",
+    "warnings": []
+  },
+  {
+    "artifacts": {
+      "diagnostics_summary": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_b59a47c5ad2318c6\\diagnostics-summary.json",
+      "failure_distribution": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_b59a47c5ad2318c6\\failure-distribution.json"
+    },
+    "cost_impact_analysis": {
+      "configured_slippage_bps": 1.0,
+      "configured_transaction_cost_bps": 2.0,
+      "cost_to_expectancy_ratio": 0.816771,
+      "fee_total": 0.0002,
+      "slippage_total": 0.0001
+    },
+    "created_at": "2026-05-22T04:56:44.123849+00:00",
+    "diagnostics_id": "srdiag_b59a47c5ad2318c6",
+    "drawdown_analysis_json": {
+      "decision_use": "Use this to reject improvements that increase depth or duration of drawdowns.",
+      "recovery_factor": 1.698379,
+      "underwater_observations_gt_2pct": 808,
+      "worst_drawdown_pct": -30.058623
+    },
+    "experiment_id": "srdiag_exp_b59a47c5ad2318c6",
+    "failure_distribution_json": [
+      {
+        "count": 24,
+        "decision_use": "Test volatility sizing and drawdown guard before accepting more exposure.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "high",
+        "share_pct": 4.026846,
+        "tag": "Volatility Spike"
+      },
+      {
+        "count": 469,
+        "decision_use": "Test a trend-strength filter, but reject it if trade count collapses.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 78.691275,
+        "tag": "Choppy Market Loss"
+      },
+      {
+        "count": 1,
+        "decision_use": "Do not accept added filters until sample size improves.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.167785,
+        "tag": "Low Trade Count Risk"
+      },
+      {
+        "count": 1,
+        "decision_use": "Use as a validation target, not an automatic strategy change.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.167785,
+        "tag": "Parameter Instability"
+      }
+    ],
+    "parameter_sensitivity_notes": [
+      "lookback=63 and rebalance_every=21 should be checked in a local neighborhood.",
+      "trade_count=3 controls whether the evidence is broad enough for decisions."
+    ],
+    "recommended_experiments_json": [
+      {
+        "condition": "reduce_size_when_high_vol",
+        "indicator": "volatility_percentile",
+        "module": "risk_module",
+        "parameter_range": {
+          "volatility_cap": [
+            0.75,
+            0.85,
+            0.95
+          ]
+        }
+      },
+      {
+        "condition": "trend_strength > threshold",
+        "indicator": "ADX",
+        "module": "optional_filter",
+        "parameter_range": {
+          "threshold": [
+            18,
+            20,
+            22,
+            25
+          ]
+        }
+      },
+      {
+        "condition": "validate_before_accept",
+        "indicator": "evidence_gate",
+        "module": "validation"
+      }
+    ],
+    "regime_analysis_json": {
+      "decision_use": "Check whether losses cluster in weak or high-volatility regimes before adding filters.",
+      "loss_observation_share_pct": 47.151899,
+      "trend_state": "positive",
+      "volatility_state": "normal"
+    },
+    "rejected_experiments_json": [
+      {
+        "module": "optional_filter",
+        "reason": "trade count is already too low"
+      }
+    ],
+    "source_backtest_id": "qlab_20260522T045643885684Z_buy_and_hold_22348928",
+    "status": "succeeded",
+    "strategy_id": "risk_adjusted_momentum_v1",
+    "summary": "Top failure driver is Volatility Spike. This is decision-useful because it links losses to a validation target instead of a generic return summary.",
+    "top_failure_causes": [
+      "Volatility Spike",
+      "Choppy Market Loss",
+      "Low Trade Count Risk"
+    ],
+    "trade_cluster_json": {
+      "actions": {
+        "enter": 3
+      },
+      "decision_use": "High turnover clusters should be checked against fee drag and rebalance cadence.",
+      "return_observations": 1264
+    },
+    "version_id": "risk_adjusted_momentum_v1_base",
+    "warnings": []
+  },
+  {
+    "artifacts": {
+      "diagnostics_summary": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_1311a4b5b4380916\\diagnostics-summary.json",
+      "failure_distribution": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_1311a4b5b4380916\\failure-distribution.json"
+    },
+    "cost_impact_analysis": {
+      "configured_slippage_bps": 1.0,
+      "configured_transaction_cost_bps": 2.0,
+      "cost_to_expectancy_ratio": 0.816771,
+      "fee_total": 0.0002,
+      "slippage_total": 0.0001
+    },
+    "created_at": "2026-05-22T04:57:31.072780+00:00",
+    "diagnostics_id": "srdiag_1311a4b5b4380916",
+    "drawdown_analysis_json": {
+      "decision_use": "Use this to reject improvements that increase depth or duration of drawdowns.",
+      "recovery_factor": 1.698379,
+      "underwater_observations_gt_2pct": 808,
+      "worst_drawdown_pct": -30.058623
+    },
+    "experiment_id": "srdiag_exp_1311a4b5b4380916",
+    "failure_distribution_json": [
+      {
+        "count": 24,
+        "decision_use": "Test volatility sizing and drawdown guard before accepting more exposure.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "high",
+        "share_pct": 4.026846,
+        "tag": "Volatility Spike"
+      },
+      {
+        "count": 469,
+        "decision_use": "Test a trend-strength filter, but reject it if trade count collapses.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 78.691275,
+        "tag": "Choppy Market Loss"
+      },
+      {
+        "count": 1,
+        "decision_use": "Do not accept added filters until sample size improves.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.167785,
+        "tag": "Low Trade Count Risk"
+      },
+      {
+        "count": 1,
+        "decision_use": "Use as a validation target, not an automatic strategy change.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.167785,
+        "tag": "Parameter Instability"
+      }
+    ],
+    "parameter_sensitivity_notes": [
+      "lookback=63 and rebalance_every=21 should be checked in a local neighborhood.",
+      "trade_count=3 controls whether the evidence is broad enough for decisions."
+    ],
+    "recommended_experiments_json": [
+      {
+        "condition": "reduce_size_when_high_vol",
+        "indicator": "volatility_percentile",
+        "module": "risk_module",
+        "parameter_range": {
+          "volatility_cap": [
+            0.75,
+            0.85,
+            0.95
+          ]
+        }
+      },
+      {
+        "condition": "trend_strength > threshold",
+        "indicator": "ADX",
+        "module": "optional_filter",
+        "parameter_range": {
+          "threshold": [
+            18,
+            20,
+            22,
+            25
+          ]
+        }
+      },
+      {
+        "condition": "validate_before_accept",
+        "indicator": "evidence_gate",
+        "module": "validation"
+      }
+    ],
+    "regime_analysis_json": {
+      "decision_use": "Check whether losses cluster in weak or high-volatility regimes before adding filters.",
+      "loss_observation_share_pct": 47.151899,
+      "trend_state": "positive",
+      "volatility_state": "normal"
+    },
+    "rejected_experiments_json": [
+      {
+        "module": "optional_filter",
+        "reason": "trade count is already too low"
+      }
+    ],
+    "source_backtest_id": "qlab_20260522T045730823318Z_buy_and_hold_22348928",
+    "status": "succeeded",
+    "strategy_id": "risk_adjusted_momentum_v1",
+    "summary": "Top failure driver is Volatility Spike. This is decision-useful because it links losses to a validation target instead of a generic return summary.",
+    "top_failure_causes": [
+      "Volatility Spike",
+      "Choppy Market Loss",
+      "Low Trade Count Risk"
+    ],
+    "trade_cluster_json": {
+      "actions": {
+        "enter": 3
+      },
+      "decision_use": "High turnover clusters should be checked against fee drag and rebalance cadence.",
+      "return_observations": 1264
+    },
+    "version_id": "risk_adjusted_momentum_v1_base",
+    "warnings": []
+  },
+  {
+    "artifacts": {
+      "diagnostics_summary": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_1e4b6ddfb6777f12\\diagnostics-summary.json",
+      "failure_distribution": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_1e4b6ddfb6777f12\\failure-distribution.json"
+    },
+    "cost_impact_analysis": {
+      "configured_slippage_bps": 1.0,
+      "configured_transaction_cost_bps": 2.0,
+      "cost_to_expectancy_ratio": 0.816771,
+      "fee_total": 0.0002,
+      "slippage_total": 0.0001
+    },
+    "created_at": "2026-05-22T04:57:31.841336+00:00",
+    "diagnostics_id": "srdiag_1e4b6ddfb6777f12",
+    "drawdown_analysis_json": {
+      "decision_use": "Use this to reject improvements that increase depth or duration of drawdowns.",
+      "recovery_factor": 1.698379,
+      "underwater_observations_gt_2pct": 808,
+      "worst_drawdown_pct": -30.058623
+    },
+    "experiment_id": "srdiag_exp_1e4b6ddfb6777f12",
+    "failure_distribution_json": [
+      {
+        "count": 24,
+        "decision_use": "Test volatility sizing and drawdown guard before accepting more exposure.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "high",
+        "share_pct": 4.026846,
+        "tag": "Volatility Spike"
+      },
+      {
+        "count": 469,
+        "decision_use": "Test a trend-strength filter, but reject it if trade count collapses.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 78.691275,
+        "tag": "Choppy Market Loss"
+      },
+      {
+        "count": 1,
+        "decision_use": "Do not accept added filters until sample size improves.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.167785,
+        "tag": "Low Trade Count Risk"
+      },
+      {
+        "count": 1,
+        "decision_use": "Use as a validation target, not an automatic strategy change.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.167785,
+        "tag": "Parameter Instability"
+      }
+    ],
+    "parameter_sensitivity_notes": [
+      "lookback=63 and rebalance_every=21 should be checked in a local neighborhood.",
+      "trade_count=3 controls whether the evidence is broad enough for decisions."
+    ],
+    "recommended_experiments_json": [
+      {
+        "condition": "reduce_size_when_high_vol",
+        "indicator": "volatility_percentile",
+        "module": "risk_module",
+        "parameter_range": {
+          "volatility_cap": [
+            0.75,
+            0.85,
+            0.95
+          ]
+        }
+      },
+      {
+        "condition": "trend_strength > threshold",
+        "indicator": "ADX",
+        "module": "optional_filter",
+        "parameter_range": {
+          "threshold": [
+            18,
+            20,
+            22,
+            25
+          ]
+        }
+      },
+      {
+        "condition": "validate_before_accept",
+        "indicator": "evidence_gate",
+        "module": "validation"
+      }
+    ],
+    "regime_analysis_json": {
+      "decision_use": "Check whether losses cluster in weak or high-volatility regimes before adding filters.",
+      "loss_observation_share_pct": 47.151899,
+      "trend_state": "positive",
+      "volatility_state": "normal"
+    },
+    "rejected_experiments_json": [
+      {
+        "module": "optional_filter",
+        "reason": "trade count is already too low"
+      }
+    ],
+    "source_backtest_id": "qlab_20260522T045731617205Z_buy_and_hold_22348928",
+    "status": "succeeded",
+    "strategy_id": "risk_adjusted_momentum_v1",
+    "summary": "Top failure driver is Volatility Spike. This is decision-useful because it links losses to a validation target instead of a generic return summary.",
+    "top_failure_causes": [
+      "Volatility Spike",
+      "Choppy Market Loss",
+      "Low Trade Count Risk"
+    ],
+    "trade_cluster_json": {
+      "actions": {
+        "enter": 3
+      },
+      "decision_use": "High turnover clusters should be checked against fee drag and rebalance cadence.",
+      "return_observations": 1264
+    },
+    "version_id": "risk_adjusted_momentum_v1_base",
+    "warnings": []
+  },
+  {
+    "artifacts": {
+      "diagnostics_summary": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_edc7ccfe4d0ae0b5\\diagnostics-summary.json",
+      "failure_distribution": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_edc7ccfe4d0ae0b5\\failure-distribution.json"
+    },
+    "cost_impact_analysis": {
+      "configured_slippage_bps": 1.0,
+      "configured_transaction_cost_bps": 5.0,
+      "cost_to_expectancy_ratio": 1.63461,
+      "fee_total": 0.0005,
+      "slippage_total": 0.0001
+    },
+    "created_at": "2026-05-22T05:41:06.529300+00:00",
+    "diagnostics_id": "srdiag_edc7ccfe4d0ae0b5",
+    "drawdown_analysis_json": {
+      "decision_use": "Use this to reject improvements that increase depth or duration of drawdowns.",
+      "recovery_factor": 1.696862,
+      "underwater_observations_gt_2pct": 808,
+      "worst_drawdown_pct": -30.058623
+    },
+    "experiment_id": "srdiag_exp_edc7ccfe4d0ae0b5",
+    "failure_distribution_json": [
+      {
+        "count": 24,
+        "decision_use": "Test volatility sizing and drawdown guard before accepting more exposure.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "high",
+        "share_pct": 4.026846,
+        "tag": "Volatility Spike"
+      },
+      {
+        "count": 469,
+        "decision_use": "Test a trend-strength filter, but reject it if trade count collapses.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 78.691275,
+        "tag": "Choppy Market Loss"
+      },
+      {
+        "count": 1,
+        "decision_use": "Do not accept added filters until sample size improves.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.167785,
+        "tag": "Low Trade Count Risk"
+      },
+      {
+        "count": 1,
+        "decision_use": "Use as a validation target, not an automatic strategy change.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.167785,
+        "tag": "Parameter Instability"
+      }
+    ],
+    "parameter_sensitivity_notes": [
+      "lookback=42 and rebalance_every=10 should be checked in a local neighborhood.",
+      "trade_count=3 controls whether the evidence is broad enough for decisions."
+    ],
+    "recommended_experiments_json": [
+      {
+        "condition": "reduce_size_when_high_vol",
+        "indicator": "volatility_percentile",
+        "module": "risk_module",
+        "parameter_range": {
+          "volatility_cap": [
+            0.75,
+            0.85,
+            0.95
+          ]
+        }
+      },
+      {
+        "condition": "trend_strength > threshold",
+        "indicator": "ADX",
+        "module": "optional_filter",
+        "parameter_range": {
+          "threshold": [
+            18,
+            20,
+            22,
+            25
+          ]
+        }
+      },
+      {
+        "condition": "validate_before_accept",
+        "indicator": "evidence_gate",
+        "module": "validation"
+      }
+    ],
+    "regime_analysis_json": {
+      "decision_use": "Check whether losses cluster in weak or high-volatility regimes before adding filters.",
+      "loss_observation_share_pct": 47.151899,
+      "trend_state": "positive",
+      "volatility_state": "normal"
+    },
+    "rejected_experiments_json": [
+      {
+        "module": "optional_filter",
+        "reason": "trade count is already too low"
+      }
+    ],
+    "source_backtest_id": "qlab_20260522T054106300826Z_buy_and_hold_32b18e31",
+    "status": "succeeded",
+    "strategy_id": "risk_adjusted_momentum_v1",
+    "summary": "Top failure driver is Volatility Spike. This is decision-useful because it links losses to a validation target instead of a generic return summary.",
+    "top_failure_causes": [
+      "Volatility Spike",
+      "Choppy Market Loss",
+      "Low Trade Count Risk"
+    ],
+    "trade_cluster_json": {
+      "actions": {
+        "enter": 3
+      },
+      "decision_use": "High turnover clusters should be checked against fee drag and rebalance cadence.",
+      "return_observations": 1264
+    },
+    "version_id": "risk_adjusted_momentum_v1_base",
+    "warnings": []
+  },
+  {
+    "artifacts": {
+      "diagnostics_summary": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_5f1b665d5960afb6\\diagnostics-summary.json",
+      "failure_distribution": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_5f1b665d5960afb6\\failure-distribution.json"
+    },
+    "cost_impact_analysis": {
+      "configured_slippage_bps": 1.0,
+      "configured_transaction_cost_bps": 5.0,
+      "cost_to_expectancy_ratio": 1.63461,
+      "fee_total": 0.0005,
+      "slippage_total": 0.0001
+    },
+    "created_at": "2026-05-22T05:41:07.412136+00:00",
+    "diagnostics_id": "srdiag_5f1b665d5960afb6",
+    "drawdown_analysis_json": {
+      "decision_use": "Use this to reject improvements that increase depth or duration of drawdowns.",
+      "recovery_factor": 1.696862,
+      "underwater_observations_gt_2pct": 808,
+      "worst_drawdown_pct": -30.058623
+    },
+    "experiment_id": "srdiag_exp_5f1b665d5960afb6",
+    "failure_distribution_json": [
+      {
+        "count": 24,
+        "decision_use": "Test volatility sizing and drawdown guard before accepting more exposure.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "high",
+        "share_pct": 4.026846,
+        "tag": "Volatility Spike"
+      },
+      {
+        "count": 469,
+        "decision_use": "Test a trend-strength filter, but reject it if trade count collapses.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 78.691275,
+        "tag": "Choppy Market Loss"
+      },
+      {
+        "count": 1,
+        "decision_use": "Do not accept added filters until sample size improves.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.167785,
+        "tag": "Low Trade Count Risk"
+      },
+      {
+        "count": 1,
+        "decision_use": "Use as a validation target, not an automatic strategy change.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.167785,
+        "tag": "Parameter Instability"
+      }
+    ],
+    "parameter_sensitivity_notes": [
+      "lookback=42 and rebalance_every=10 should be checked in a local neighborhood.",
+      "trade_count=3 controls whether the evidence is broad enough for decisions."
+    ],
+    "recommended_experiments_json": [
+      {
+        "condition": "reduce_size_when_high_vol",
+        "indicator": "volatility_percentile",
+        "module": "risk_module",
+        "parameter_range": {
+          "volatility_cap": [
+            0.75,
+            0.85,
+            0.95
+          ]
+        }
+      },
+      {
+        "condition": "trend_strength > threshold",
+        "indicator": "ADX",
+        "module": "optional_filter",
+        "parameter_range": {
+          "threshold": [
+            18,
+            20,
+            22,
+            25
+          ]
+        }
+      },
+      {
+        "condition": "validate_before_accept",
+        "indicator": "evidence_gate",
+        "module": "validation"
+      }
+    ],
+    "regime_analysis_json": {
+      "decision_use": "Check whether losses cluster in weak or high-volatility regimes before adding filters.",
+      "loss_observation_share_pct": 47.151899,
+      "trend_state": "positive",
+      "volatility_state": "normal"
+    },
+    "rejected_experiments_json": [
+      {
+        "module": "optional_filter",
+        "reason": "trade count is already too low"
+      }
+    ],
+    "source_backtest_id": "qlab_20260522T054107157238Z_buy_and_hold_32b18e31",
+    "status": "succeeded",
+    "strategy_id": "risk_adjusted_momentum_v1",
+    "summary": "Top failure driver is Volatility Spike. This is decision-useful because it links losses to a validation target instead of a generic return summary.",
+    "top_failure_causes": [
+      "Volatility Spike",
+      "Choppy Market Loss",
+      "Low Trade Count Risk"
+    ],
+    "trade_cluster_json": {
+      "actions": {
+        "enter": 3
+      },
+      "decision_use": "High turnover clusters should be checked against fee drag and rebalance cadence.",
+      "return_observations": 1264
+    },
+    "version_id": "risk_adjusted_momentum_v1_base",
+    "warnings": []
+  },
+  {
+    "artifacts": {
+      "diagnostics_summary": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_75444141a2bf5cdf\\diagnostics-summary.json",
+      "failure_distribution": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_75444141a2bf5cdf\\failure-distribution.json"
+    },
+    "cost_impact_analysis": {
+      "configured_slippage_bps": 1.0,
+      "configured_transaction_cost_bps": 5.0,
+      "cost_to_expectancy_ratio": 1.63461,
+      "fee_total": 0.0005,
+      "slippage_total": 0.0001
+    },
+    "created_at": "2026-05-22T05:51:14.585960+00:00",
+    "diagnostics_id": "srdiag_75444141a2bf5cdf",
+    "drawdown_analysis_json": {
+      "decision_use": "Use this to reject improvements that increase depth or duration of drawdowns.",
+      "recovery_factor": 1.696862,
+      "underwater_observations_gt_2pct": 808,
+      "worst_drawdown_pct": -30.058623
+    },
+    "experiment_id": "srdiag_exp_75444141a2bf5cdf",
+    "failure_distribution_json": [
+      {
+        "count": 24,
+        "decision_use": "Test volatility sizing and drawdown guard before accepting more exposure.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "high",
+        "share_pct": 4.026846,
+        "tag": "Volatility Spike"
+      },
+      {
+        "count": 469,
+        "decision_use": "Test a trend-strength filter, but reject it if trade count collapses.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 78.691275,
+        "tag": "Choppy Market Loss"
+      },
+      {
+        "count": 1,
+        "decision_use": "Do not accept added filters until sample size improves.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.167785,
+        "tag": "Low Trade Count Risk"
+      },
+      {
+        "count": 1,
+        "decision_use": "Use as a validation target, not an automatic strategy change.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.167785,
+        "tag": "Parameter Instability"
+      }
+    ],
+    "parameter_sensitivity_notes": [
+      "lookback=42 and rebalance_every=10 should be checked in a local neighborhood.",
+      "trade_count=3 controls whether the evidence is broad enough for decisions."
+    ],
+    "recommended_experiments_json": [
+      {
+        "condition": "reduce_size_when_high_vol",
+        "indicator": "volatility_percentile",
+        "module": "risk_module",
+        "parameter_range": {
+          "volatility_cap": [
+            0.75,
+            0.85,
+            0.95
+          ]
+        }
+      },
+      {
+        "condition": "trend_strength > threshold",
+        "indicator": "ADX",
+        "module": "optional_filter",
+        "parameter_range": {
+          "threshold": [
+            18,
+            20,
+            22,
+            25
+          ]
+        }
+      },
+      {
+        "condition": "validate_before_accept",
+        "indicator": "evidence_gate",
+        "module": "validation"
+      }
+    ],
+    "regime_analysis_json": {
+      "decision_use": "Check whether losses cluster in weak or high-volatility regimes before adding filters.",
+      "loss_observation_share_pct": 47.151899,
+      "trend_state": "positive",
+      "volatility_state": "normal"
+    },
+    "rejected_experiments_json": [
+      {
+        "module": "optional_filter",
+        "reason": "trade count is already too low"
+      }
+    ],
+    "source_backtest_id": "qlab_20260522T055114226694Z_buy_and_hold_32b18e31",
+    "status": "succeeded",
+    "strategy_id": "risk_adjusted_momentum_v1",
+    "summary": "Top failure driver is Volatility Spike. This is decision-useful because it links losses to a validation target instead of a generic return summary.",
+    "top_failure_causes": [
+      "Volatility Spike",
+      "Choppy Market Loss",
+      "Low Trade Count Risk"
+    ],
+    "trade_cluster_json": {
+      "actions": {
+        "enter": 3
+      },
+      "decision_use": "High turnover clusters should be checked against fee drag and rebalance cadence.",
+      "return_observations": 1264
+    },
+    "version_id": "risk_adjusted_momentum_v1_base",
+    "warnings": []
+  },
+  {
+    "artifacts": {
+      "diagnostics_summary": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_bf260666f89adc61\\diagnostics-summary.json",
+      "failure_distribution": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_bf260666f89adc61\\failure-distribution.json"
+    },
+    "cost_impact_analysis": {
+      "configured_slippage_bps": 1.0,
+      "configured_transaction_cost_bps": 5.0,
+      "cost_to_expectancy_ratio": 1.63461,
+      "fee_total": 0.0005,
+      "slippage_total": 0.0001
+    },
+    "created_at": "2026-05-22T05:51:15.458828+00:00",
+    "diagnostics_id": "srdiag_bf260666f89adc61",
+    "drawdown_analysis_json": {
+      "decision_use": "Use this to reject improvements that increase depth or duration of drawdowns.",
+      "recovery_factor": 1.696862,
+      "underwater_observations_gt_2pct": 808,
+      "worst_drawdown_pct": -30.058623
+    },
+    "experiment_id": "srdiag_exp_bf260666f89adc61",
+    "failure_distribution_json": [
+      {
+        "count": 24,
+        "decision_use": "Test volatility sizing and drawdown guard before accepting more exposure.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "high",
+        "share_pct": 4.026846,
+        "tag": "Volatility Spike"
+      },
+      {
+        "count": 469,
+        "decision_use": "Test a trend-strength filter, but reject it if trade count collapses.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 78.691275,
+        "tag": "Choppy Market Loss"
+      },
+      {
+        "count": 1,
+        "decision_use": "Do not accept added filters until sample size improves.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.167785,
+        "tag": "Low Trade Count Risk"
+      },
+      {
+        "count": 1,
+        "decision_use": "Use as a validation target, not an automatic strategy change.",
+        "evidence": {
+          "loss_count": 596,
+          "max_drawdown_pct": -30.0586,
+          "min_drawdown": -0.30058623,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.167785,
+        "tag": "Parameter Instability"
+      }
+    ],
+    "parameter_sensitivity_notes": [
+      "lookback=42 and rebalance_every=10 should be checked in a local neighborhood.",
+      "trade_count=3 controls whether the evidence is broad enough for decisions."
+    ],
+    "recommended_experiments_json": [
+      {
+        "condition": "reduce_size_when_high_vol",
+        "indicator": "volatility_percentile",
+        "module": "risk_module",
+        "parameter_range": {
+          "volatility_cap": [
+            0.75,
+            0.85,
+            0.95
+          ]
+        }
+      },
+      {
+        "condition": "trend_strength > threshold",
+        "indicator": "ADX",
+        "module": "optional_filter",
+        "parameter_range": {
+          "threshold": [
+            18,
+            20,
+            22,
+            25
+          ]
+        }
+      },
+      {
+        "condition": "validate_before_accept",
+        "indicator": "evidence_gate",
+        "module": "validation"
+      }
+    ],
+    "regime_analysis_json": {
+      "decision_use": "Check whether losses cluster in weak or high-volatility regimes before adding filters.",
+      "loss_observation_share_pct": 47.151899,
+      "trend_state": "positive",
+      "volatility_state": "normal"
+    },
+    "rejected_experiments_json": [
+      {
+        "module": "optional_filter",
+        "reason": "trade count is already too low"
+      }
+    ],
+    "source_backtest_id": "qlab_20260522T055115133517Z_buy_and_hold_32b18e31",
+    "status": "succeeded",
+    "strategy_id": "risk_adjusted_momentum_v1",
+    "summary": "Top failure driver is Volatility Spike. This is decision-useful because it links losses to a validation target instead of a generic return summary.",
+    "top_failure_causes": [
+      "Volatility Spike",
+      "Choppy Market Loss",
+      "Low Trade Count Risk"
+    ],
+    "trade_cluster_json": {
+      "actions": {
+        "enter": 3
+      },
+      "decision_use": "High turnover clusters should be checked against fee drag and rebalance cadence.",
+      "return_observations": 1264
+    },
+    "version_id": "risk_adjusted_momentum_v1_base",
+    "warnings": []
+  },
+  {
+    "artifacts": {
+      "diagnostics_summary": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_e46bf9677fe768a1\\diagnostics-summary.json",
+      "failure_distribution": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_e46bf9677fe768a1\\failure-distribution.json"
+    },
+    "cost_impact_analysis": {
+      "configured_slippage_bps": 1.0,
+      "configured_transaction_cost_bps": 5.0,
+      "cost_to_expectancy_ratio": 1.605394,
+      "fee_total": 0.0005,
+      "slippage_total": 0.0001
+    },
+    "created_at": "2026-05-22T06:06:31.433325+00:00",
+    "diagnostics_id": "srdiag_e46bf9677fe768a1",
+    "drawdown_analysis_json": {
+      "decision_use": "Use this to reject improvements that increase depth or duration of drawdowns.",
+      "recovery_factor": 2.44121,
+      "underwater_observations_gt_2pct": 710,
+      "worst_drawdown_pct": -22.736967
+    },
+    "experiment_id": "srdiag_exp_e46bf9677fe768a1",
+    "failure_distribution_json": [
+      {
+        "count": 7,
+        "decision_use": "Test volatility sizing and drawdown guard before accepting more exposure.",
+        "evidence": {
+          "loss_count": 566,
+          "max_drawdown_pct": -22.737,
+          "min_drawdown": -0.22736967,
+          "trade_count": 3
+        },
+        "severity": "high",
+        "share_pct": 1.236749,
+        "tag": "Volatility Spike"
+      },
+      {
+        "count": 485,
+        "decision_use": "Test a trend-strength filter, but reject it if trade count collapses.",
+        "evidence": {
+          "loss_count": 566,
+          "max_drawdown_pct": -22.737,
+          "min_drawdown": -0.22736967,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 85.689046,
+        "tag": "Choppy Market Loss"
+      },
+      {
+        "count": 1,
+        "decision_use": "Do not accept added filters until sample size improves.",
+        "evidence": {
+          "loss_count": 566,
+          "max_drawdown_pct": -22.737,
+          "min_drawdown": -0.22736967,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.176678,
+        "tag": "Low Trade Count Risk"
+      },
+      {
+        "count": 1,
+        "decision_use": "Use as a validation target, not an automatic strategy change.",
+        "evidence": {
+          "loss_count": 566,
+          "max_drawdown_pct": -22.737,
+          "min_drawdown": -0.22736967,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.176678,
+        "tag": "Parameter Instability"
+      }
+    ],
+    "parameter_sensitivity_notes": [
+      "lookback=42 and rebalance_every=10 should be checked in a local neighborhood.",
+      "trade_count=3 controls whether the evidence is broad enough for decisions."
+    ],
+    "recommended_experiments_json": [
+      {
+        "condition": "reduce_size_when_high_vol",
+        "indicator": "volatility_percentile",
+        "module": "risk_module",
+        "parameter_range": {
+          "volatility_cap": [
+            0.75,
+            0.85,
+            0.95
+          ]
+        }
+      },
+      {
+        "condition": "trend_strength > threshold",
+        "indicator": "ADX",
+        "module": "optional_filter",
+        "parameter_range": {
+          "threshold": [
+            18,
+            20,
+            22,
+            25
+          ]
+        }
+      },
+      {
+        "condition": "validate_before_accept",
+        "indicator": "evidence_gate",
+        "module": "validation"
+      }
+    ],
+    "regime_analysis_json": {
+      "decision_use": "Check whether losses cluster in weak or high-volatility regimes before adding filters.",
+      "loss_observation_share_pct": 44.778481,
+      "trend_state": "positive",
+      "volatility_state": "normal"
+    },
+    "rejected_experiments_json": [
+      {
+        "module": "optional_filter",
+        "reason": "trade count is already too low"
+      }
+    ],
+    "source_backtest_id": "qlab_20260522T060631041971Z_buy_and_hold_c6d1661e",
+    "status": "succeeded",
+    "strategy_id": "risk_adjusted_momentum_v1",
+    "summary": "Top failure driver is Volatility Spike. This is decision-useful because it links losses to a validation target instead of a generic return summary.",
+    "top_failure_causes": [
+      "Volatility Spike",
+      "Choppy Market Loss",
+      "Low Trade Count Risk"
+    ],
+    "trade_cluster_json": {
+      "actions": {
+        "enter": 3
+      },
+      "decision_use": "High turnover clusters should be checked against fee drag and rebalance cadence.",
+      "return_observations": 1264
+    },
+    "version_id": "risk_adjusted_momentum_v1_base",
+    "warnings": []
+  },
+  {
+    "artifacts": {
+      "diagnostics_summary": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_ad84279eae280736\\diagnostics-summary.json",
+      "failure_distribution": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_ad84279eae280736\\failure-distribution.json"
+    },
+    "cost_impact_analysis": {
+      "configured_slippage_bps": 1.0,
+      "configured_transaction_cost_bps": 5.0,
+      "cost_to_expectancy_ratio": 1.605394,
+      "fee_total": 0.0005,
+      "slippage_total": 0.0001
+    },
+    "created_at": "2026-05-22T06:06:32.580810+00:00",
+    "diagnostics_id": "srdiag_ad84279eae280736",
+    "drawdown_analysis_json": {
+      "decision_use": "Use this to reject improvements that increase depth or duration of drawdowns.",
+      "recovery_factor": 2.44121,
+      "underwater_observations_gt_2pct": 710,
+      "worst_drawdown_pct": -22.736967
+    },
+    "experiment_id": "srdiag_exp_ad84279eae280736",
+    "failure_distribution_json": [
+      {
+        "count": 7,
+        "decision_use": "Test volatility sizing and drawdown guard before accepting more exposure.",
+        "evidence": {
+          "loss_count": 566,
+          "max_drawdown_pct": -22.737,
+          "min_drawdown": -0.22736967,
+          "trade_count": 3
+        },
+        "severity": "high",
+        "share_pct": 1.236749,
+        "tag": "Volatility Spike"
+      },
+      {
+        "count": 485,
+        "decision_use": "Test a trend-strength filter, but reject it if trade count collapses.",
+        "evidence": {
+          "loss_count": 566,
+          "max_drawdown_pct": -22.737,
+          "min_drawdown": -0.22736967,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 85.689046,
+        "tag": "Choppy Market Loss"
+      },
+      {
+        "count": 1,
+        "decision_use": "Do not accept added filters until sample size improves.",
+        "evidence": {
+          "loss_count": 566,
+          "max_drawdown_pct": -22.737,
+          "min_drawdown": -0.22736967,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.176678,
+        "tag": "Low Trade Count Risk"
+      },
+      {
+        "count": 1,
+        "decision_use": "Use as a validation target, not an automatic strategy change.",
+        "evidence": {
+          "loss_count": 566,
+          "max_drawdown_pct": -22.737,
+          "min_drawdown": -0.22736967,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.176678,
+        "tag": "Parameter Instability"
+      }
+    ],
+    "parameter_sensitivity_notes": [
+      "lookback=42 and rebalance_every=10 should be checked in a local neighborhood.",
+      "trade_count=3 controls whether the evidence is broad enough for decisions."
+    ],
+    "recommended_experiments_json": [
+      {
+        "condition": "reduce_size_when_high_vol",
+        "indicator": "volatility_percentile",
+        "module": "risk_module",
+        "parameter_range": {
+          "volatility_cap": [
+            0.75,
+            0.85,
+            0.95
+          ]
+        }
+      },
+      {
+        "condition": "trend_strength > threshold",
+        "indicator": "ADX",
+        "module": "optional_filter",
+        "parameter_range": {
+          "threshold": [
+            18,
+            20,
+            22,
+            25
+          ]
+        }
+      },
+      {
+        "condition": "validate_before_accept",
+        "indicator": "evidence_gate",
+        "module": "validation"
+      }
+    ],
+    "regime_analysis_json": {
+      "decision_use": "Check whether losses cluster in weak or high-volatility regimes before adding filters.",
+      "loss_observation_share_pct": 44.778481,
+      "trend_state": "positive",
+      "volatility_state": "normal"
+    },
+    "rejected_experiments_json": [
+      {
+        "module": "optional_filter",
+        "reason": "trade count is already too low"
+      }
+    ],
+    "source_backtest_id": "qlab_20260522T060631952221Z_buy_and_hold_c6d1661e",
+    "status": "succeeded",
+    "strategy_id": "risk_adjusted_momentum_v1",
+    "summary": "Top failure driver is Volatility Spike. This is decision-useful because it links losses to a validation target instead of a generic return summary.",
+    "top_failure_causes": [
+      "Volatility Spike",
+      "Choppy Market Loss",
+      "Low Trade Count Risk"
+    ],
+    "trade_cluster_json": {
+      "actions": {
+        "enter": 3
+      },
+      "decision_use": "High turnover clusters should be checked against fee drag and rebalance cadence.",
+      "return_observations": 1264
+    },
+    "version_id": "risk_adjusted_momentum_v1_base",
+    "warnings": []
+  },
+  {
+    "artifacts": {
+      "diagnostics_summary": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_0051b268e5720ff2\\diagnostics-summary.json",
+      "failure_distribution": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_0051b268e5720ff2\\failure-distribution.json"
+    },
+    "cost_impact_analysis": {
+      "configured_slippage_bps": 1.0,
+      "configured_transaction_cost_bps": 5.0,
+      "cost_to_expectancy_ratio": 1.605394,
+      "fee_total": 0.0005,
+      "slippage_total": 0.0001
+    },
+    "created_at": "2026-05-22T06:10:55.157872+00:00",
+    "diagnostics_id": "srdiag_0051b268e5720ff2",
+    "drawdown_analysis_json": {
+      "decision_use": "Use this to reject improvements that increase depth or duration of drawdowns.",
+      "recovery_factor": 2.44121,
+      "underwater_observations_gt_2pct": 710,
+      "worst_drawdown_pct": -22.736967
+    },
+    "experiment_id": "srdiag_exp_0051b268e5720ff2",
+    "failure_distribution_json": [
+      {
+        "count": 7,
+        "decision_use": "Test volatility sizing and drawdown guard before accepting more exposure.",
+        "evidence": {
+          "loss_count": 566,
+          "max_drawdown_pct": -22.737,
+          "min_drawdown": -0.22736967,
+          "trade_count": 3
+        },
+        "severity": "high",
+        "share_pct": 1.236749,
+        "tag": "Volatility Spike"
+      },
+      {
+        "count": 485,
+        "decision_use": "Test a trend-strength filter, but reject it if trade count collapses.",
+        "evidence": {
+          "loss_count": 566,
+          "max_drawdown_pct": -22.737,
+          "min_drawdown": -0.22736967,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 85.689046,
+        "tag": "Choppy Market Loss"
+      },
+      {
+        "count": 1,
+        "decision_use": "Do not accept added filters until sample size improves.",
+        "evidence": {
+          "loss_count": 566,
+          "max_drawdown_pct": -22.737,
+          "min_drawdown": -0.22736967,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.176678,
+        "tag": "Low Trade Count Risk"
+      },
+      {
+        "count": 1,
+        "decision_use": "Use as a validation target, not an automatic strategy change.",
+        "evidence": {
+          "loss_count": 566,
+          "max_drawdown_pct": -22.737,
+          "min_drawdown": -0.22736967,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.176678,
+        "tag": "Parameter Instability"
+      }
+    ],
+    "parameter_sensitivity_notes": [
+      "lookback=42 and rebalance_every=10 should be checked in a local neighborhood.",
+      "trade_count=3 controls whether the evidence is broad enough for decisions."
+    ],
+    "recommended_experiments_json": [
+      {
+        "condition": "reduce_size_when_high_vol",
+        "indicator": "volatility_percentile",
+        "module": "risk_module",
+        "parameter_range": {
+          "volatility_cap": [
+            0.75,
+            0.85,
+            0.95
+          ]
+        }
+      },
+      {
+        "condition": "trend_strength > threshold",
+        "indicator": "ADX",
+        "module": "optional_filter",
+        "parameter_range": {
+          "threshold": [
+            18,
+            20,
+            22,
+            25
+          ]
+        }
+      },
+      {
+        "condition": "validate_before_accept",
+        "indicator": "evidence_gate",
+        "module": "validation"
+      }
+    ],
+    "regime_analysis_json": {
+      "decision_use": "Check whether losses cluster in weak or high-volatility regimes before adding filters.",
+      "loss_observation_share_pct": 44.778481,
+      "trend_state": "positive",
+      "volatility_state": "normal"
+    },
+    "rejected_experiments_json": [
+      {
+        "module": "optional_filter",
+        "reason": "trade count is already too low"
+      }
+    ],
+    "source_backtest_id": "qlab_20260522T061054915926Z_buy_and_hold_c6d1661e",
+    "status": "succeeded",
+    "strategy_id": "risk_adjusted_momentum_v1",
+    "summary": "Top failure driver is Volatility Spike. This is decision-useful because it links losses to a validation target instead of a generic return summary.",
+    "top_failure_causes": [
+      "Volatility Spike",
+      "Choppy Market Loss",
+      "Low Trade Count Risk"
+    ],
+    "trade_cluster_json": {
+      "actions": {
+        "enter": 3
+      },
+      "decision_use": "High turnover clusters should be checked against fee drag and rebalance cadence.",
+      "return_observations": 1264
+    },
+    "version_id": "risk_adjusted_momentum_v1_base",
+    "warnings": []
+  },
+  {
+    "artifacts": {
+      "diagnostics_summary": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_169a37704a634293\\diagnostics-summary.json",
+      "failure_distribution": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_169a37704a634293\\failure-distribution.json"
+    },
+    "cost_impact_analysis": {
+      "configured_slippage_bps": 1.0,
+      "configured_transaction_cost_bps": 5.0,
+      "cost_to_expectancy_ratio": 1.605394,
+      "fee_total": 0.0005,
+      "slippage_total": 0.0001
+    },
+    "created_at": "2026-05-22T06:10:56.061340+00:00",
+    "diagnostics_id": "srdiag_169a37704a634293",
+    "drawdown_analysis_json": {
+      "decision_use": "Use this to reject improvements that increase depth or duration of drawdowns.",
+      "recovery_factor": 2.44121,
+      "underwater_observations_gt_2pct": 710,
+      "worst_drawdown_pct": -22.736967
+    },
+    "experiment_id": "srdiag_exp_169a37704a634293",
+    "failure_distribution_json": [
+      {
+        "count": 7,
+        "decision_use": "Test volatility sizing and drawdown guard before accepting more exposure.",
+        "evidence": {
+          "loss_count": 566,
+          "max_drawdown_pct": -22.737,
+          "min_drawdown": -0.22736967,
+          "trade_count": 3
+        },
+        "severity": "high",
+        "share_pct": 1.236749,
+        "tag": "Volatility Spike"
+      },
+      {
+        "count": 485,
+        "decision_use": "Test a trend-strength filter, but reject it if trade count collapses.",
+        "evidence": {
+          "loss_count": 566,
+          "max_drawdown_pct": -22.737,
+          "min_drawdown": -0.22736967,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 85.689046,
+        "tag": "Choppy Market Loss"
+      },
+      {
+        "count": 1,
+        "decision_use": "Do not accept added filters until sample size improves.",
+        "evidence": {
+          "loss_count": 566,
+          "max_drawdown_pct": -22.737,
+          "min_drawdown": -0.22736967,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.176678,
+        "tag": "Low Trade Count Risk"
+      },
+      {
+        "count": 1,
+        "decision_use": "Use as a validation target, not an automatic strategy change.",
+        "evidence": {
+          "loss_count": 566,
+          "max_drawdown_pct": -22.737,
+          "min_drawdown": -0.22736967,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.176678,
+        "tag": "Parameter Instability"
+      }
+    ],
+    "parameter_sensitivity_notes": [
+      "lookback=42 and rebalance_every=10 should be checked in a local neighborhood.",
+      "trade_count=3 controls whether the evidence is broad enough for decisions."
+    ],
+    "recommended_experiments_json": [
+      {
+        "condition": "reduce_size_when_high_vol",
+        "indicator": "volatility_percentile",
+        "module": "risk_module",
+        "parameter_range": {
+          "volatility_cap": [
+            0.75,
+            0.85,
+            0.95
+          ]
+        }
+      },
+      {
+        "condition": "trend_strength > threshold",
+        "indicator": "ADX",
+        "module": "optional_filter",
+        "parameter_range": {
+          "threshold": [
+            18,
+            20,
+            22,
+            25
+          ]
+        }
+      },
+      {
+        "condition": "validate_before_accept",
+        "indicator": "evidence_gate",
+        "module": "validation"
+      }
+    ],
+    "regime_analysis_json": {
+      "decision_use": "Check whether losses cluster in weak or high-volatility regimes before adding filters.",
+      "loss_observation_share_pct": 44.778481,
+      "trend_state": "positive",
+      "volatility_state": "normal"
+    },
+    "rejected_experiments_json": [
+      {
+        "module": "optional_filter",
+        "reason": "trade count is already too low"
+      }
+    ],
+    "source_backtest_id": "qlab_20260522T061055818450Z_buy_and_hold_c6d1661e",
+    "status": "succeeded",
+    "strategy_id": "risk_adjusted_momentum_v1",
+    "summary": "Top failure driver is Volatility Spike. This is decision-useful because it links losses to a validation target instead of a generic return summary.",
+    "top_failure_causes": [
+      "Volatility Spike",
+      "Choppy Market Loss",
+      "Low Trade Count Risk"
+    ],
+    "trade_cluster_json": {
+      "actions": {
+        "enter": 3
+      },
+      "decision_use": "High turnover clusters should be checked against fee drag and rebalance cadence.",
+      "return_observations": 1264
+    },
+    "version_id": "risk_adjusted_momentum_v1_base",
+    "warnings": []
+  },
+  {
+    "artifacts": {
+      "diagnostics_summary": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_4bc807775726b259\\diagnostics-summary.json",
+      "failure_distribution": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_4bc807775726b259\\failure-distribution.json"
+    },
+    "cost_impact_analysis": {
+      "configured_slippage_bps": 1.0,
+      "configured_transaction_cost_bps": 5.0,
+      "cost_to_expectancy_ratio": 1.605394,
+      "fee_total": 0.0005,
+      "slippage_total": 0.0001
+    },
+    "created_at": "2026-05-22T06:15:37.065707+00:00",
+    "diagnostics_id": "srdiag_4bc807775726b259",
+    "drawdown_analysis_json": {
+      "decision_use": "Use this to reject improvements that increase depth or duration of drawdowns.",
+      "recovery_factor": 2.44121,
+      "underwater_observations_gt_2pct": 710,
+      "worst_drawdown_pct": -22.736967
+    },
+    "experiment_id": "srdiag_exp_4bc807775726b259",
+    "failure_distribution_json": [
+      {
+        "count": 7,
+        "decision_use": "Test volatility sizing and drawdown guard before accepting more exposure.",
+        "evidence": {
+          "loss_count": 566,
+          "max_drawdown_pct": -22.737,
+          "min_drawdown": -0.22736967,
+          "trade_count": 3
+        },
+        "severity": "high",
+        "share_pct": 1.236749,
+        "tag": "Volatility Spike"
+      },
+      {
+        "count": 485,
+        "decision_use": "Test a trend-strength filter, but reject it if trade count collapses.",
+        "evidence": {
+          "loss_count": 566,
+          "max_drawdown_pct": -22.737,
+          "min_drawdown": -0.22736967,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 85.689046,
+        "tag": "Choppy Market Loss"
+      },
+      {
+        "count": 1,
+        "decision_use": "Do not accept added filters until sample size improves.",
+        "evidence": {
+          "loss_count": 566,
+          "max_drawdown_pct": -22.737,
+          "min_drawdown": -0.22736967,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.176678,
+        "tag": "Low Trade Count Risk"
+      },
+      {
+        "count": 1,
+        "decision_use": "Use as a validation target, not an automatic strategy change.",
+        "evidence": {
+          "loss_count": 566,
+          "max_drawdown_pct": -22.737,
+          "min_drawdown": -0.22736967,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.176678,
+        "tag": "Parameter Instability"
+      }
+    ],
+    "parameter_sensitivity_notes": [
+      "lookback=42 and rebalance_every=10 should be checked in a local neighborhood.",
+      "trade_count=3 controls whether the evidence is broad enough for decisions."
+    ],
+    "recommended_experiments_json": [
+      {
+        "condition": "reduce_size_when_high_vol",
+        "indicator": "volatility_percentile",
+        "module": "risk_module",
+        "parameter_range": {
+          "volatility_cap": [
+            0.75,
+            0.85,
+            0.95
+          ]
+        }
+      },
+      {
+        "condition": "trend_strength > threshold",
+        "indicator": "ADX",
+        "module": "optional_filter",
+        "parameter_range": {
+          "threshold": [
+            18,
+            20,
+            22,
+            25
+          ]
+        }
+      },
+      {
+        "condition": "validate_before_accept",
+        "indicator": "evidence_gate",
+        "module": "validation"
+      }
+    ],
+    "regime_analysis_json": {
+      "decision_use": "Check whether losses cluster in weak or high-volatility regimes before adding filters.",
+      "loss_observation_share_pct": 44.778481,
+      "trend_state": "positive",
+      "volatility_state": "normal"
+    },
+    "rejected_experiments_json": [
+      {
+        "module": "optional_filter",
+        "reason": "trade count is already too low"
+      }
+    ],
+    "source_backtest_id": "qlab_20260522T061536805064Z_buy_and_hold_c6d1661e",
+    "status": "succeeded",
+    "strategy_id": "risk_adjusted_momentum_v1",
+    "summary": "Top failure driver is Volatility Spike. This is decision-useful because it links losses to a validation target instead of a generic return summary.",
+    "top_failure_causes": [
+      "Volatility Spike",
+      "Choppy Market Loss",
+      "Low Trade Count Risk"
+    ],
+    "trade_cluster_json": {
+      "actions": {
+        "enter": 3
+      },
+      "decision_use": "High turnover clusters should be checked against fee drag and rebalance cadence.",
+      "return_observations": 1264
+    },
+    "version_id": "risk_adjusted_momentum_v1_base",
+    "warnings": []
+  },
+  {
+    "artifacts": {
+      "diagnostics_summary": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_dda995f0426ede97\\diagnostics-summary.json",
+      "failure_distribution": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_dda995f0426ede97\\failure-distribution.json"
+    },
+    "cost_impact_analysis": {
+      "configured_slippage_bps": 1.0,
+      "configured_transaction_cost_bps": 5.0,
+      "cost_to_expectancy_ratio": 1.605394,
+      "fee_total": 0.0005,
+      "slippage_total": 0.0001
+    },
+    "created_at": "2026-05-22T06:15:37.899238+00:00",
+    "diagnostics_id": "srdiag_dda995f0426ede97",
+    "drawdown_analysis_json": {
+      "decision_use": "Use this to reject improvements that increase depth or duration of drawdowns.",
+      "recovery_factor": 2.44121,
+      "underwater_observations_gt_2pct": 710,
+      "worst_drawdown_pct": -22.736967
+    },
+    "experiment_id": "srdiag_exp_dda995f0426ede97",
+    "failure_distribution_json": [
+      {
+        "count": 7,
+        "decision_use": "Test volatility sizing and drawdown guard before accepting more exposure.",
+        "evidence": {
+          "loss_count": 566,
+          "max_drawdown_pct": -22.737,
+          "min_drawdown": -0.22736967,
+          "trade_count": 3
+        },
+        "severity": "high",
+        "share_pct": 1.236749,
+        "tag": "Volatility Spike"
+      },
+      {
+        "count": 485,
+        "decision_use": "Test a trend-strength filter, but reject it if trade count collapses.",
+        "evidence": {
+          "loss_count": 566,
+          "max_drawdown_pct": -22.737,
+          "min_drawdown": -0.22736967,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 85.689046,
+        "tag": "Choppy Market Loss"
+      },
+      {
+        "count": 1,
+        "decision_use": "Do not accept added filters until sample size improves.",
+        "evidence": {
+          "loss_count": 566,
+          "max_drawdown_pct": -22.737,
+          "min_drawdown": -0.22736967,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.176678,
+        "tag": "Low Trade Count Risk"
+      },
+      {
+        "count": 1,
+        "decision_use": "Use as a validation target, not an automatic strategy change.",
+        "evidence": {
+          "loss_count": 566,
+          "max_drawdown_pct": -22.737,
+          "min_drawdown": -0.22736967,
+          "trade_count": 3
+        },
+        "severity": "medium",
+        "share_pct": 0.176678,
+        "tag": "Parameter Instability"
+      }
+    ],
+    "parameter_sensitivity_notes": [
+      "lookback=42 and rebalance_every=10 should be checked in a local neighborhood.",
+      "trade_count=3 controls whether the evidence is broad enough for decisions."
+    ],
+    "recommended_experiments_json": [
+      {
+        "condition": "reduce_size_when_high_vol",
+        "indicator": "volatility_percentile",
+        "module": "risk_module",
+        "parameter_range": {
+          "volatility_cap": [
+            0.75,
+            0.85,
+            0.95
+          ]
+        }
+      },
+      {
+        "condition": "trend_strength > threshold",
+        "indicator": "ADX",
+        "module": "optional_filter",
+        "parameter_range": {
+          "threshold": [
+            18,
+            20,
+            22,
+            25
+          ]
+        }
+      },
+      {
+        "condition": "validate_before_accept",
+        "indicator": "evidence_gate",
+        "module": "validation"
+      }
+    ],
+    "regime_analysis_json": {
+      "decision_use": "Check whether losses cluster in weak or high-volatility regimes before adding filters.",
+      "loss_observation_share_pct": 44.778481,
+      "trend_state": "positive",
+      "volatility_state": "normal"
+    },
+    "rejected_experiments_json": [
+      {
+        "module": "optional_filter",
+        "reason": "trade count is already too low"
+      }
+    ],
+    "source_backtest_id": "qlab_20260522T061537655871Z_buy_and_hold_c6d1661e",
+    "status": "succeeded",
+    "strategy_id": "risk_adjusted_momentum_v1",
+    "summary": "Top failure driver is Volatility Spike. This is decision-useful because it links losses to a validation target instead of a generic return summary.",
+    "top_failure_causes": [
+      "Volatility Spike",
+      "Choppy Market Loss",
+      "Low Trade Count Risk"
+    ],
+    "trade_cluster_json": {
+      "actions": {
+        "enter": 3
+      },
+      "decision_use": "High turnover clusters should be checked against fee drag and rebalance cadence.",
+      "return_observations": 1264
+    },
+    "version_id": "risk_adjusted_momentum_v1_base",
+    "warnings": []
+  },
+  {
+    "artifacts": {
+      "diagnostics_summary": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_8f89f68472e13e7b\\diagnostics-summary.json",
+      "failure_distribution": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_8f89f68472e13e7b\\failure-distribution.json"
+    },
+    "cost_impact_analysis": {
+      "configured_slippage_bps": 1.0,
+      "configured_transaction_cost_bps": 5.0,
+      "cost_to_expectancy_ratio": 288.924559,
+      "fee_total": 0.0435,
+      "slippage_total": 0.0087
+    },
+    "created_at": "2026-05-22T06:44:46.478929+00:00",
+    "diagnostics_id": "srdiag_8f89f68472e13e7b",
+    "drawdown_analysis_json": {
+      "decision_use": "Use this to reject improvements that increase depth or duration of drawdowns.",
+      "recovery_factor": 0.38544,
+      "underwater_observations_gt_2pct": 1021,
+      "worst_drawdown_pct": -44.256183
+    },
+    "experiment_id": "srdiag_exp_8f89f68472e13e7b",
+    "failure_distribution_json": [
+      {
+        "count": 45,
+        "decision_use": "Test volatility sizing and drawdown guard before accepting more exposure.",
+        "evidence": {
+          "loss_count": 587,
+          "max_drawdown_pct": -44.2562,
+          "min_drawdown": -0.44256183,
+          "trade_count": 87
+        },
+        "severity": "high",
+        "share_pct": 7.666099,
+        "tag": "Volatility Spike"
+      },
+      {
+        "count": 1,
+        "decision_use": "Test exit module changes with OOS and cost stress.",
+        "evidence": {
+          "loss_count": 587,
+          "max_drawdown_pct": -44.2562,
+          "min_drawdown": -0.44256183,
+          "trade_count": 87
+        },
+        "severity": "high",
+        "share_pct": 0.170358,
+        "tag": "Poor Reward/Risk"
+      },
+      {
+        "count": 412,
+        "decision_use": "Test a trend-strength filter, but reject it if trade count collapses.",
+        "evidence": {
+          "loss_count": 587,
+          "max_drawdown_pct": -44.2562,
+          "min_drawdown": -0.44256183,
+          "trade_count": 87
+        },
+        "severity": "medium",
+        "share_pct": 70.187394,
+        "tag": "Choppy Market Loss"
+      },
+      {
+        "count": 1,
+        "decision_use": "Stress costs and rebalance cadence; do not evaluate gross returns only.",
+        "evidence": {
+          "loss_count": 587,
+          "max_drawdown_pct": -44.2562,
+          "min_drawdown": -0.44256183,
+          "trade_count": 87
+        },
+        "severity": "medium",
+        "share_pct": 0.170358,
+        "tag": "Fee Drag"
+      },
+      {
+        "count": 1,
+        "decision_use": "Use as a validation target, not an automatic strategy change.",
+        "evidence": {
+          "loss_count": 587,
+          "max_drawdown_pct": -44.2562,
+          "min_drawdown": -0.44256183,
+          "trade_count": 87
+        },
+        "severity": "medium",
+        "share_pct": 0.170358,
+        "tag": "Parameter Instability"
+      }
+    ],
+    "parameter_sensitivity_notes": [
+      "lookback=42 and rebalance_every=10 should be checked in a local neighborhood.",
+      "trade_count=87 controls whether the evidence is broad enough for decisions."
+    ],
+    "recommended_experiments_json": [
+      {
+        "condition": "reduce_size_when_high_vol",
+        "indicator": "volatility_percentile",
+        "module": "risk_module",
+        "parameter_range": {
+          "volatility_cap": [
+            0.75,
+            0.85,
+            0.95
+          ]
+        }
+      },
+      {
+        "condition": "protect_after_positive_move",
+        "indicator": "trailing_exit",
+        "module": "exit_module",
+        "parameter_range": {
+          "trail_multiple": [
+            2.0,
+            3.0,
+            4.0
+          ]
+        }
+      },
+      {
+        "condition": "trend_strength > threshold",
+        "indicator": "ADX",
+        "module": "optional_filter",
+        "parameter_range": {
+          "threshold": [
+            18,
+            20,
+            22,
+            25
+          ]
+        }
+      }
+    ],
+    "regime_analysis_json": {
+      "decision_use": "Check whether losses cluster in weak or high-volatility regimes before adding filters.",
+      "loss_observation_share_pct": 46.439873,
+      "trend_state": "positive",
+      "volatility_state": "normal"
+    },
+    "rejected_experiments_json": [],
+    "source_backtest_id": "qlab_20260522T064446263116Z_risk_adjusted_momentum_c542f59a",
+    "status": "succeeded",
+    "strategy_id": "risk_adjusted_momentum_v1",
+    "summary": "Top failure driver is Volatility Spike. This is decision-useful because it links losses to a validation target instead of a generic return summary.",
+    "top_failure_causes": [
+      "Volatility Spike",
+      "Poor Reward/Risk",
+      "Choppy Market Loss"
+    ],
+    "trade_cluster_json": {
+      "actions": {
+        "enter": 44,
+        "exit": 43
+      },
+      "decision_use": "High turnover clusters should be checked against fee drag and rebalance cadence.",
+      "return_observations": 1264
+    },
+    "version_id": "risk_adjusted_momentum_v1_base",
+    "warnings": []
+  },
+  {
+    "artifacts": {
+      "diagnostics_summary": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_680ea9a6070edbde\\diagnostics-summary.json",
+      "failure_distribution": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srdiag_exp_680ea9a6070edbde\\failure-distribution.json"
+    },
+    "cost_impact_analysis": {
+      "configured_slippage_bps": 1.0,
+      "configured_transaction_cost_bps": 5.0,
+      "cost_to_expectancy_ratio": 288.924559,
+      "fee_total": 0.0435,
+      "slippage_total": 0.0087
+    },
+    "created_at": "2026-05-22T06:44:47.422174+00:00",
+    "diagnostics_id": "srdiag_680ea9a6070edbde",
+    "drawdown_analysis_json": {
+      "decision_use": "Use this to reject improvements that increase depth or duration of drawdowns.",
+      "recovery_factor": 0.38544,
+      "underwater_observations_gt_2pct": 1021,
+      "worst_drawdown_pct": -44.256183
+    },
+    "experiment_id": "srdiag_exp_680ea9a6070edbde",
+    "failure_distribution_json": [
+      {
+        "count": 45,
+        "decision_use": "Test volatility sizing and drawdown guard before accepting more exposure.",
+        "evidence": {
+          "loss_count": 587,
+          "max_drawdown_pct": -44.2562,
+          "min_drawdown": -0.44256183,
+          "trade_count": 87
+        },
+        "severity": "high",
+        "share_pct": 7.666099,
+        "tag": "Volatility Spike"
+      },
+      {
+        "count": 1,
+        "decision_use": "Test exit module changes with OOS and cost stress.",
+        "evidence": {
+          "loss_count": 587,
+          "max_drawdown_pct": -44.2562,
+          "min_drawdown": -0.44256183,
+          "trade_count": 87
+        },
+        "severity": "high",
+        "share_pct": 0.170358,
+        "tag": "Poor Reward/Risk"
+      },
+      {
+        "count": 412,
+        "decision_use": "Test a trend-strength filter, but reject it if trade count collapses.",
+        "evidence": {
+          "loss_count": 587,
+          "max_drawdown_pct": -44.2562,
+          "min_drawdown": -0.44256183,
+          "trade_count": 87
+        },
+        "severity": "medium",
+        "share_pct": 70.187394,
+        "tag": "Choppy Market Loss"
+      },
+      {
+        "count": 1,
+        "decision_use": "Stress costs and rebalance cadence; do not evaluate gross returns only.",
+        "evidence": {
+          "loss_count": 587,
+          "max_drawdown_pct": -44.2562,
+          "min_drawdown": -0.44256183,
+          "trade_count": 87
+        },
+        "severity": "medium",
+        "share_pct": 0.170358,
+        "tag": "Fee Drag"
+      },
+      {
+        "count": 1,
+        "decision_use": "Use as a validation target, not an automatic strategy change.",
+        "evidence": {
+          "loss_count": 587,
+          "max_drawdown_pct": -44.2562,
+          "min_drawdown": -0.44256183,
+          "trade_count": 87
+        },
+        "severity": "medium",
+        "share_pct": 0.170358,
+        "tag": "Parameter Instability"
+      }
+    ],
+    "parameter_sensitivity_notes": [
+      "lookback=42 and rebalance_every=10 should be checked in a local neighborhood.",
+      "trade_count=87 controls whether the evidence is broad enough for decisions."
+    ],
+    "recommended_experiments_json": [
+      {
+        "condition": "reduce_size_when_high_vol",
+        "indicator": "volatility_percentile",
+        "module": "risk_module",
+        "parameter_range": {
+          "volatility_cap": [
+            0.75,
+            0.85,
+            0.95
+          ]
+        }
+      },
+      {
+        "condition": "protect_after_positive_move",
+        "indicator": "trailing_exit",
+        "module": "exit_module",
+        "parameter_range": {
+          "trail_multiple": [
+            2.0,
+            3.0,
+            4.0
+          ]
+        }
+      },
+      {
+        "condition": "trend_strength > threshold",
+        "indicator": "ADX",
+        "module": "optional_filter",
+        "parameter_range": {
+          "threshold": [
+            18,
+            20,
+            22,
+            25
+          ]
+        }
+      }
+    ],
+    "regime_analysis_json": {
+      "decision_use": "Check whether losses cluster in weak or high-volatility regimes before adding filters.",
+      "loss_observation_share_pct": 46.439873,
+      "trend_state": "positive",
+      "volatility_state": "normal"
+    },
+    "rejected_experiments_json": [],
+    "source_backtest_id": "qlab_20260522T064447193762Z_risk_adjusted_momentum_c542f59a",
+    "status": "succeeded",
+    "strategy_id": "risk_adjusted_momentum_v1",
+    "summary": "Top failure driver is Volatility Spike. This is decision-useful because it links losses to a validation target instead of a generic return summary.",
+    "top_failure_causes": [
+      "Volatility Spike",
+      "Poor Reward/Risk",
+      "Choppy Market Loss"
+    ],
+    "trade_cluster_json": {
+      "actions": {
+        "enter": 44,
+        "exit": 43
+      },
+      "decision_use": "High turnover clusters should be checked against fee drag and rebalance cadence.",
+      "return_observations": 1264
+    },
+    "version_id": "risk_adjusted_momentum_v1_base",
+    "warnings": []
+  }
+]

@@ -19,6 +19,7 @@ from core.schemas.forecast import (
     ForecastJobSubmitRequest,
     ForecastRunRequest,
     ForecastSourceContext,
+    ForecastUniverseRunRequest,
     ModelConfig,
     ModelRegistryItem,
     SignalConfig,
@@ -35,6 +36,7 @@ from pipelines.forecast.experiment_store import forecast_root, register_model, s
 from pipelines.forecast.feature_engineering import build_features
 from pipelines.forecast.integrations.macro_context import build_macro_regime_artifact
 from pipelines.forecast import jobs as forecast_jobs
+from pipelines.forecast import service as forecast_service
 from pipelines.forecast.leakage import run_leakage_check
 from pipelines.forecast.modeling import train_and_forecast
 from pipelines.forecast.signal_generator import generate_signal
@@ -699,6 +701,72 @@ def test_forecast_batch_predict_caps_request_size() -> None:
     response = client.post("/api/v1/forecast/batch-predict", json={"tickers": [f"T{i}" for i in range(25)]})
 
     assert response.status_code == 422
+
+
+def test_forecast_universe_run_ranks_custom_universe(monkeypatch) -> None:
+    scores = {"MSFT": 0.02, "NVDA": 0.05, "AAPL": -0.01}
+    seen_requests: list[ForecastRunRequest] = []
+
+    def fake_predict(request: ForecastRunRequest) -> dict:
+        seen_requests.append(request)
+        ticker = request.dataset_config.ticker
+        expected = scores[ticker]
+        signal = "moderate_bullish" if expected > 0 else "neutral"
+        return {
+            "status": "success",
+            "forecast_result": {
+                "experiment_id": f"exp_{ticker}",
+                "model_id": f"mlf_{ticker}",
+                "ticker": ticker,
+                "as_of": "2026-05-21",
+                "horizon": 5,
+                "prediction_type": "forward_return",
+                "expected_return": expected,
+                "probability_up": 0.60 if expected > 0 else 0.48,
+                "forecast_volatility": 0.20,
+                "signal": signal,
+                "signal_score": expected,
+                "model_confidence": {"score": 0.55 + abs(expected), "level": "medium"},
+                "data_quality": {"status": "ok"},
+            },
+            "signal_result": {
+                "ticker": ticker,
+                "signal": signal,
+                "signal_score": expected,
+                "confidence": 0.55 + abs(expected),
+                "advisory_only": True,
+            },
+            "leakage_check": {"status": "pass"},
+            "warnings": [],
+            "errors": [],
+        }
+
+    monkeypatch.setattr("pipelines.forecast.service.predict", fake_predict)
+    request = ForecastUniverseRunRequest(
+        universe_id="custom",
+        tickers=["MSFT", "NVDA", "AAPL", "TSLA"],
+        max_assets=3,
+        ranking_metric="expected_return",
+        request=ForecastRunRequest(
+            dataset_config=ForecastDatasetConfig(ticker="SPY", benchmark="QQQ"),
+            target_config=TargetConfig(target_type="forward_return", horizon=5),
+            model_config=ModelConfig(model_name="ridge_regression", model_type="regression"),
+        ),
+    )
+
+    result = forecast_service.universe_run(request)
+    response = TestClient(app).post("/api/v1/forecast/universe/run", json=request.model_dump(mode="json"))
+
+    assert result["status"] == "success"
+    assert result["universe"]["selected"] == ["MSFT", "NVDA", "AAPL"]
+    assert result["universe"]["excluded"] == ["TSLA"]
+    assert [item["ticker"] for item in result["items"]] == ["NVDA", "MSFT", "AAPL"]
+    assert result["items"][0]["rank"] == 1
+    assert result["items"][0]["ranking_metric"] == "expected_return"
+    assert result["summary"]["success_count"] == 3
+    assert all(item.dataset_config.universe_id == "custom" for item in seen_requests)
+    assert response.status_code == 200
+    assert response.json()["items"][0]["ticker"] == "NVDA"
 
 
 def test_forecast_dataset_hydrate_endpoint_updates_data_mart(tmp_path, monkeypatch) -> None:

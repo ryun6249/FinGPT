@@ -123,6 +123,22 @@ async def data_auto_refresh_status() -> dict[str, Any]:
     return {"status": "ok", "scheduler": get_data_mart_scheduler().status()}
 
 
+@router.post("/auto-refresh/run")
+async def data_auto_refresh_run() -> dict[str, Any]:
+    """Run the structured data auto-refresh jobs immediately."""
+
+    scheduler = get_data_mart_scheduler()
+    try:
+        refresh = await scheduler.run_once()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"auto refresh failed: {exc}") from exc
+    return {
+        "status": refresh.get("status", "unknown"),
+        "refresh": refresh,
+        "scheduler": scheduler.status(),
+    }
+
+
 @router.get("/prices/{ticker}")
 async def data_prices(
     ticker: str,

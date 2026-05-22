@@ -54,6 +54,26 @@ SEC_FIELD_CONCEPTS: dict[str, tuple[str, ...]] = {
 }
 
 
+def _local_ticker_map_payload(tickers: list[str], *, db_path: str | Path | None = None) -> dict[str, Any] | None:
+    rows = repository.get_sec_company_registry(tickers, db_path=db_path)
+    if not rows:
+        return None
+    return {
+        "fields": ["ticker", "cik", "title", "exchange", "source"],
+        "data": [
+            [
+                row.get("ticker") or "",
+                row.get("cik") or "",
+                row.get("company_name") or row.get("ticker") or "",
+                row.get("exchange") or "",
+                row.get("source") or "local_sec_company_registry",
+            ]
+            for row in rows
+        ],
+        "source": "local_sec_company_registry",
+    }
+
+
 def _clean_tickers(tickers: Iterable[str]) -> list[str]:
     clean: list[str] = []
     seen: set[str] = set()
@@ -158,27 +178,43 @@ def update_sec_company_data(
     request_delay_s = float(getattr(settings, "sec_request_delay_s", 0.12) or 0.12)
     ticker_map_status, ticker_payload = fetch_ticker_map(sec_user_agent)
     if ticker_map_status != "ok":
+        fallback_payload = _local_ticker_map_payload(clean, db_path=db_path)
+        if fallback_payload:
+            ticker_payload = fallback_payload
+            ticker_map_status = "ok"
+        else:
+            repository.record_provider_status(
+                run_id,
+                provider="sec_edgar",
+                status=ticker_map_status,
+                market="us",
+                error_message=f"SEC ticker map returned status={ticker_map_status}.",
+                details={"requested_tickers": clean},
+                db_path=db_path,
+            )
+            repository.finish_update_run(
+                run_id,
+                status="failed",
+                error_message=f"SEC ticker map returned status={ticker_map_status}.",
+                db_path=db_path,
+            )
+            return UpdateRunResult(
+                run_id=run_id,
+                status="failed",
+                market="us",
+                provider="sec_edgar",
+                error_message=f"SEC ticker map returned status={ticker_map_status}.",
+            )
+
+    if isinstance(ticker_payload, dict) and ticker_payload.get("source") == "local_sec_company_registry":
         repository.record_provider_status(
             run_id,
             provider="sec_edgar",
-            status=ticker_map_status,
+            status="partial",
             market="us",
-            error_message=f"SEC ticker map returned status={ticker_map_status}.",
-            details={"requested_tickers": clean},
+            error_message=f"SEC ticker map unavailable; using local registry for {len(ticker_payload.get('data') or [])} ticker(s).",
+            details={"requested_tickers": clean, "ticker_map_fallback": "local_sec_company_registry"},
             db_path=db_path,
-        )
-        repository.finish_update_run(
-            run_id,
-            status="failed",
-            error_message=f"SEC ticker map returned status={ticker_map_status}.",
-            db_path=db_path,
-        )
-        return UpdateRunResult(
-            run_id=run_id,
-            status="failed",
-            market="us",
-            provider="sec_edgar",
-            error_message=f"SEC ticker map returned status={ticker_map_status}.",
         )
 
     companies: list[dict[str, Any]] = []

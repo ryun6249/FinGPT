@@ -151,12 +151,15 @@ class Settings(BaseSettings):
     # scheduler, not a distributed job runner. It polls SEC/company data on a
     # conservative interval and never blocks API startup.
     data_mart_auto_refresh_enabled: bool = Field(default=True)
+    data_mart_auto_refresh_prices_enabled: bool = Field(default=True)
     data_mart_auto_refresh_sec_enabled: bool = Field(default=True)
     data_mart_auto_refresh_macro_enabled: bool = Field(default=True)
+    data_mart_auto_refresh_quality_checks_enabled: bool = Field(default=True)
     data_mart_auto_refresh_interval_hours: float = Field(default=24.0)
     data_mart_auto_refresh_initial_delay_s: float = Field(default=120.0)
     data_mart_auto_refresh_universe_id: str = Field(default="all_supported")
     data_mart_auto_refresh_max_assets: int = Field(default=250)
+    data_mart_auto_refresh_price_markets: str = Field(default="us,kr")
     data_mart_auto_refresh_sec_lookback_days: int = Field(default=365 * 3)
     data_mart_auto_refresh_macro_lookback_days: int = Field(default=365 * 5)
 

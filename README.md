@@ -90,6 +90,16 @@ powershell -ExecutionPolicy Bypass -File scripts/run_daily_update.ps1 -Market us
 
 Qdrant remains the document evidence store for news, filings, transcripts, and current-run RAG chunks. `data/runs.db` remains the research-run history database.
 
+### Strategy Research Lab
+
+The UI includes an Auto Trading tab at `/ui/#auto-trading`.
+It owns strategy definition, local LLM strategy drafts, dry-run validation, repo-local deterministic strategy optimization, failure diagnostics, structured hypotheses, validation evidence, and version tracking under `/api/v1/quant/strategy-research/*`.
+The top `Auto Trading Workbench` card is the strategy operation surface: choose the asset universe, edit the governed JSON strategy script, generate a local-LLM draft, validate it, run the Quant backtest, view internal-data entry/exit markers, and launch Bayesian optimization from the same tab.
+
+The Bayesian optimization path uses Optuna TPE when available and exposes an explicit fallback status if Optuna is unavailable. The BTCUSDT 4H Supertrend preset is repo-local deterministic evidence; protected LEAN/live/broker evidence remains fail-closed unless `/api/v1/quant/strategy-research/protected-runtime/status` reports availability.
+
+This workflow is for strategy research evidence only. It does not provide financial advice, live execution, protected LEAN evidence, or buy/sell recommendations. See `docs/strategy-research-user-guide.md` for usage and verification commands.
+
 수동으로 띄울 때는 다음 명령을 사용합니다.
 
 ```bash

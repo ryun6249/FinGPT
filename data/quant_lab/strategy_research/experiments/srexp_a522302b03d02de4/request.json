@@ -1,0 +1,58 @@
+{
+  "created_at": "2026-05-22T06:29:25.301068+00:00",
+  "experiment_id": "srexp_a522302b03d02de4",
+  "experiment_type": "optimization",
+  "in_sample_end": null,
+  "in_sample_start": null,
+  "market_regime_scope_json": {},
+  "optimization_method": "bayesian",
+  "out_of_sample_end": null,
+  "out_of_sample_start": null,
+  "request_json": {
+    "base_config": {
+      "benchmark": "SPY",
+      "end_date": null,
+      "evidence_class": "repo_local_deterministic",
+      "evidence_notes": [
+        "UI request from Quant Lab controls",
+        "repo-local deterministic evidence"
+      ],
+      "exit_config": {},
+      "filter_config": {},
+      "parameters": {
+        "lookback": 20,
+        "rebalance_every": 21,
+        "slippage_bps": 2,
+        "top_n": 1,
+        "transaction_cost_bps": 5
+      },
+      "position_sizing_config": {},
+      "risk_config": {},
+      "start_date": null,
+      "strategy_id": "btcusdt_4h_supertrend_research_preset",
+      "template": "buy_and_hold",
+      "tickers": [
+        "SPY",
+        "TLT",
+        "GLD"
+      ],
+      "timeframe": "1d",
+      "version_id": null
+    },
+    "max_trials": 12,
+    "method": "bayesian",
+    "notes": "",
+    "objective_config": {},
+    "objective_name": "robust_composite",
+    "random_seed": 42,
+    "search_space": {},
+    "version_id": null
+  },
+  "source_backtest_id": "",
+  "status": "succeeded",
+  "strategy_id": "btcusdt_4h_supertrend_research_preset",
+  "test_period_end": null,
+  "test_period_start": null,
+  "updated_at": "2026-05-22T06:29:41.934635+00:00",
+  "version_id": "btcusdt_4h_supertrend_research_preset_base"
+}

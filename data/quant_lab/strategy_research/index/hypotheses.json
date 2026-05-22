@@ -1,0 +1,199 @@
+[
+  {
+    "created_at": "2026-05-22T04:56:44.174226+00:00",
+    "decision": "accepted",
+    "decision_reason": "accepted from Strategy Research Lab UI after evidence review",
+    "expected_effect": "Drawdown may improve while absolute return may fall.",
+    "hypothesis": "Test volatility-adjusted position sizing and ATR-like cost stress.",
+    "hypothesis_id": "srhyp_f2d47ac6d1ccf034",
+    "problem": "Losses appear during high-volatility observations.",
+    "proposed_change_json": {
+      "condition": "reduce_size_when_high_vol",
+      "indicator": "volatility_percentile",
+      "module": "risk_module",
+      "parameter_range": {
+        "volatility_cap": [
+          0.75,
+          0.85,
+          0.95
+        ]
+      }
+    },
+    "risk": "Risk reduction can under-allocate during strong recoveries.",
+    "source_diagnostics_id": "srdiag_b59a47c5ad2318c6",
+    "source_experiment_id": "srdiag_exp_b59a47c5ad2318c6",
+    "status": "accepted",
+    "strategy_id": "risk_adjusted_momentum_v1",
+    "updated_at": "2026-05-22T11:20:43.358462+00:00",
+    "validation_required_json": [
+      "out_of_sample",
+      "walk_forward",
+      "parameter_stability",
+      "trade_count_check",
+      "cost_stress"
+    ],
+    "version_id": "risk_adjusted_momentum_v1_base"
+  },
+  {
+    "created_at": "2026-05-22T04:56:44.174226+00:00",
+    "decision": "accepted",
+    "decision_reason": "accepted from Strategy Research Lab UI after evidence review",
+    "expected_effect": "False entries may fall, but trade count can drop.",
+    "hypothesis": "Add an ADX-style trend-strength filter as a controlled experiment.",
+    "hypothesis_id": "srhyp_a91df86c35a6d775",
+    "problem": "Losses are concentrated in low-trend or choppy observations.",
+    "proposed_change_json": {
+      "condition": "trend_strength > threshold",
+      "indicator": "ADX",
+      "module": "optional_filter",
+      "parameter_range": {
+        "threshold": [
+          18,
+          20,
+          22,
+          25
+        ]
+      }
+    },
+    "risk": "The filter may delay early trend entries and reduce opportunity count.",
+    "source_diagnostics_id": "srdiag_b59a47c5ad2318c6",
+    "source_experiment_id": "srdiag_exp_b59a47c5ad2318c6",
+    "status": "accepted",
+    "strategy_id": "risk_adjusted_momentum_v1",
+    "updated_at": "2026-05-22T11:20:45.415579+00:00",
+    "validation_required_json": [
+      "out_of_sample",
+      "walk_forward",
+      "parameter_stability",
+      "trade_count_check",
+      "cost_stress"
+    ],
+    "version_id": "risk_adjusted_momentum_v1_base"
+  },
+  {
+    "created_at": "2026-05-22T04:56:44.174226+00:00",
+    "decision": "accepted",
+    "decision_reason": "accepted from Strategy Research Lab UI after evidence review",
+    "expected_effect": "Prevents accepting in-sample-only improvements.",
+    "hypothesis": "Run OOS, walk-forward, cost stress, and parameter stability checks before changing modules.",
+    "hypothesis_id": "srhyp_7514f4e870901603",
+    "problem": "Parameter Instability requires validation before accepting any change.",
+    "proposed_change_json": {
+      "condition": "validate_before_accept",
+      "indicator": "evidence_gate",
+      "module": "validation"
+    },
+    "risk": "May reject superficially attractive but unstable parameter spikes.",
+    "source_diagnostics_id": "srdiag_b59a47c5ad2318c6",
+    "source_experiment_id": "srdiag_exp_b59a47c5ad2318c6",
+    "status": "accepted",
+    "strategy_id": "risk_adjusted_momentum_v1",
+    "updated_at": "2026-05-22T11:20:47.795423+00:00",
+    "validation_required_json": [
+      "out_of_sample",
+      "walk_forward",
+      "parameter_stability",
+      "trade_count_check",
+      "cost_stress"
+    ],
+    "version_id": "risk_adjusted_momentum_v1_base"
+  },
+  {
+    "created_at": "2026-05-22T04:56:44.174226+00:00",
+    "decision": "accepted",
+    "decision_reason": "accepted from Strategy Research Lab UI after evidence review",
+    "expected_effect": "Prevents accepting in-sample-only improvements.",
+    "hypothesis": "Run OOS, walk-forward, cost stress, and parameter stability checks before changing modules.",
+    "hypothesis_id": "srhyp_ce6d929405c63c11",
+    "problem": "Low Trade Count Risk requires validation before accepting any change.",
+    "proposed_change_json": {
+      "condition": "validate_before_accept",
+      "indicator": "evidence_gate",
+      "module": "validation"
+    },
+    "risk": "May reject superficially attractive but unstable parameter spikes.",
+    "source_diagnostics_id": "srdiag_b59a47c5ad2318c6",
+    "source_experiment_id": "srdiag_exp_b59a47c5ad2318c6",
+    "status": "accepted",
+    "strategy_id": "risk_adjusted_momentum_v1",
+    "updated_at": "2026-05-22T11:20:50.626151+00:00",
+    "validation_required_json": [
+      "out_of_sample",
+      "walk_forward",
+      "parameter_stability",
+      "trade_count_check",
+      "cost_stress"
+    ],
+    "version_id": "risk_adjusted_momentum_v1_base"
+  },
+  {
+    "created_at": "2026-05-22T06:44:47.477075+00:00",
+    "decision": "pending",
+    "decision_reason": "",
+    "expected_effect": "Lower turnover may improve net expectancy.",
+    "hypothesis": "Increase rebalance interval or add turnover guard.",
+    "hypothesis_id": "srhyp_08e654f2d0a9c63e",
+    "problem": "Transaction costs consume a meaningful part of expectancy.",
+    "proposed_change_json": {
+      "condition": "rebalance_only_if_score_spread_exceeds_threshold",
+      "indicator": "turnover_guard",
+      "module": "risk_module",
+      "parameter_range": {
+        "rebalance_every": [
+          21,
+          42,
+          63
+        ]
+      }
+    },
+    "risk": "Slower rebalancing can miss regime changes.",
+    "source_diagnostics_id": "srdiag_680ea9a6070edbde",
+    "source_experiment_id": "srdiag_exp_680ea9a6070edbde",
+    "status": "pending",
+    "strategy_id": "risk_adjusted_momentum_v1",
+    "updated_at": "2026-05-22T06:44:47.477075+00:00",
+    "validation_required_json": [
+      "out_of_sample",
+      "walk_forward",
+      "parameter_stability",
+      "trade_count_check",
+      "cost_stress"
+    ],
+    "version_id": "risk_adjusted_momentum_v1_base"
+  },
+  {
+    "created_at": "2026-05-22T06:44:47.477075+00:00",
+    "decision": "accepted",
+    "decision_reason": "accepted from Strategy Research Lab UI after evidence review",
+    "expected_effect": "Payoff ratio may improve if large reversals are common.",
+    "hypothesis": "Test partial profit taking or trailing exits as an experiment.",
+    "hypothesis_id": "srhyp_cf9f8303a66136fd",
+    "problem": "Reward/risk profile is weak after losses and costs.",
+    "proposed_change_json": {
+      "condition": "protect_after_positive_move",
+      "indicator": "trailing_exit",
+      "module": "exit_module",
+      "parameter_range": {
+        "trail_multiple": [
+          2.0,
+          3.0,
+          4.0
+        ]
+      }
+    },
+    "risk": "Earlier exits can reduce trend participation.",
+    "source_diagnostics_id": "srdiag_680ea9a6070edbde",
+    "source_experiment_id": "srdiag_exp_680ea9a6070edbde",
+    "status": "accepted",
+    "strategy_id": "risk_adjusted_momentum_v1",
+    "updated_at": "2026-05-22T11:20:56.360499+00:00",
+    "validation_required_json": [
+      "out_of_sample",
+      "walk_forward",
+      "parameter_stability",
+      "trade_count_check",
+      "cost_stress"
+    ],
+    "version_id": "risk_adjusted_momentum_v1_base"
+  }
+]

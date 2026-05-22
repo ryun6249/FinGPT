@@ -1,5 +1,67 @@
 # Continuous Enhancement Log
 
+## 2026-05-22 Risk Workbench Pressure Stack
+
+- Runtime: `2026-05-22 20:24 KST`.
+- Current status: the prior coverage-topology slice was already verified. This slice keeps the backend Risk contract, score math, provider calls, Forecast math, AI generation, and advisory-only policy unchanged while making the pressure composition easier to scan.
+- UI/UX: `/ui/#risk` now renders `risk-pressure-stack` in the first-flow decision brief and mirrors `risk-pressure-stack-detail` in the evidence drawer. It turns existing deterministic fields into one stacked pressure view: risk index, top driver pressure, dominant transmission pressure, scenario stress, data penalty, and Forecast validation.
+- Layout hardening: the pressure stack uses a compact proportional strip plus responsive metric cards; desktop and mobile checks showed body and critical Risk-panel overflow `0`.
+- Cache safety: static assets were bumped to `app.js?v=20260522-risk-visual-v6` and `styles.css?v=20260522-risk-visual-v6`; the AI Portfolio smoke bundle guard was synchronized to the same app bundle.
+- Verification: `node --check app\web\app.js`, `python scripts\check_ui_contract.py`, `python -m pytest tests\test_ui_risk_contract.py tests\test_ui_routing_contract.py -q` (`44 passed, 4 subtests passed`), `python -m pytest tests\test_risk_workbench_api.py tests\test_risk_aggregation.py tests\test_risk_transmission.py tests\test_risk_data_quality.py -q` (`13 passed`), and `git diff --check` on touched files passed with only existing LF/CRLF warnings.
+- Browser verification: fresh server `http://127.0.0.1:8818/ui/#risk`; MCP_DOCKER browser confirmed v6 app/style bundles and the new pressure stack on NVDA desktop. Local headless Playwright confirmed NVDA desktop `1440x1000`, TLT mobile `390x900`, and invalid ticker output all rendered `risk-pressure-stack`, `risk-pressure-stack-detail`, `risk-coverage-topology`, `risk-readiness-radar`, `risk-workflow-lane`, `risk-causal-path-map`, `risk-evidence-trace-map`, `risk-service-gate-rail`, `risk-driver-visual`, `risk-transmission-flow`, and `risk-scenario-heatmap` with body and critical Risk-panel overflow `0`, console errors `0`, loaded v6 assets, and invalid ticker Forecast links `0`.
+- Screenshots: `F:\LLM\risk-pressure-stack-desktop-8818.png`, `F:\LLM\risk-pressure-stack-mobile-8818.png`, `F:\LLM\risk-pressure-stack-invalid-8818.png`.
+
+## 2026-05-22 Risk Workbench Coverage Topology
+
+- Runtime: `2026-05-22 20:06 KST`.
+- Current status: the prior causal path-map slice was already verified. This slice keeps the backend Risk contract, score math, provider calls, Forecast math, AI generation, and advisory-only policy unchanged while making coverage and compatibility easier to scan.
+- UI/UX: `/ui/#risk` now renders `risk-coverage-topology` in the first-flow decision brief and mirrors `risk-coverage-topology-detail` in the evidence drawer. It turns existing `evidence_coverage.items` and `compatibility_matrix.rows` into a domain coverage map plus workflow support/blocked counts, so users can see which evidence domains and downstream workflows are usable before opening the long lists.
+- Layout hardening: the topology uses responsive domain/workflow tracks and collapses to one column under narrow viewports.
+- Cache safety: static assets were bumped to `app.js?v=20260522-risk-visual-v5` and `styles.css?v=20260522-risk-visual-v5`; the AI Portfolio smoke bundle guard was synchronized to the same app bundle.
+- Verification: `node --check app\web\app.js`, `python scripts\check_ui_contract.py`, `python -m pytest tests\test_ui_risk_contract.py tests\test_ui_routing_contract.py -q` (`44 passed, 4 subtests passed`), `python -m pytest tests\test_risk_workbench_api.py tests\test_risk_aggregation.py tests\test_risk_transmission.py tests\test_risk_data_quality.py -q` (`13 passed`), and `git diff --check` on touched files passed with only existing LF/CRLF warnings.
+- Browser verification: fresh server `http://127.0.0.1:8817/ui/#risk`; MCP_DOCKER browser confirmed v5 app/style bundles and all visual markers on NVDA desktop. Local headless Playwright confirmed NVDA desktop `1440x1000`, TLT mobile `390x900`, and invalid ticker output all rendered `risk-coverage-topology`, `risk-coverage-topology-detail`, `risk-readiness-radar`, `risk-workflow-lane`, `risk-causal-path-map`, `risk-evidence-trace-map`, `risk-service-gate-rail`, `risk-driver-visual`, `risk-transmission-flow`, and `risk-scenario-heatmap` with body and critical Risk-panel overflow `0`, console errors `0`, loaded v5 assets, and invalid ticker Forecast links `0`.
+- Screenshots: `F:\LLM\risk-coverage-topology-desktop-8817.png`, `F:\LLM\risk-coverage-topology-mobile-8817.png`, `F:\LLM\risk-coverage-topology-invalid-8817.png`.
+
+## 2026-05-22 Risk Workbench Causal Path Map
+
+- Runtime: `2026-05-22 19:12 KST`.
+- Current status: the prior visual trace-map slice was already verified. This slice keeps the backend Risk contract, score math, provider calls, Forecast math, and advisory-only policy unchanged while making the first-flow visual control plane more explanatory.
+- UI/UX: `/ui/#risk` now renders `risk-causal-path-map` in the decision brief. It connects input receipt -> priority driver -> dominant transmission channel -> scenario stress -> Forecast validation -> service gate from existing deterministic Risk response fields, so users can scan the causal chain before reading the detailed cards.
+- Layout hardening: the decision-grade template now uses responsive auto-fit tracks, and causal-map connectors no longer create internal scroll width. Desktop and mobile checks showed body and critical Risk-panel overflow `0`.
+- Cache safety: static assets were bumped to `app.js?v=20260522-risk-visual-v4` and `styles.css?v=20260522-risk-visual-v4`; the AI Portfolio smoke bundle guard was synchronized to the same app bundle.
+- Verification: `node --check app\web\app.js`, `python scripts\check_ui_contract.py`, `python -m pytest tests\test_ui_risk_contract.py tests\test_ui_routing_contract.py -q` (`44 passed, 4 subtests passed`), `python -m pytest tests\test_risk_workbench_api.py tests\test_risk_aggregation.py tests\test_risk_transmission.py tests\test_risk_data_quality.py -q` (`13 passed`), and `git diff --check` on touched files passed with only existing LF/CRLF warnings.
+- Browser verification: fresh server `http://127.0.0.1:8816/ui/#risk`; Playwright confirmed `risk-causal-path-map`, `risk-readiness-radar`, `risk-workflow-lane`, `risk-evidence-trace-map`, `risk-service-gate-rail`, `risk-driver-visual`, `risk-transmission-flow`, and `risk-scenario-heatmap` on NVDA desktop and TLT `390x900` mobile. Invalid ticker output rendered the causal map in a blocked path with `0` Forecast launch links. Console errors were `0`, and loaded assets were `app.js?v=20260522-risk-visual-v4` plus `styles.css?v=20260522-risk-visual-v4`.
+- Screenshots: `F:\LLM\risk-causal-path-desktop-8816.png`, `F:\LLM\risk-causal-path-mobile-8816.png`, `F:\LLM\risk-causal-path-invalid-8816.png`.
+
+## 2026-05-22 Risk Workbench Visual Trace Map
+
+- Runtime: `2026-05-22 18:12 KST`.
+- Current status: the prior visual control-plane slice was already verified. This slice keeps the backend Risk contract and scoring math unchanged while making the evidence and service-gate portions of the first-flow UI more visual.
+- UI/UX: `/ui/#risk` now renders `risk-evidence-trace-map` and `risk-service-gate-rail` in the decision brief, and mirrors those scan-first visuals in the evidence drawer. The trace map connects input receipt, evidence coverage, compatibility, Forecast validation, run lineage, and AI grounding. The service rail summarizes readiness, release packet, deployment checks, action checklist, and monitoring triggers.
+- Cache safety: static assets were bumped to `app.js?v=20260522-risk-visual-v3` and `styles.css?v=20260522-risk-visual-v3`; the AI Portfolio smoke bundle guard was synchronized to the same app bundle.
+- Verification: `node --check app\web\app.js`, `python scripts\check_ui_contract.py`, `python -m pytest tests\test_ui_risk_contract.py tests\test_ui_routing_contract.py -q` (`44 passed, 4 subtests passed`), and `python -m pytest tests\test_risk_workbench_api.py tests\test_risk_aggregation.py tests\test_risk_transmission.py tests\test_risk_data_quality.py -q` (`13 passed`) passed.
+- Browser verification: fresh server `http://127.0.0.1:8815/ui/#risk`; Docker browser and local headless Playwright confirmed `risk-evidence-trace-map`, `risk-service-gate-rail`, `risk-readiness-radar`, `risk-workflow-lane`, `risk-driver-visual`, `risk-transmission-flow`, and `risk-scenario-heatmap` on NVDA desktop and TLT `390x900` mobile. Invalid ticker output rendered the new blocked trace/service visuals with `0` Forecast launch links. Body and critical Risk-panel overflow were `0`, console errors were `0`, and loaded assets were `app.js?v=20260522-risk-visual-v3` plus `styles.css?v=20260522-risk-visual-v3`.
+- Screenshots: `F:\LLM\risk-visual-trace-desktop-8815.png`, `F:\LLM\risk-visual-trace-mobile-8815.png`.
+
+## 2026-05-22 Risk Workbench Visual Control Plane
+
+- Runtime: `2026-05-22 17:14 KST`.
+- Current status: the prior Risk visual-surface slice was already verified. This slice keeps the backend Risk contract and scoring math unchanged while making the first-flow decision brief more visual and scan-friendly.
+- UI/UX: `/ui/#risk` now renders a `risk-readiness-radar` over existing deterministic fields (`risk_index`, `decision_quality`, `evidence_coverage`, confidence, Forecast validation, and AI output controls) plus a `risk-workflow-lane` that maps input receipt -> decision path -> evidence -> Forecast validation -> service gate -> AI guardrails before the detailed cards.
+- Cache safety: static assets were bumped to `app.js?v=20260522-risk-visual-v2` and `styles.css?v=20260522-risk-visual-v2`; the AI Portfolio smoke bundle guard was synchronized to the same app bundle.
+- Verification: `node --check app\web\app.js`, `python scripts\check_ui_contract.py`, `python -m pytest tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py tests/test_ui_routing_contract.py -q` (`52 passed, 4 subtests passed`), `python -m pytest tests/test_risk_aggregation.py tests/test_risk_transmission.py tests/test_risk_data_quality.py -q` (`5 passed`), and `git diff --check` on touched files passed.
+- Browser verification: fresh server `http://127.0.0.1:8814/ui/#risk`; Docker browser and local headless Playwright confirmed `risk-readiness-radar`, `risk-workflow-lane`, `risk-driver-visual`, `risk-transmission-flow`, and `risk-scenario-heatmap` on NVDA desktop and TLT `390x900` mobile. Body and critical Risk-panel overflow were `0`, console errors were `0`, and loaded assets were `app.js?v=20260522-risk-visual-v2` plus `styles.css?v=20260522-risk-visual-v2`.
+- Screenshots: `F:\LLM\risk-visual-control-plane-desktop-8814.png`, `F:\LLM\risk-visual-control-plane-mobile-8814.png`.
+
+## 2026-05-22 Risk Workbench Visual Surfaces
+
+- Runtime: `2026-05-22 16:16 KST`.
+- Current status: prior Risk backend contracts were already complete and verified. This slice keeps the contract stable and upgrades existing Risk UI surfaces that already carried visual intent.
+- UI/UX: `/ui/#risk` now renders the driver contributions as an SVG risk-bar visual, transmission channels as a flow map, and scenario stress rows as a heatmap before the detail tables/cards. The work preserves advisory-only wording and deterministic score math.
+- Cache safety: static assets were bumped to `app.js?v=20260522-risk-visual-v1` and `styles.css?v=20260522-risk-visual-v1`; the AI Portfolio smoke bundle guard was synchronized to the same app bundle.
+- Verification: `node --check app\web\app.js`, `python scripts\check_ui_contract.py`, `python -m pytest tests/test_risk_workbench_api.py tests/test_ui_risk_contract.py tests/test_ui_routing_contract.py -q`, and `python -m pytest tests/test_risk_aggregation.py tests/test_risk_transmission.py tests/test_risk_data_quality.py -q` passed. Browser checks on `http://127.0.0.1:8813/ui/#risk` covered NVDA desktop and TLT 390px mobile with visual markers present, body/critical overflow `0`, console errors `0`, and the new cache-busted app/style bundles loaded.
+- Screenshots: `F:\LLM\risk-visual-desktop-nvda-8813.png`, `F:\LLM\risk-visual-mobile-tlt-8813.png`.
+
 ## 2026-05-21 Risk Workbench Forecast Validation Plan
 
 - Runtime: `2026-05-21 22:07 KST`.

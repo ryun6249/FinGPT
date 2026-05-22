@@ -77,14 +77,29 @@ def _run_playwright_flow(
             page.goto(_macro_page_url(base_url), wait_until="domcontentloaded", timeout=timeout_ms)
             page.locator('#macroDashboardTab[aria-selected="true"]').wait_for(state="visible", timeout=timeout_ms)
             _mark(checked, "macro tab selected")
-            page.locator('[data-panel-view="all"]').click()
+            page.locator('button[data-panel-view="all"]').click()
             _mark(checked, "all macro panels selected")
 
             page.locator("#macroLoadStatus .decision-completion").wait_for(state="visible", timeout=timeout_ms)
             page.locator("#macroOverviewSurface .decision-status-row").wait_for(state="visible", timeout=timeout_ms)
-            page.locator("#macroProviderHealthSurface .decision-status-row").wait_for(state="visible", timeout=timeout_ms)
-            page.locator("#macroDataQualitySurface .decision-status-row").wait_for(state="visible", timeout=timeout_ms)
             _mark(checked, "progressive dashboard surfaces")
+
+            page.locator("#qualityDashBtn").click()
+            page.locator("#qualityPanel #macroDataQualitySurface .decision-status-row").wait_for(
+                state="visible",
+                timeout=timeout_ms,
+            )
+            page.locator("#qualityPanel #macroCoverageSurface .macro-coverage-grid").wait_for(
+                state="visible",
+                timeout=timeout_ms,
+            )
+            page.locator("#qualityPanel #macroProviderHealthSurface .decision-status-row").wait_for(
+                state="visible",
+                timeout=timeout_ms,
+            )
+            page.locator("#qualityClose").click()
+            page.locator("#qualityPanel").wait_for(state="hidden", timeout=timeout_ms)
+            _mark(checked, "macro diagnostics in quality panel")
 
             for selector in [
                 "#macroCategoryFilter",

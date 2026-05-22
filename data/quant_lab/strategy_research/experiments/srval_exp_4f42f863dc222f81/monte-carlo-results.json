@@ -1,0 +1,8 @@
+{
+  "median_terminal_return_pct": 25.656032,
+  "p05_terminal_return_pct": -34.760745,
+  "p95_max_drawdown_pct": -49.141655,
+  "risk_of_negative_terminal_pct": 32.0,
+  "runs": 100,
+  "status": "succeeded"
+}

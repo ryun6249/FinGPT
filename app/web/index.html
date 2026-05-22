@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FinGPT Local Research Assistant</title>
-  <link rel="stylesheet" href="styles.css?v=20260521-risk-forecast-v35" />
+  <link rel="stylesheet" href="styles.css?v=20260522-risk-visual-v6" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='48' font-size='48'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E" />
 </head>
 <body>
@@ -111,11 +111,44 @@
       <div id="qualityDataHealth" class="decision-surface compact-surface">
         <div class="home-news-empty">가격·재무·거시·뉴스·공시 품질을 로드 중입니다.</div>
       </div>
+      <div class="quality-refresh-command">
+        <button type="button" id="dataAutoRefreshRun" class="ghost-btn" data-testid="data-auto-refresh-run">전체 데이터 즉시 갱신</button>
+        <span id="dataAutoRefreshStatus" class="form-notice subtle" role="status">자동 최신화 상태를 확인 중입니다.</span>
+      </div>
     </section>
     <section class="quality-section">
       <h4>매크로 데이터 품질</h4>
       <div id="qualityMacroData" class="decision-surface compact-surface">
         <div class="home-news-empty">매크로 시계열 품질을 로드 중입니다.</div>
+      </div>
+      <div class="quality-diagnostic-grid">
+        <section class="quality-diagnostic-card">
+          <div class="quality-diagnostic-head">
+            <strong>데이터 품질</strong>
+            <span>누락, 지연, 공급자 오류</span>
+          </div>
+          <div id="macroDataQualitySurface" class="decision-surface compact-surface quality-diagnostic-surface">
+            <div class="home-news-empty">매크로 데이터 품질을 불러오는 중입니다.</div>
+          </div>
+        </section>
+        <section class="quality-diagnostic-card">
+          <div class="quality-diagnostic-head">
+            <strong>매크로 데이터 커버리지</strong>
+            <span>레지스트리, 공급자, 범주</span>
+          </div>
+          <div id="macroCoverageSurface" class="decision-surface compact-surface quality-diagnostic-surface">
+            <div class="home-news-empty">Macro coverage is loading.</div>
+          </div>
+        </section>
+        <section class="quality-diagnostic-card">
+          <div class="quality-diagnostic-head">
+            <strong>Provider Health</strong>
+            <span>configured, latest rows, stale series</span>
+          </div>
+          <div id="macroProviderHealthSurface" class="decision-surface compact-surface quality-diagnostic-surface">
+            <div class="home-news-empty">공급자 상태를 불러오는 중입니다.</div>
+          </div>
+        </section>
       </div>
     </section>
     <section class="quality-section">
@@ -134,6 +167,27 @@
       <h4>AI Portfolio 커버리지</h4>
       <div id="qualityAiPortfolioData" class="decision-surface compact-surface">
         <div class="home-news-empty">AI Portfolio 대시보드 또는 추천 실행 후 coverage와 운영 품질 요약이 표시됩니다.</div>
+      </div>
+    </section>
+    <section class="quality-section">
+      <h4>탭별 운영·품질 상세</h4>
+      <div class="quality-ops-grid">
+        <section class="quality-ops-group" data-quality-ops-group="quant">
+          <div class="quality-ops-head"><strong>Quant Lab</strong><span>전략·실행 이력</span></div>
+          <div id="qualityOpsQuant" class="quality-ops-stack"></div>
+        </section>
+        <section class="quality-ops-group" data-quality-ops-group="forecast">
+          <div class="quality-ops-head"><strong>ML Forecast</strong><span>신호 품질, provider, jobs</span></div>
+          <div id="qualityOpsForecast" class="quality-ops-stack"></div>
+        </section>
+        <section class="quality-ops-group" data-quality-ops-group="quantamental">
+          <div class="quality-ops-head"><strong>Quantamental</strong><span>데이터 품질</span></div>
+          <div id="qualityOpsQuantamental" class="quality-ops-stack"></div>
+        </section>
+        <section class="quality-ops-group" data-quality-ops-group="ai-portfolio">
+          <div class="quality-ops-head"><strong>AI Portfolio</strong><span>운영 상태와 데이터 작업</span></div>
+          <div id="qualityOpsAiPortfolio" class="quality-ops-stack"></div>
+        </section>
       </div>
     </section>
     <section class="quality-section quality-evaluation-section">
@@ -332,13 +386,16 @@
           <button id="riskDashboardTab" type="button" class="dashboard-tab" data-dashboard-tab="risk" data-testid="risk-dashboard-tab" role="tab" aria-selected="false">
             Risk
           </button>
+          <button id="autoTradingTab" type="button" class="dashboard-tab" data-dashboard-tab="auto-trading" data-testid="auto-trading-tab" role="tab" aria-selected="false">
+            Auto Trading
+          </button>
           <button id="quantLabTab" type="button" class="dashboard-tab" data-dashboard-tab="quant" data-testid="quant-lab-tab" role="tab" aria-selected="false">
             Quant Lab
           </button>
           <button id="quantamentalTab" type="button" class="dashboard-tab" data-dashboard-tab="quantamental" data-testid="quantamental-tab" role="tab" aria-selected="false">
             Quantamental
           </button>
-          <button id="mlForecastTab" type="button" class="dashboard-tab" data-dashboard-tab="forecast" data-testid="ml-forecast-tab" role="tab" aria-selected="false">
+          <button id="mlForecastTab" type="button" class="dashboard-tab" data-dashboard-tab="forecast" data-testid="ml-forecast-tab" role="tab" aria-selected="false" hidden aria-hidden="true" tabindex="-1">
             ML Forecast
           </button>
           <button id="aiPortfolioTab" type="button" class="dashboard-tab" data-dashboard-tab="ai-portfolio" data-testid="ai-portfolio-tab" role="tab" aria-selected="false">
@@ -473,15 +530,6 @@
             <div id="tvHeatmapWidgetDisabled" class="hidden" aria-hidden="true"></div>
             <div id="tvHeatmapFallback" class="tv-fallback hidden">TradingView 히트맵은 공개 임베드에서 EOD로 표시될 수 있어 의사결정용 표시에서 제외했습니다.</div>
           </section>
-          <section class="home-card home-market-panel market-surface" data-panel-tier="details">
-            <div class="home-card-head">
-              <h3>내부 시장 스냅샷</h3>
-              <span>Yahoo/yfinance · 기준일 포함</span>
-            </div>
-            <div id="homeMarketList" class="home-market-grid">
-              <div class="home-news-empty">시장 데이터를 불러오는 중입니다.</div>
-            </div>
-          </section>
           <section id="macroSurface" class="home-card macro-card macro-overview-card macro-surface" data-panel-tier="primary">
             <div class="home-card-head">
               <h3>Macro Regime Summary</h3>
@@ -502,12 +550,6 @@
             </div>
             <div id="macroOverviewSurface" class="decision-surface">
               <div class="home-news-empty">Macro overview is loading.</div>
-            </div>
-          </section>
-          <section class="home-card macro-card macro-coverage-card macro-surface" data-panel-tier="details">
-            <div class="home-card-head"><h3>Macro Data Coverage</h3><span>registry, providers, categories</span></div>
-            <div id="macroCoverageSurface" class="decision-surface compact-surface">
-              <div class="home-news-empty">Macro coverage is loading.</div>
             </div>
           </section>
           <section class="home-card macro-card macro-search-card macro-surface" data-panel-tier="primary">
@@ -571,12 +613,6 @@
             </div>
             <div id="macroCompareSurface" class="decision-surface compact-surface">
               <div class="home-news-empty">비교 패널은 필터와 선택 상태를 확인하는 자리입니다. 다중 시계열 비교는 이후 단계에서 확장합니다.</div>
-            </div>
-          </section>
-          <section class="home-card macro-card macro-provider-card macro-surface" data-panel-tier="details">
-            <div class="home-card-head"><h3>Provider Health</h3><span>configured, latest rows, stale series</span></div>
-            <div id="macroProviderHealthSurface" class="decision-surface compact-surface">
-              <div class="home-news-empty">공급자 상태를 불러오는 중입니다.</div>
             </div>
           </section>
           <section class="home-card macro-card macro-indicators-card macro-surface" data-panel-tier="details">
@@ -676,11 +712,6 @@
             </div>
             <div id="macroBriefSurface" class="decision-surface"><div class="home-news-empty">Brief has not been generated yet.</div></div>
           </section>
-          <section class="home-card macro-card macro-quality-card macro-surface" data-panel-tier="details">
-            <div class="home-card-head"><h3>Data Quality</h3><span>missing, stale, provider errors</span></div>
-            <div id="macroDataQualitySurface" class="decision-surface compact-surface"><div class="home-news-empty">Loading data quality.</div></div>
-          </section>
-
           <section id="riskWorkbenchPanel" class="home-card risk-card risk-workbench-card risk-surface" data-panel-tier="primary">
             <div class="home-card-head">
               <h3>Risk Control Plane</h3>
@@ -871,7 +902,98 @@
               <div class="home-news-empty">백테스트 결과에는 시그널 매트릭스가 자동 포함됩니다. 여기서는 실행 전 같은 조건의 후보/비후보를 빠르게 점검합니다.</div>
             </div>
           </section>
-          <section class="home-card strategy-governance-card quant-surface" data-panel-tier="operations">
+          <section class="home-card auto-trading-workbench-card auto-trading-surface" data-panel-tier="primary" data-testid="auto-trading-workbench">
+            <div class="home-card-head">
+              <h3>Auto Trading Workbench</h3>
+              <span>strategy editor · signal chart · backtest · Bayesian search</span>
+            </div>
+            <div class="workbench-guardrail-strip auto-trading-guardrail">
+              <span><strong>Mode</strong> research and paper seam</span>
+              <span><strong>Code</strong> governed JSON strategy</span>
+              <span><strong>Signals</strong> next-bar evidence</span>
+              <span><strong>Live</strong> protected fail-closed</span>
+            </div>
+            <div class="auto-trading-shell">
+              <div class="auto-trading-left">
+                <div class="decision-form auto-trading-controls">
+                  <label>
+                    <span>Assets</span>
+                    <div class="input-action-row">
+                      <input id="autoTradingTicker" type="text" value="SPY,TLT,GLD" maxlength="12000" aria-label="Auto Trading asset universe" />
+                      <button type="button" id="autoTradingTickerOpen" class="ghost-btn" data-testid="auto-trading-ticker-open">Find</button>
+                    </div>
+                    <div id="autoTradingAssetChips" class="selected-symbol-chips" aria-live="polite"></div>
+                  </label>
+                  <label><span>Chart asset</span><select id="autoTradingPrimaryTicker" aria-label="Auto Trading chart asset"><option value="SPY">SPY</option></select></label>
+                  <label><span>Strategy</span><select id="autoTradingStrategySelect" aria-label="Auto Trading saved strategy"><option value="">Default draft</option></select></label>
+                  <label><span>Template</span><select id="autoTradingTemplate" aria-label="Auto Trading template"><option value="risk_adjusted_momentum" selected>Risk adjusted momentum</option><option value="momentum_ranking">Momentum ranking</option><option value="moving_average_trend">Moving average trend</option><option value="volatility_targeting">Volatility targeting</option><option value="buy_and_hold">Buy and hold evidence</option></select></label>
+                  <label><span>Timeframe</span><select id="autoTradingTimeframe" aria-label="Auto Trading timeframe"><option value="1d" selected>1D internal bars</option><option value="4h">4H research preset</option></select></label>
+                  <label><span>History days</span><input id="autoTradingLookbackDays" type="number" value="756" min="120" max="5000" aria-label="Auto Trading history days" /></label>
+                  <label><span>Signal lookback</span><input id="autoTradingSignalLookback" type="number" value="63" min="5" max="756" aria-label="Auto Trading signal lookback" /></label>
+                  <label><span>Top N</span><input id="autoTradingTopN" type="number" value="2" min="1" max="20" aria-label="Auto Trading top N" /></label>
+                  <label><span>Rebalance</span><input id="autoTradingRebalanceEvery" type="number" value="21" min="1" max="252" aria-label="Auto Trading rebalance frequency" /></label>
+                  <label><span>Cost bps</span><input id="autoTradingCostBps" type="number" value="5" min="0" max="1000" aria-label="Auto Trading transaction cost basis points" /></label>
+                  <label><span>Slippage bps</span><input id="autoTradingSlippageBps" type="number" value="2" min="0" max="1000" aria-label="Auto Trading slippage basis points" /></label>
+                </div>
+                <div id="autoTradingAssetStatus" class="decision-surface compact-surface auto-trading-asset-status" data-testid="auto-trading-asset-status">
+                  <div class="home-news-empty">Select assets, then run a signal backtest to see which symbols have executable internal evidence.</div>
+                </div>
+                <div class="auto-trading-action-row">
+                  <button type="button" id="autoTradingDraft" class="ghost-btn" data-testid="auto-trading-draft">New draft</button>
+                  <button type="button" id="autoTradingGenerate" class="ghost-btn" data-testid="auto-trading-generate">LLM strategy</button>
+                  <button type="button" id="autoTradingDryRun" class="ghost-btn" data-testid="auto-trading-dry-run">Validate code</button>
+                  <button type="button" id="autoTradingSave" class="ghost-btn" data-testid="auto-trading-save">Save</button>
+                  <button type="button" id="autoTradingBacktest" class="ghost-btn strong" data-testid="auto-trading-backtest">Backtest signals</button>
+                  <button type="button" id="autoTradingOptimize" class="ghost-btn" data-testid="auto-trading-optimize">Bayesian optimize</button>
+                </div>
+                <div id="autoTradingDryRunSurface" class="decision-surface compact-surface" data-testid="auto-trading-dry-run-surface">
+                  <div class="home-news-empty">Generated or edited strategy definitions are validated here before backtest evidence is used.</div>
+                </div>
+              </div>
+              <div class="auto-trading-editor-stack">
+                <label class="auto-trading-prompt-panel">
+                  <span>LLM strategy prompt</span>
+                  <textarea id="autoTradingPrompt" class="strategy-prompt-input" spellcheck="false" aria-label="Auto Trading LLM strategy prompt">Create a risk-adjusted momentum strategy for the selected assets. Use next-bar execution, include transaction costs, and explain failure conditions before any promotion.</textarea>
+                </label>
+                <label class="auto-trading-code-panel">
+                  <span>Strategy script</span>
+                  <textarea id="autoTradingCode" class="strategy-json-editor auto-trading-code-editor" spellcheck="false" aria-label="Auto Trading strategy JSON code"></textarea>
+                </label>
+              </div>
+              <div class="auto-trading-output-stack">
+                <div id="autoTradingChartSurface" class="decision-surface auto-trading-chart-surface" data-testid="auto-trading-chart-surface">
+                  <div class="home-news-empty">Run Backtest signals to render the internal data chart with entry and exit markers.</div>
+                </div>
+                <div id="autoTradingBacktestSurface" class="decision-surface compact-surface" data-testid="auto-trading-backtest-surface">
+                  <div class="home-news-empty">Backtest evidence summary, run context, and decision notes will appear here.</div>
+                </div>
+                <div id="autoTradingOptimizationSurface" class="decision-surface compact-surface" data-testid="auto-trading-optimization-surface">
+                  <div class="home-news-empty">Bayesian optimization uses the Strategy Research engine and keeps recommendations validation-gated.</div>
+                </div>
+              </div>
+            </div>
+          </section>
+          <section class="home-card auto-trading-control-card auto-trading-surface" data-panel-tier="primary" data-testid="auto-trading-control-plane">
+            <div class="home-card-head">
+              <h3>Auto Trading Control</h3>
+              <span>strategy operation seam</span>
+            </div>
+            <div class="workbench-guardrail-strip">
+              <span><strong>Mode</strong> research to paper seam</span>
+              <span><strong>Core</strong> user controlled</span>
+              <span><strong>Evidence</strong> validation gated</span>
+              <span><strong>Live</strong> protected fail-closed</span>
+            </div>
+            <div class="decision-surface compact-surface">
+              <div class="decision-summary-grid">
+                <div><strong>1. Define</strong><span>전략 초안, JSON 정의, dry-run 검증을 이 탭에서 조작합니다.</span></div>
+                <div><strong>2. Research</strong><span>파라미터 최적화, 실패 진단, 가설 생성, OOS 검증을 분리합니다.</span></div>
+                <div><strong>3. Promote</strong><span>검증 전 가설은 pending이며, accepted version만 paper/live seam 후보가 됩니다.</span></div>
+              </div>
+              <p class="form-notice subtle">현재 화면은 전략 리서치와 운영 준비용입니다. 브로커 실행, LEAN protected evidence, live 주문은 별도 protected runtime이 확인되기 전까지 fail-closed로 유지됩니다.</p>
+            </div>
+          </section>
+          <section class="home-card strategy-governance-card auto-trading-surface" data-panel-tier="operations">
             <div class="home-card-head">
               <h3>전략 거버넌스</h3>
               <button type="button" id="quantStrategyRefresh" class="linkish" data-testid="quant-strategy-refresh">새로고침</button>
@@ -911,6 +1033,83 @@
             </div>
             <div id="quantStrategySurface" class="decision-surface">
               <div class="home-news-empty">저장된 전략은 버전, 출처, 체결 정책, 사용 팩터와 함께 표시됩니다.</div>
+            </div>
+          </section>
+          <section class="home-card model-profile-card quant-surface" data-panel-tier="primary">
+            <div class="home-card-head">
+              <h3>Model Profile</h3>
+              <button type="button" id="quantModelProfileRefresh" class="linkish" data-testid="quant-model-profile-refresh">새로고침</button>
+            </div>
+            <div class="workbench-guardrail-strip forecast-guardrail-strip">
+              <span><strong>Strategy</strong> code-only</span>
+              <span><strong>Profile</strong> universe/model/target</span>
+              <span><strong>Execution</strong> next-bar only</span>
+              <span><strong>Policy</strong> advisory only</span>
+            </div>
+            <div class="decision-form model-profile-form">
+              <label><span>Profile</span><select id="quantModelProfileSelect" aria-label="Quant model profile"><option value="">기본 프로필</option></select></label>
+              <label><span>Profile ID</span><input id="quantModelProfileId" type="text" value="core_universe_forecast_v1" maxlength="80" aria-label="Quant model profile id" /></label>
+              <label><span>Run mode</span><select id="quantModelProfileRunMode" aria-label="Quant model run mode"><option value="universe_per_asset">유니버스 종목별 Forecast</option><option value="cross_sectional_rank">패널 랭킹 Forecast</option><option value="single_asset">단일 종목 Forecast</option></select></label>
+              <button type="button" id="quantModelProfileDryRun" class="ghost-btn" data-testid="quant-model-profile-dry-run">프로필 검증</button>
+              <button type="button" id="quantModelProfileSave" class="ghost-btn" data-testid="quant-model-profile-save">프로필 저장</button>
+              <button type="button" id="quantModelProfileRun" class="ghost-btn" data-testid="quant-model-lab-run">Model Lab 실행</button>
+              <button type="button" id="quantModelProfileQueue" class="ghost-btn" data-testid="quant-model-lab-job">Job 큐</button>
+              <button type="button" id="quantModelProfileDelete" class="ghost-btn danger" data-testid="quant-model-profile-delete">삭제</button>
+            </div>
+            <div class="decision-note">전략은 신호/체결 규칙만 담당하고, 모델 프로필은 유니버스, 타깃, 검증, 모델, 랭킹 기준을 관리합니다. 기존 ML Forecast 엔진은 그대로 사용합니다.</div>
+            <div id="quantModelProfileSurface" class="decision-surface">
+              <div class="home-news-empty">현재 Forecast 설정과 Strategy Governance 선택을 연결해 Model Lab 프로필을 검증하거나 저장하세요.</div>
+            </div>
+          </section>
+          <section class="home-card quant-rank-card quant-surface" data-panel-tier="primary">
+            <div class="home-card-head">
+              <h3>Panel Rank Result</h3>
+              <span>cross-sectional ML ranking</span>
+            </div>
+            <div id="quantRankSurface" class="decision-surface quant-rank-surface">
+              <div class="home-news-empty">Model Profile에서 패널 랭킹 Forecast를 실행하면 상위 후보, 점수 격차, 검증 필요 항목이 여기에 표시됩니다.</div>
+            </div>
+          </section>
+          <section class="home-card strategy-research-card auto-trading-surface" data-panel-tier="primary" data-testid="strategy-research-lab">
+            <div class="home-card-head">
+              <h3>Strategy Research Lab</h3>
+              <button type="button" id="strategyResearchRefresh" class="linkish" data-testid="strategy-research-refresh">갱신</button>
+            </div>
+            <div class="workbench-guardrail-strip strategy-research-guardrail">
+              <span><strong>Evidence</strong> repo-local deterministic</span>
+              <span><strong>AI</strong> hypothesis pending</span>
+              <span><strong>Core</strong> protected</span>
+              <span><strong>Decision</strong> validation gated</span>
+            </div>
+            <div class="decision-form strategy-research-form">
+              <label><span>Strategy</span><select id="strategyResearchStrategySelect" aria-label="Strategy research strategy"><option value="risk_adjusted_momentum_v1">Risk adjusted momentum</option></select></label>
+              <label><span>Method</span><select id="strategyResearchMethod" aria-label="Strategy optimization method"><option value="grid_search">Grid</option><option value="random_search">Random</option><option value="bayesian" selected>Bayesian Optuna/fallback</option></select></label>
+              <label><span>Trials</span><input id="strategyResearchMaxTrials" type="number" min="1" max="120" value="12" aria-label="Strategy optimization trial count" /></label>
+              <button type="button" id="strategyResearchOptimize" class="ghost-btn" data-testid="strategy-research-optimize">최적화</button>
+              <button type="button" id="strategyResearchDiagnose" class="ghost-btn" data-testid="strategy-research-diagnose">진단</button>
+              <button type="button" id="strategyResearchHypotheses" class="ghost-btn" data-testid="strategy-research-hypotheses">가설 생성</button>
+              <button type="button" id="strategyResearchValidate" class="ghost-btn" data-testid="strategy-research-validate">검증</button>
+            </div>
+            <div class="decision-note">수익률을 억지로 높이는 화면이 아니라, 최적화 후보·실패 원인·가설·OOS 검증을 분리해 과최적화를 막는 연구 워크플로입니다. 결과는 전략 연구 증거이며 투자 조언이 아닙니다.</div>
+            <div class="strategy-research-grid">
+              <div id="strategyResearchOverviewSurface" class="decision-surface compact-surface strategy-research-surface">
+                <div class="home-news-empty">전략, 버전, evidence posture를 불러오는 중입니다.</div>
+              </div>
+              <div id="strategyResearchOptimizationSurface" class="decision-surface compact-surface strategy-research-surface">
+                <div class="home-news-empty">최적화를 실행하면 best/recommended 파라미터와 trial 분포가 표시됩니다.</div>
+              </div>
+              <div id="strategyResearchDiagnosticsSurface" class="decision-surface compact-surface strategy-research-surface">
+                <div class="home-news-empty">진단을 실행하면 실패 태그, 비용 영향, drawdown 맥락이 표시됩니다.</div>
+              </div>
+              <div id="strategyResearchHypothesisSurface" class="decision-surface compact-surface strategy-research-surface">
+                <div class="home-news-empty">가설은 pending 상태로 시작하며 검증 전에는 승인되지 않습니다.</div>
+              </div>
+              <div id="strategyResearchValidationSurface" class="decision-surface compact-surface strategy-research-surface">
+                <div class="home-news-empty">검증을 실행하면 in-sample/OOS, walk-forward, stability, Monte Carlo, cost stress 결과가 표시됩니다.</div>
+              </div>
+              <div id="strategyResearchVersionsSurface" class="decision-surface compact-surface strategy-research-surface">
+                <div class="home-news-empty">버전 lineage와 accepted/rejected/pending 결정을 추적합니다.</div>
+              </div>
             </div>
           </section>
           <section class="home-card backtest-card quant-surface" data-panel-tier="primary">
@@ -1097,7 +1296,7 @@
               <div class="home-news-empty">백테스트와 같은 유니버스/기간으로 목표 비중, 위험예산, 집중도, 상관구조, 벤치마크 민감도, 하방 스트레스를 계산합니다. 누락 종목과 오래된 데이터는 숨기지 않고 표시합니다.</div>
             </div>
           </section>
-          <section id="mlForecastSurface" class="home-card forecast-card forecast-setup-card forecast-surface" data-panel-tier="primary">
+          <section id="mlForecastSurface" class="home-card forecast-card forecast-setup-card forecast-surface model-lab-surface quant-surface" data-panel-tier="primary">
             <div class="home-card-head">
               <h3>ML Forecast</h3>
               <span>검증 가능한 예측 실험실</span>
@@ -1132,23 +1331,72 @@
             <div id="forecastRiskPrefillNotice" class="decision-note risk-forecast-prefill" hidden></div>
           </section>
 
-          <section class="home-card forecast-card forecast-dataset-card forecast-surface" data-panel-tier="primary">
+          <section class="home-card forecast-card forecast-dataset-card forecast-surface model-lab-surface quant-surface" data-panel-tier="primary">
             <div class="home-card-head"><h3>Dataset Quality</h3><span>가격 데이터, 결측, 벤치마크</span></div>
             <div id="forecastDatasetSurface" class="decision-surface"><div class="home-news-empty">데이터셋 미리보기를 실행하면 품질 상태가 표시됩니다.</div></div>
           </section>
-          <section class="home-card forecast-card forecast-feature-card forecast-surface" data-panel-tier="details">
+          <section class="home-card forecast-card forecast-feature-card forecast-surface model-lab-surface quant-surface" data-panel-tier="details">
             <div class="home-card-head"><h3>Feature Lab</h3><span>feature shift=1 기본</span></div>
             <div id="forecastFeatureSurface" class="decision-surface"><div class="home-news-empty">feature group, 결측률, timestamp alignment를 계산합니다.</div></div>
           </section>
-          <section class="home-card forecast-card forecast-leakage-card forecast-surface" data-panel-tier="primary">
+          <section class="home-card forecast-card forecast-leakage-card forecast-surface model-lab-surface quant-surface" data-panel-tier="primary">
             <div class="home-card-head"><h3>Leakage Check</h3><span>random split 금지, purge/embargo</span></div>
             <div id="forecastLeakageSurface" class="decision-surface"><div class="home-news-empty">학습 전 leakage check를 실행합니다.</div></div>
           </section>
-          <section class="home-card forecast-card forecast-result-card forecast-surface" data-panel-tier="primary">
+          <section class="home-card forecast-card forecast-result-card forecast-surface model-lab-surface quant-surface" data-panel-tier="primary">
             <div class="home-card-head"><h3>Forecast Result</h3><span>수익률, 확률, 신뢰도</span></div>
             <div id="forecastResultSurface" class="decision-surface"><div class="home-news-empty">Train / Forecast를 실행하면 OOS 검증 기반 예측 결과가 표시됩니다.</div></div>
           </section>
-          <section class="home-card forecast-card forecast-surface forecast-signal-card" data-panel-tier="primary">
+          <section class="home-card forecast-card forecast-universe-card forecast-surface model-lab-surface quant-surface" data-panel-tier="primary">
+            <div class="home-card-head">
+              <h3>Forecast Universe Lab</h3>
+              <span>유니버스 구성, ML 적용, 랭킹</span>
+            </div>
+            <div class="forecast-universe-layout">
+              <div class="forecast-universe-controls decision-form">
+                <label>
+                  <span>Universe</span>
+                  <select id="forecastUniversePreset" aria-label="ML Forecast universe preset">
+                    <option value="custom">직접 입력</option>
+                    <option value="sp500_top_200">S&P 500 Top 200</option>
+                    <option value="us_equity_core">US Equity Core</option>
+                    <option value="etf_core_120">ETF Core 120</option>
+                    <option value="global_equity_core">Global Equity Core</option>
+                    <option value="crypto_core">Crypto Core</option>
+                    <option value="all_supported">All Supported</option>
+                  </select>
+                </label>
+                <label class="forecast-universe-symbols">
+                  <span>Custom Symbols</span>
+                  <div class="input-action-row compact">
+                    <input id="forecastUniverseTickers" type="text" value="MSFT,NVDA,AAPL,AMZN,META" aria-label="ML Forecast custom universe tickers" />
+                    <button type="button" id="forecastUniverseOpen" class="ghost-btn">찾기</button>
+                  </div>
+                </label>
+                <label>
+                  <span>Max assets</span>
+                  <input id="forecastUniverseMaxAssets" type="number" value="6" min="1" max="25" step="1" aria-label="Forecast universe max assets" />
+                </label>
+                <label>
+                  <span>Rank by</span>
+                  <select id="forecastUniverseRankMetric" aria-label="Forecast universe ranking metric">
+                    <option value="confidence">Confidence</option>
+                    <option value="expected_return">Expected return</option>
+                    <option value="probability_up">Probability up</option>
+                    <option value="signal_score">Signal score</option>
+                    <option value="risk_adjusted">Risk-adjusted</option>
+                  </select>
+                </label>
+                <button type="button" id="forecastRunUniverse" class="ghost-btn" data-testid="ml-forecast-universe-run">Run Universe ML</button>
+              </div>
+              <div id="forecastUniverseChips" class="selected-symbol-chips compact" aria-live="polite"></div>
+              <div id="forecastUniverseStatus" class="decision-note">단일 Forecast 설정의 모델, 타깃, 검증 규칙을 그대로 사용해 선택 유니버스에 적용합니다.</div>
+              <div id="forecastUniverseSurface" class="decision-surface forecast-universe-surface">
+                <div class="home-news-empty">유니버스를 선택하고 Run Universe ML을 실행하면 종목별 예측, 신뢰도, 데이터 품질, leakage 상태가 함께 랭킹됩니다.</div>
+              </div>
+            </div>
+          </section>
+          <section class="home-card forecast-card forecast-surface model-lab-surface quant-surface forecast-signal-card" data-panel-tier="primary">
             <div class="home-card-head"><h3>Signal Generator</h3><span>advisory-only</span></div>
             <div id="forecastSignalSurface" class="decision-surface"><div class="home-news-empty">예측을 threshold, confidence, volatility filter로 advisory signal로 변환합니다.</div></div>
           </section>
@@ -1156,23 +1404,23 @@
             <div class="home-card-head"><h3>Signal Quality</h3><span>out-of-sample signal 평가</span></div>
             <div id="forecastSignalQualitySurface" class="decision-surface"><div class="home-news-empty">OOS 신호 품질이 표시됩니다.</div></div>
           </section>
-          <section class="home-card forecast-card forecast-viz-card forecast-surface" data-panel-tier="primary">
+          <section class="home-card forecast-card forecast-viz-card forecast-surface model-lab-surface quant-surface" data-panel-tier="primary">
             <div class="home-card-head"><h3>Visualization Dashboard</h3><span>진단 차트</span></div>
-            <div id="forecastVizSurface" class="decision-surface"><div class="home-news-empty">가격/신호, forecast interval, actual vs predicted, residual, equity, drawdown, fold 성능을 표시합니다.</div></div>
+            <div id="forecastVizSurface" class="decision-surface"><div class="home-news-empty">Train / Forecast를 실행하면 축 설명과 해석이 포함된 예측 품질, 전략 성과, 모델/데이터 진단 차트가 표시됩니다.</div></div>
           </section>
-          <section class="home-card forecast-card forecast-backtest-card forecast-surface" data-panel-tier="details">
+          <section class="home-card forecast-card forecast-backtest-card forecast-surface model-lab-surface quant-surface" data-panel-tier="details">
             <div class="home-card-head"><h3>Backtest Result</h3><span>1-bar delay, 비용 반영</span></div>
             <div id="forecastBacktestSurface" class="decision-surface"><div class="home-news-empty">OOS signal 기반 백테스트 결과가 표시됩니다.</div></div>
           </section>
-          <section class="home-card forecast-card forecast-evaluation-card forecast-surface" data-panel-tier="details">
+          <section class="home-card forecast-card forecast-evaluation-card forecast-surface model-lab-surface quant-surface" data-panel-tier="details">
             <div class="home-card-head"><h3>Model Evaluation</h3><span>ML, 금융, 안정성 지표</span></div>
             <div id="forecastEvaluationSurface" class="decision-surface"><div class="home-news-empty">Walk-forward fold 성능, baseline 비교, overfitting check가 표시됩니다.</div></div>
           </section>
-          <section class="home-card forecast-card forecast-explain-card forecast-surface" data-panel-tier="details">
+          <section class="home-card forecast-card forecast-explain-card forecast-surface model-lab-surface quant-surface" data-panel-tier="details">
             <div class="home-card-head"><h3>Explainability</h3><span>feature importance, reason codes</span></div>
             <div id="forecastExplainSurface" class="decision-surface"><div class="home-news-empty">feature importance와 reason code를 표시합니다.</div></div>
           </section>
-          <section class="home-card forecast-card forecast-ai-card forecast-surface" data-panel-tier="details">
+          <section class="home-card forecast-card forecast-ai-card forecast-surface model-lab-surface quant-surface" data-panel-tier="details">
             <div class="home-card-head"><h3>AI Interpretation</h3><span>구조화 ML output만 사용</span></div>
             <div id="forecastAiSurface" class="decision-surface"><div class="home-news-empty">AI 해석은 ML 수치를 생성하지 않고 제공된 결과만 설명합니다.</div></div>
           </section>
@@ -1728,6 +1976,6 @@
   <script src="modules/quant-ui.js?v=20260521-market-signals-v1"></script>
   <script src="modules/ai-portfolio-ui.js?v=20260520-ai-portfolio-ops-v1"></script>
   <script src="modules/quantamental-ui.js?v=20260521-quantamental-decision-v23"></script>
-  <script src="app.js?v=20260521-risk-forecast-v37"></script>
+  <script src="app.js?v=20260522-risk-visual-v6"></script>
 </body>
 </html>

@@ -66,7 +66,6 @@ def main() -> int:
                 "#quantamentalScoreSurface",
                 "#quantamentalFactorSurface",
                 "#quantamentalMainSurface",
-                "#quantamentalDataQualitySurface",
                 "#quantamentalCompareTickers",
                 "#quantamentalCompareRun",
                 "#quantamentalCompareSurface",
@@ -183,7 +182,7 @@ def main() -> int:
             report["global_market"] = {
                 "status": page.locator("#quantamentalStatus").inner_text(timeout=10_000),
                 "signal_text": page.locator("#quantamentalSignalSurface").inner_text(timeout=10_000)[:1000],
-                "quality_text": page.locator("#quantamentalDataQualitySurface").inner_text(timeout=10_000)[:1000],
+                "quality_text": _text_content(page, "#quantamentalDataQualitySurface")[:1000],
             }
 
             page.locator("#quantamentalTicker").fill("7203")
@@ -206,7 +205,7 @@ def main() -> int:
                 "status": page.locator("#quantamentalStatus").inner_text(timeout=10_000),
                 "company_text": page.locator("#quantamentalCompanySurface").inner_text(timeout=10_000)[:1000],
                 "signal_text": page.locator("#quantamentalSignalSurface").inner_text(timeout=10_000)[:1000],
-                "quality_text": page.locator("#quantamentalDataQualitySurface").inner_text(timeout=10_000)[:1000],
+                "quality_text": _text_content(page, "#quantamentalDataQualitySurface")[:1000],
             }
             page.locator("#quantamentalMarket").select_option("US")
 
@@ -310,7 +309,7 @@ def main() -> int:
                     "signal_text": page.locator("#quantamentalSignalSurface").inner_text(timeout=10_000)[:1000],
                     "score_text": page.locator("#quantamentalScoreSurface").inner_text(timeout=10_000)[:1000],
                     "factor_text": page.locator("#quantamentalFactorSurface").inner_text(timeout=10_000)[:1000],
-                    "quality_text": page.locator("#quantamentalDataQualitySurface").inner_text(timeout=10_000)[:1000],
+                    "quality_text": _text_content(page, "#quantamentalDataQualitySurface")[:1000],
                 }
                 for tab_name in ["fundamental", "quant", "risk", "ai", "qa"]:
                     page.locator(f'[data-quantamental-tab="{tab_name}"]').click(timeout=10_000)
@@ -341,6 +340,16 @@ def _write_report(path: str, payload: dict[str, Any]) -> None:
     out = Path(path)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _text_content(page: Any, selector: str) -> str:
+    return str(
+        page.evaluate(
+            """(selector) => document.querySelector(selector)?.textContent || """,
+            selector,
+        )
+        or ""
+    )
 
 
 if __name__ == "__main__":

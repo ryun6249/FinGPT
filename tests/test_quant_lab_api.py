@@ -489,3 +489,253 @@ def test_strategy_generate_endpoint_returns_code_only_strategy_without_llm() -> 
     for text in [*body["advantages"], *body["disadvantages"]]:
         assert re.search(r"[\uac00-\ud7a3]", text)
         assert not cjk_or_japanese.search(text)
+
+
+def test_model_profile_api_roundtrip_and_dry_run(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(quant_lab_router, "ARTIFACT_ROOT", tmp_path / "backtests")
+    client = TestClient(app)
+    profile = {
+        "profile_id": "api_model_profile_v1",
+        "schema_version": "quant_model_profile_v1",
+        "strategy_id": "momentum_ranking_v1",
+        "universe_id": "custom",
+        "tickers": ["MSFT", "NVDA"],
+        "benchmark": "QQQ",
+        "target_config": {"target_type": "forward_return", "horizon": 5, "benchmark": "QQQ"},
+        "model_candidates": [{"model_name": "ridge_regression", "model_type": "regression"}],
+        "backtest_config": {"execution_delay_bars": 1, "benchmark": "QQQ"},
+        "ranking_metric": "expected_return",
+        "max_assets": 2,
+        "run_mode": "universe_per_asset",
+    }
+    strategy = {"strategy_id": "momentum_ranking_v1", "execution": {"trade_at": "next_bar_close"}}
+
+    dry_run = client.post("/api/v1/quant/model-profile/dry-run", json={"profile": profile, "strategy": strategy})
+    saved = client.post("/api/v1/quant/model-profile/save", json=profile)
+    listed = client.get("/api/v1/quant/model-profile/list")
+    detail = client.get("/api/v1/quant/model-profile/api_model_profile_v1")
+    deleted = client.delete("/api/v1/quant/model-profile/api_model_profile_v1")
+
+    assert dry_run.status_code == 200
+    assert dry_run.json()["valid"] is True
+    assert dry_run.json()["diagnostics"]["source_context"]["source"] == "quant_model_lab"
+    assert saved.status_code == 200
+    assert saved.json()["profile"]["profile_id"] == "api_model_profile_v1"
+    assert listed.status_code == 200
+    assert any(item["profile_id"] == "api_model_profile_v1" for item in listed.json()["items"])
+    assert detail.status_code == 200
+    assert detail.json()["benchmark"] == "QQQ"
+    assert deleted.status_code == 200
+
+
+def test_model_lab_run_uses_forecast_universe_adapter(monkeypatch) -> None:
+    client = TestClient(app)
+    seen = {}
+
+    def fake_universe_run(request):
+        seen["request"] = request
+        return {
+            "status": "success",
+            "items": [{"ticker": "NVDA", "status": "success", "rank": 1, "rank_score": 0.05, "ranking_metric": "expected_return"}],
+            "summary": {"success_count": 1, "failed_count": 0},
+            "universe": {"selected_count": 1, "resolved_count": 1, "selected": ["NVDA"]},
+            "ranking_metric": "expected_return",
+            "warnings": [],
+            "errors": [],
+        }
+
+    monkeypatch.setattr("pipelines.orchestration.quant_model_lab.forecast_service.universe_run", fake_universe_run)
+    response = client.post(
+        "/api/v1/quant/model-lab/run",
+        json={
+            "profile": {
+                "profile_id": "run_profile_v1",
+                "schema_version": "quant_model_profile_v1",
+                "strategy_id": "momentum_ranking_v1",
+                "universe_id": "custom",
+                "tickers": ["NVDA"],
+                "benchmark": "QQQ",
+                "model_candidates": [{"model_name": "ridge_regression", "model_type": "regression"}],
+                "backtest_config": {"execution_delay_bars": 1, "benchmark": "QQQ"},
+                "ranking_metric": "expected_return",
+                "max_assets": 1,
+                "run_mode": "universe_per_asset",
+            },
+            "strategy": {"strategy_id": "momentum_ranking_v1", "execution": {"trade_at": "next_bar_close"}},
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "success"
+    assert body["model_lab"]["profile_id"] == "run_profile_v1"
+    assert body["model_lab"]["strategy_id"] == "momentum_ranking_v1"
+    assert body["model_lab"]["profile_hash"]
+    assert seen["request"].request.source_context.source == "quant_model_lab"
+    assert seen["request"].request.source_context.profile_id == "run_profile_v1"
+
+
+def test_model_lab_cross_sectional_rank_returns_panel_ranker(monkeypatch) -> None:
+    client = TestClient(app)
+    seen = {}
+
+    def fake_universe_run(request):
+        seen["request"] = request
+        return {
+            "status": "success",
+            "items": [
+                {
+                    "ticker": "NVDA",
+                    "status": "success",
+                    "rank": 1,
+                    "rank_score": 0.074,
+                    "ranking_metric": "expected_return",
+                    "signal": "bullish",
+                    "expected_return": 0.074,
+                    "probability_up": 0.64,
+                    "confidence": 0.71,
+                    "forecast_volatility": 0.19,
+                    "data_quality_status": "fresh",
+                    "leakage_status": "passed",
+                },
+                {
+                    "ticker": "MSFT",
+                    "status": "success",
+                    "rank": 2,
+                    "rank_score": 0.031,
+                    "ranking_metric": "expected_return",
+                    "signal": "neutral",
+                    "expected_return": 0.031,
+                    "probability_up": 0.57,
+                    "confidence": 0.62,
+                    "forecast_volatility": 0.16,
+                    "data_quality_status": "fresh",
+                    "leakage_status": "passed",
+                },
+                {
+                    "ticker": "AAPL",
+                    "status": "failed",
+                    "rank": None,
+                    "rank_score": None,
+                    "ranking_metric": "expected_return",
+                    "errors": ["forecast_unavailable"],
+                },
+            ],
+            "summary": {"success_count": 2, "failed_count": 1},
+            "universe": {"selected_count": 3, "resolved_count": 3, "selected": ["NVDA", "MSFT", "AAPL"]},
+            "ranking_metric": "expected_return",
+            "warnings": [],
+            "errors": ["forecast_unavailable"],
+        }
+
+    monkeypatch.setattr("pipelines.orchestration.quant_model_lab.forecast_service.universe_run", fake_universe_run)
+    response = client.post(
+        "/api/v1/quant/model-lab/run",
+        json={
+            "profile": {
+                "profile_id": "cross_rank_profile_v1",
+                "schema_version": "quant_model_profile_v1",
+                "strategy_id": "momentum_ranking_v1",
+                "universe_id": "custom",
+                "tickers": ["NVDA", "MSFT", "AAPL"],
+                "benchmark": "QQQ",
+                "model_candidates": [{"model_name": "ridge_regression", "model_type": "regression"}],
+                "backtest_config": {"execution_delay_bars": 1, "benchmark": "QQQ"},
+                "ranking_metric": "expected_return",
+                "max_assets": 3,
+                "run_mode": "cross_sectional_rank",
+            },
+            "strategy": {"strategy_id": "momentum_ranking_v1", "execution": {"trade_at": "next_bar_close"}},
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "success"
+    assert body["model_lab"]["run_mode"] == "cross_sectional_rank"
+    assert body["panel_ranker"]["schema_version"] == "quant_model_lab_cross_sectional_rank_v1"
+    assert body["panel_ranker"]["status"] == "ready"
+    assert body["panel_ranker"]["top_candidate"]["ticker"] == "NVDA"
+    assert body["panel_ranker"]["ranked_count"] == 2
+    assert body["panel_ranker"]["blocked_count"] == 1
+    assert body["summary"]["rank_spread_to_second"] == 0.043
+    assert "cross_sectional_rank_hidden_until_panel_ranker_validation" not in body.get("errors", [])
+    assert seen["request"].ranking_metric == "expected_return"
+
+
+def test_model_profile_dry_run_exposes_cross_sectional_rank_guardrails() -> None:
+    client = TestClient(app)
+    response = client.post(
+        "/api/v1/quant/model-profile/dry-run",
+        json={
+            "profile": {
+                "profile_id": "cross_rank_dry_run_v1",
+                "schema_version": "quant_model_profile_v1",
+                "strategy_id": "momentum_ranking_v1",
+                "universe_id": "custom",
+                "tickers": ["NVDA", "MSFT"],
+                "benchmark": "QQQ",
+                "model_candidates": [{"model_name": "ridge_regression", "model_type": "regression"}],
+                "backtest_config": {"execution_delay_bars": 1, "benchmark": "QQQ"},
+                "ranking_metric": "risk_adjusted",
+                "max_assets": 2,
+                "run_mode": "cross_sectional_rank",
+            },
+            "strategy": {"strategy_id": "momentum_ranking_v1", "execution": {"trade_at": "next_bar_close"}},
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["valid"] is True
+    assert body["diagnostics"]["run_mode"] == "cross_sectional_rank"
+    assert body["diagnostics"]["panel_ranker"]["schema_version"] == "quant_model_lab_cross_sectional_rank_v1"
+    assert body["diagnostics"]["panel_ranker"]["ranking_metric"] == "risk_adjusted"
+    assert "cross_sectional_rank_hidden_until_panel_ranker_validation" not in body.get("warnings", [])
+
+
+def test_model_lab_cross_sectional_rank_can_queue_per_asset_jobs(monkeypatch) -> None:
+    client = TestClient(app)
+    submitted = []
+
+    def fake_submit(request, *, run_inline=False):
+        ticker = request.request.dataset_config.ticker
+        submitted.append((ticker, request.notes, run_inline))
+        return {
+            "job_id": f"job_{ticker}",
+            "job_status": "queued",
+            "ticker": ticker,
+            "model_name": request.request.ml_model_config.model_name,
+            "target": request.request.target_config.target_type,
+        }
+
+    monkeypatch.setattr("pipelines.orchestration.quant_model_lab.forecast_jobs.submit_forecast_job", fake_submit)
+    response = client.post(
+        "/api/v1/quant/model-lab/job",
+        json={
+            "profile": {
+                "profile_id": "cross_rank_job_v1",
+                "schema_version": "quant_model_profile_v1",
+                "strategy_id": "momentum_ranking_v1",
+                "universe_id": "custom",
+                "tickers": ["NVDA", "MSFT"],
+                "benchmark": "QQQ",
+                "model_candidates": [{"model_name": "ridge_regression", "model_type": "regression"}],
+                "backtest_config": {"execution_delay_bars": 1, "benchmark": "QQQ"},
+                "ranking_metric": "confidence",
+                "max_assets": 2,
+                "run_mode": "cross_sectional_rank",
+            },
+            "strategy": {"strategy_id": "momentum_ranking_v1", "execution": {"trade_at": "next_bar_close"}},
+            "runtime_budget_s": 600,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "success"
+    assert body["job_mode"] == "cross_sectional_rank"
+    assert body["panel_ranker"]["status"] == "queued"
+    assert body["panel_ranker"]["job_count"] == 2
+    assert [ticker for ticker, _notes, _inline in submitted] == ["NVDA", "MSFT"]
+    assert all("mode=cross_sectional_rank" in notes for _ticker, notes, _inline in submitted)

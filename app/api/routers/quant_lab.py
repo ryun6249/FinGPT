@@ -8,13 +8,28 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.api.routers.market_utils import clean_ticker_list
 from core.schemas.quant import (
+    QuantModelProfile,
     QuantBacktestRequest,
     QuantBacktestResponse,
     QuantFeaturePreviewRequest,
     QuantFeaturePreviewResponse,
     QuantSignalGenerateRequest,
     QuantSignalGenerateResponse,
+    StrategyDiagnosticsRequest,
+    StrategyDiagnosticsRun,
+    StrategyHypothesis,
+    StrategyHypothesisDecisionRequest,
+    StrategyOptimizationRequest,
+    StrategyOptimizationRun,
+    StrategyResearchBackendStatus,
+    StrategyResearchStrategy,
+    StrategyResearchVersion,
+    StrategyValidationRequest,
+    StrategyValidationResult,
 )
+from pipelines.model_profiles.storage import delete_model_profile, list_model_profiles, load_model_profile, save_model_profile, validate_model_profile
+from pipelines.orchestration import strategy_research as strategy_research_runtime
+from pipelines.orchestration.quant_model_lab import dry_run_model_profile, queue_model_lab_jobs, run_model_lab
 from pipelines.orchestration.quant_lab_pipeline import (
     ARTIFACT_ROOT,
     cleanup_backtest_exports,
@@ -99,6 +114,18 @@ class QuantRunCompareRequest(BaseModel):
     def _clean_run_ids(cls, value: Any) -> list[str]:
         raw = value.replace(",", " ").split() if isinstance(value, str) else list(value or [])
         return [str(item or "").strip() for item in raw if str(item or "").strip()]
+
+
+class QuantModelLabRunRequest(BaseModel):
+    profile_id: str = ""
+    profile: QuantModelProfile | None = None
+    strategy: dict[str, Any] | None = None
+    runtime_budget_s: int = Field(default=900, ge=30, le=7200)
+
+    @field_validator("profile_id", mode="before")
+    @classmethod
+    def _clean_profile_id(cls, value: Any) -> str:
+        return str(value or "").strip()
 
 
 @router.get("/config")
@@ -515,6 +542,268 @@ async def get_strategy_list() -> dict[str, Any]:
     return {"status": "success", "items": defaults + user_items}
 
 
+@router.get("/model-profile/list")
+async def get_model_profile_list() -> dict[str, Any]:
+    root = ARTIFACT_ROOT.parent / "model_profiles"
+    items = [item.model_dump(mode="json") for item in list_model_profiles(root)]
+    return {"status": "success", "items": items, "count": len(items)}
+
+
+@router.post("/model-profile/save")
+async def post_model_profile_save(profile: QuantModelProfile) -> dict[str, Any]:
+    path = save_model_profile(profile, ARTIFACT_ROOT.parent / "model_profiles")
+    saved = load_model_profile(path.stem, ARTIFACT_ROOT.parent / "model_profiles") or profile
+    return {"status": "success", "path": str(path), "profile": saved.model_dump(mode="json")}
+
+
+@router.post("/model-profile/dry-run")
+async def post_model_profile_dry_run(payload: dict[str, Any]) -> dict[str, Any]:
+    profile = _profile_from_payload(payload)
+    strategy = _strategy_from_payload(payload, profile)
+    return dry_run_model_profile(profile, strategy=strategy)
+
+
+@router.get("/model-profile/{profile_id}")
+async def get_model_profile_detail(profile_id: str) -> dict[str, Any]:
+    profile = load_model_profile(profile_id, ARTIFACT_ROOT.parent / "model_profiles")
+    if not profile:
+        raise HTTPException(status_code=404, detail=f"model profile not found: {profile_id}")
+    return profile.model_dump(mode="json")
+
+
+@router.delete("/model-profile/{profile_id}")
+async def delete_model_profile_detail(profile_id: str) -> dict[str, Any]:
+    deleted = delete_model_profile(profile_id, ARTIFACT_ROOT.parent / "model_profiles")
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"model profile not found: {profile_id}")
+    return {"status": "success", "deleted": True, "profile_id": profile_id}
+
+
+@router.post("/model-lab/run")
+async def post_model_lab_run(request: QuantModelLabRunRequest) -> dict[str, Any]:
+    profile = _profile_from_run_request(request)
+    strategy = request.strategy or _strategy_for_profile(profile)
+    return run_model_lab(profile, strategy=strategy)
+
+
+@router.post("/model-lab/job")
+async def post_model_lab_job(request: QuantModelLabRunRequest) -> dict[str, Any]:
+    profile = _profile_from_run_request(request)
+    strategy = request.strategy or _strategy_for_profile(profile)
+    return queue_model_lab_jobs(profile, strategy=strategy, runtime_budget_s=request.runtime_budget_s)
+
+
+@router.get("/strategy-research/backend-status", response_model=StrategyResearchBackendStatus)
+async def get_strategy_research_backend_status() -> StrategyResearchBackendStatus:
+    return strategy_research_runtime.backend_status()
+
+
+@router.get("/strategy-research/protected-runtime/status")
+async def get_strategy_research_protected_runtime_status() -> dict[str, Any]:
+    return strategy_research_runtime.protected_runtime_status()
+
+
+@router.get("/strategy-research/strategies")
+async def get_strategy_research_strategies() -> dict[str, Any]:
+    items = [item.model_dump(mode="json") for item in strategy_research_runtime.list_strategies()]
+    return {"status": "success", "items": items, "count": len(items)}
+
+
+@router.post("/strategy-research/strategies", response_model=StrategyResearchStrategy)
+async def post_strategy_research_strategy(strategy: StrategyResearchStrategy) -> StrategyResearchStrategy:
+    try:
+        return strategy_research_runtime.create_strategy(strategy)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/strategy-research/strategies/{strategy_id}", response_model=StrategyResearchStrategy)
+async def get_strategy_research_strategy(strategy_id: str) -> StrategyResearchStrategy:
+    try:
+        return strategy_research_runtime.get_strategy(strategy_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/strategy-research/strategies/{strategy_id}/versions")
+async def get_strategy_research_versions(strategy_id: str) -> dict[str, Any]:
+    try:
+        items = [item.model_dump(mode="json") for item in strategy_research_runtime.list_versions(strategy_id)]
+        return {"status": "success", "items": items, "count": len(items)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/strategy-research/strategies/{strategy_id}/versions", response_model=StrategyResearchVersion)
+async def post_strategy_research_version(
+    strategy_id: str,
+    version: StrategyResearchVersion,
+) -> StrategyResearchVersion:
+    try:
+        return strategy_research_runtime.create_version(strategy_id, version)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/strategy-research/strategies/{strategy_id}/optimize", response_model=StrategyOptimizationRun)
+async def post_strategy_research_optimize(
+    strategy_id: str,
+    request: StrategyOptimizationRequest,
+) -> StrategyOptimizationRun:
+    try:
+        return strategy_research_runtime.run_optimization(strategy_id, request)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/strategy-research/optimizations")
+async def get_strategy_research_optimizations() -> dict[str, Any]:
+    items = [item.model_dump(mode="json") for item in strategy_research_runtime.list_optimizations()]
+    return {"status": "success", "items": items, "count": len(items)}
+
+
+@router.get("/strategy-research/optimizations/{optimization_id}", response_model=StrategyOptimizationRun)
+async def get_strategy_research_optimization(optimization_id: str) -> StrategyOptimizationRun:
+    try:
+        return strategy_research_runtime.get_optimization(optimization_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/strategy-research/optimizations/{optimization_id}/trials")
+async def get_strategy_research_optimization_trials(optimization_id: str) -> dict[str, Any]:
+    try:
+        items = [item.model_dump(mode="json") for item in strategy_research_runtime.optimization_trials(optimization_id)]
+        return {"status": "success", "items": items, "count": len(items)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/strategy-research/strategies/{strategy_id}/diagnose", response_model=StrategyDiagnosticsRun)
+async def post_strategy_research_diagnose(
+    strategy_id: str,
+    request: StrategyDiagnosticsRequest,
+) -> StrategyDiagnosticsRun:
+    try:
+        return strategy_research_runtime.run_diagnostics(strategy_id, request)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/strategy-research/diagnostics")
+async def get_strategy_research_diagnostics() -> dict[str, Any]:
+    items = [item.model_dump(mode="json") for item in strategy_research_runtime.list_diagnostics()]
+    return {"status": "success", "items": items, "count": len(items)}
+
+
+@router.get("/strategy-research/diagnostics/{diagnostics_id}", response_model=StrategyDiagnosticsRun)
+async def get_strategy_research_diagnostic(diagnostics_id: str) -> StrategyDiagnosticsRun:
+    try:
+        return strategy_research_runtime.get_diagnostics(diagnostics_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/strategy-research/strategies/{strategy_id}/hypotheses/generate")
+async def post_strategy_research_hypotheses_generate(
+    strategy_id: str,
+    request: StrategyDiagnosticsRequest | None = None,
+) -> dict[str, Any]:
+    try:
+        items = [
+            item.model_dump(mode="json")
+            for item in strategy_research_runtime.generate_hypotheses(strategy_id, request)
+        ]
+        return {"status": "success", "items": items, "count": len(items)}
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/strategy-research/hypotheses")
+async def get_strategy_research_hypotheses() -> dict[str, Any]:
+    items = [item.model_dump(mode="json") for item in strategy_research_runtime.list_hypotheses()]
+    return {"status": "success", "items": items, "count": len(items)}
+
+
+@router.get("/strategy-research/hypotheses/{hypothesis_id}", response_model=StrategyHypothesis)
+async def get_strategy_research_hypothesis(hypothesis_id: str) -> StrategyHypothesis:
+    try:
+        return strategy_research_runtime.get_hypothesis(hypothesis_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/strategy-research/hypotheses/{hypothesis_id}/accept", response_model=StrategyHypothesis)
+async def post_strategy_research_hypothesis_accept(
+    hypothesis_id: str,
+    request: StrategyHypothesisDecisionRequest,
+) -> StrategyHypothesis:
+    try:
+        return strategy_research_runtime.decide_hypothesis(hypothesis_id, "accepted", request)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/strategy-research/hypotheses/{hypothesis_id}/reject", response_model=StrategyHypothesis)
+async def post_strategy_research_hypothesis_reject(
+    hypothesis_id: str,
+    request: StrategyHypothesisDecisionRequest,
+) -> StrategyHypothesis:
+    try:
+        return strategy_research_runtime.decide_hypothesis(hypothesis_id, "rejected", request)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/strategy-research/strategies/{strategy_id}/validate", response_model=StrategyValidationResult)
+async def post_strategy_research_validate(
+    strategy_id: str,
+    request: StrategyValidationRequest,
+) -> StrategyValidationResult:
+    try:
+        return strategy_research_runtime.run_validation(strategy_id, request)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/strategy-research/validations")
+async def get_strategy_research_validations() -> dict[str, Any]:
+    items = [item.model_dump(mode="json") for item in strategy_research_runtime.list_validations()]
+    return {"status": "success", "items": items, "count": len(items)}
+
+
+@router.get("/strategy-research/validations/{validation_id}", response_model=StrategyValidationResult)
+async def get_strategy_research_validation(validation_id: str) -> StrategyValidationResult:
+    try:
+        return strategy_research_runtime.get_validation(validation_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 @router.get("/strategy/{strategy_id}")
 async def get_strategy_detail(strategy_id: str) -> dict[str, Any]:
     user_strategy = load_strategy(strategy_id, ARTIFACT_ROOT.parent / "strategies")
@@ -530,6 +819,49 @@ async def delete_strategy_detail(strategy_id: str) -> dict[str, Any]:
     if not deleted:
         raise HTTPException(status_code=404, detail=f"strategy not found: {strategy_id}")
     return {"status": "success", "deleted": True, "strategy_id": strategy_id}
+
+
+def _profile_from_payload(payload: dict[str, Any]) -> QuantModelProfile:
+    raw = payload.get("profile") if isinstance(payload.get("profile"), dict) else payload
+    if not isinstance(raw, dict):
+        raise HTTPException(status_code=400, detail="model profile payload is required")
+    profile_id = str(raw.get("profile_id") or payload.get("profile_id") or "").strip()
+    if set(raw.keys()) <= {"profile_id"} and profile_id:
+        loaded = load_model_profile(profile_id, ARTIFACT_ROOT.parent / "model_profiles")
+        if not loaded:
+            raise HTTPException(status_code=404, detail=f"model profile not found: {profile_id}")
+        return loaded
+    try:
+        return validate_model_profile(raw, touch=False)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+def _profile_from_run_request(request: QuantModelLabRunRequest) -> QuantModelProfile:
+    if request.profile:
+        try:
+            return validate_model_profile(request.profile, touch=False)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+    profile_id = request.profile_id or "core_universe_forecast_v1"
+    loaded = load_model_profile(profile_id, ARTIFACT_ROOT.parent / "model_profiles")
+    if not loaded:
+        raise HTTPException(status_code=404, detail=f"model profile not found: {profile_id}")
+    return loaded
+
+
+def _strategy_from_payload(payload: dict[str, Any], profile: QuantModelProfile) -> dict[str, Any] | None:
+    strategy = payload.get("strategy")
+    if isinstance(strategy, dict):
+        return strategy
+    return _strategy_for_profile(profile)
+
+
+def _strategy_for_profile(profile: QuantModelProfile) -> dict[str, Any] | None:
+    strategy_id = str(profile.strategy_id or "").strip()
+    if not strategy_id:
+        return None
+    return load_strategy(strategy_id, ARTIFACT_ROOT.parent / "strategies") or get_strategy(strategy_id)
 
 
 def _load_or_404(run_id: str, name: str) -> Any:

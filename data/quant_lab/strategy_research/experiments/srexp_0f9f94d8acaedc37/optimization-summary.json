@@ -1,0 +1,71 @@
+{
+  "artifacts": {
+    "optimization_summary": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srexp_0f9f94d8acaedc37\\optimization-summary.json",
+    "optimization_trials": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srexp_0f9f94d8acaedc37\\optimization-trials.json"
+  },
+  "best_parameters_json": {
+    "lookback": 63,
+    "rebalance_every": 42,
+    "slippage_bps": 5.0,
+    "top_n": 2,
+    "transaction_cost_bps": 5.0
+  },
+  "best_score": 0.252559,
+  "created_at": "2026-05-22T04:53:15.120567+00:00",
+  "experiment_id": "srexp_0f9f94d8acaedc37",
+  "job_id": "",
+  "method": "bayesian",
+  "notes_json": {
+    "best_trial_id": "sropt_5a6d8a4caab9f1a8_t002",
+    "decision": "recommended parameters favor stability, trade count, costs, and drawdown over a single peak score",
+    "evidence_class": "repo_local_deterministic",
+    "not_financial_advice": true,
+    "recommended_trial_id": "sropt_5a6d8a4caab9f1a8_t002"
+  },
+  "objective_config_json": {},
+  "objective_name": "robust_composite",
+  "optimization_id": "sropt_5a6d8a4caab9f1a8",
+  "overfitting_score": 0.0,
+  "recommended_parameters_json": {
+    "lookback": 63,
+    "rebalance_every": 42,
+    "slippage_bps": 5.0,
+    "top_n": 2,
+    "transaction_cost_bps": 5.0
+  },
+  "recommended_score": 0.252559,
+  "robustness_score": 1.0,
+  "search_space_json": {
+    "lookback": [
+      21,
+      42,
+      63,
+      84
+    ],
+    "rebalance_every": [
+      10,
+      21,
+      42
+    ],
+    "slippage_bps": [
+      1.0,
+      2.0,
+      5.0
+    ],
+    "top_n": [
+      1,
+      2,
+      3
+    ],
+    "transaction_cost_bps": [
+      2.0,
+      5.0,
+      10.0
+    ]
+  },
+  "status": "succeeded",
+  "strategy_id": "risk_adjusted_momentum_v1",
+  "trial_count": 5,
+  "updated_at": "2026-05-22T04:53:15.120567+00:00",
+  "version_id": "risk_adjusted_momentum_v1_base"
+}

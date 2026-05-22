@@ -18,10 +18,15 @@ SignalValue = Literal[
     "unavailable",
 ]
 ModelStatus = Literal["draft", "trained", "validated", "promoted", "deprecated", "failed"]
+ForecastUniverseRankingMetric = Literal["confidence", "expected_return", "probability_up", "signal_score", "risk_adjusted"]
 
 
 class ForecastSourceContext(BaseModel):
     source: str = ""
+    strategy_id: str = ""
+    profile_id: str = ""
+    strategy_hash: str = ""
+    profile_hash: str = ""
     risk_validation_test_id: str = ""
     risk_input_hash: str = ""
     risk_test_type: str = ""
@@ -32,6 +37,23 @@ class ForecastSourceContext(BaseModel):
 def _clean_ticker(value: Any, default: str = "SPY") -> str:
     ticker = str(value or default).strip().upper()
     return ticker or default
+
+
+def _clean_ticker_list(value: Any) -> list[str]:
+    if isinstance(value, str):
+        raw = value.replace(",", " ").split()
+    elif isinstance(value, list):
+        raw = value
+    else:
+        raw = []
+    seen: set[str] = set()
+    out: list[str] = []
+    for item in raw:
+        ticker = _clean_ticker(item, default="").strip()
+        if ticker and ticker not in seen:
+            seen.add(ticker)
+            out.append(ticker)
+    return out
 
 
 class ForecastDatasetConfig(BaseModel):
@@ -352,20 +374,27 @@ class ForecastBatchPredictRequest(BaseModel):
     @field_validator("tickers", mode="before")
     @classmethod
     def _clean_tickers(cls, value: Any) -> list[str]:
-        if isinstance(value, str):
-            raw = value.replace(",", " ").split()
-        elif isinstance(value, list):
-            raw = value
-        else:
-            raw = []
-        seen: set[str] = set()
-        out: list[str] = []
-        for item in raw:
-            ticker = _clean_ticker(item, default="").strip()
-            if ticker and ticker not in seen:
-                seen.add(ticker)
-                out.append(ticker)
-        return out
+        return _clean_ticker_list(value)
+
+
+class ForecastUniverseRunRequest(BaseModel):
+    universe_id: str = "custom"
+    tickers: list[str] = Field(default_factory=list, max_length=50)
+    request: ForecastRunRequest = Field(default_factory=ForecastRunRequest)
+    max_assets: int = Field(default=8, ge=1, le=25)
+    ranking_metric: ForecastUniverseRankingMetric = "confidence"
+    notes: str = ""
+
+    @field_validator("universe_id", mode="before")
+    @classmethod
+    def _clean_universe_id(cls, value: Any) -> str:
+        cleaned = str(value or "custom").strip()
+        return cleaned or "custom"
+
+    @field_validator("tickers", mode="before")
+    @classmethod
+    def _clean_tickers(cls, value: Any) -> list[str]:
+        return _clean_ticker_list(value)
 
 
 class ForecastDriftCheckRequest(BaseModel):

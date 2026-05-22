@@ -44,6 +44,33 @@ def test_risk_static_ui_contract_markers():
         "risk-compass-step",
         "decision_quality",
         "risk-decision-quality",
+        "risk-decision-grade-template",
+        "risk-visual-control-plane",
+        "risk-readiness-radar",
+        "risk-workflow-lane",
+        "risk-causal-path-map",
+        "risk-coverage-topology",
+        "risk-pressure-stack",
+        "function riskRadarPoint",
+        "function renderRiskVisualRail",
+        "function riskAggregateStatus",
+        "function renderRiskReadinessRadar",
+        "function renderRiskCausalPathMap",
+        "function renderRiskCoverageTopology",
+        "function renderRiskPressureStack",
+        "function buildRiskPressureStackItems",
+        "function riskPressureStatusFromScore",
+        "risk-evidence-trace-map",
+        "risk-service-gate-rail",
+        "risk-grade-bars",
+        "risk-non-obvious-proof",
+        "risk-output-template",
+        "risk-driver-visual",
+        "risk-transmission-flow",
+        "risk-scenario-heatmap",
+        "decisionMeaning",
+        "causalPathMap",
+        "nonObviousValue",
         "evidence_coverage",
         "risk-evidence-coverage",
         "risk-evidence-coverage-detail",
@@ -105,6 +132,26 @@ def test_risk_static_ui_contract_markers():
     assert ".risk-decision-brief" in css
     assert ".risk-decision-compass" in css
     assert ".risk-decision-quality" in css
+    assert ".risk-decision-grade-template" in css
+    assert ".risk-visual-control-plane" in css
+    assert ".risk-readiness-radar" in css
+    assert ".risk-workflow-lane" in css
+    assert ".risk-causal-path-map" in css
+    assert ".risk-causal-node" in css
+    assert ".risk-coverage-topology" in css
+    assert ".risk-topology-domain" in css
+    assert ".risk-topology-workflow" in css
+    assert ".risk-pressure-stack" in css
+    assert ".risk-pressure-item" in css
+    assert ".risk-evidence-trace-map" in css
+    assert ".risk-service-gate-rail" in css
+    assert ".risk-visual-node" in css
+    assert ".risk-grade-bar-row" in css
+    assert ".risk-non-obvious-proof" in css
+    assert ".risk-output-template" in css
+    assert ".risk-driver-visual" in css
+    assert ".risk-transmission-flow" in css
+    assert ".risk-scenario-heatmap" in css
     assert ".risk-evidence-coverage" in css
     assert ".risk-compatibility-matrix" in css
     assert ".risk-forecast-validation-plan" in css

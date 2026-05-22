@@ -1,0 +1,74 @@
+{
+  "artifacts": {
+    "optimization_summary": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srexp_377ec0397dae17ff\\optimization-summary.json",
+    "optimization_trials": "F:\\LLM\\FinGPT\\data\\quant_lab\\strategy_research\\experiments\\srexp_377ec0397dae17ff\\optimization-trials.json"
+  },
+  "best_parameters_json": {
+    "lookback": 42,
+    "rebalance_every": 10,
+    "slippage_bps": 1.0,
+    "top_n": 1,
+    "transaction_cost_bps": 5.0
+  },
+  "best_score": 0.190709,
+  "created_at": "2026-05-22T06:15:31.604255+00:00",
+  "experiment_id": "srexp_377ec0397dae17ff",
+  "job_id": "",
+  "method": "bayesian",
+  "notes_json": {
+    "bayesian_backend": "optuna_tpe",
+    "best_trial_id": "sropt_97353134bfca1e61_t001",
+    "decision": "recommended parameters favor stability, trade count, costs, and drawdown over a single peak score",
+    "evidence_class": "repo_local_deterministic",
+    "not_financial_advice": true,
+    "optuna_available": true,
+    "protected_runtime_available": false,
+    "recommended_trial_id": "sropt_97353134bfca1e61_t001"
+  },
+  "objective_config_json": {},
+  "objective_name": "robust_composite",
+  "optimization_id": "sropt_97353134bfca1e61",
+  "overfitting_score": 0.0,
+  "recommended_parameters_json": {
+    "lookback": 42,
+    "rebalance_every": 10,
+    "slippage_bps": 1.0,
+    "top_n": 1,
+    "transaction_cost_bps": 5.0
+  },
+  "recommended_score": 0.190709,
+  "robustness_score": 1.0,
+  "search_space_json": {
+    "lookback": [
+      21,
+      42,
+      63,
+      84
+    ],
+    "rebalance_every": [
+      10,
+      21,
+      42
+    ],
+    "slippage_bps": [
+      1.0,
+      2.0,
+      5.0
+    ],
+    "top_n": [
+      1,
+      2,
+      3
+    ],
+    "transaction_cost_bps": [
+      2.0,
+      5.0,
+      10.0
+    ]
+  },
+  "status": "succeeded",
+  "strategy_id": "risk_adjusted_momentum_v1",
+  "trial_count": 5,
+  "updated_at": "2026-05-22T06:15:31.604255+00:00",
+  "version_id": "risk_adjusted_momentum_v1_base"
+}

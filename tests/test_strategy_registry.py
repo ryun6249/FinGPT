@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from core.schemas.quant import QuantModelProfile
+from pipelines.model_profiles.storage import delete_model_profile, load_model_profile, save_model_profile, validate_model_profile
+from pipelines.orchestration.quant_model_lab import compile_forecast_request, compile_universe_request
 from pipelines.strategies.registry import get_strategy, list_strategies
 from pipelines.strategies.storage import delete_strategy, load_strategy, migrate_strategy, save_strategy, validate_strategy
 
@@ -61,3 +64,65 @@ def test_strategy_migration_rejects_unknown_schema() -> None:
         assert "unsupported strategy schema_version" in str(exc)
     else:
         raise AssertionError("unsupported strategy schema should be rejected")
+
+
+def test_model_profile_storage_roundtrip(tmp_path) -> None:
+    profile = QuantModelProfile(
+        profile_id="custom_model_profile_v1",
+        strategy_id="momentum_ranking_v1",
+        tickers=["msft", "nvda", "msft"],
+        benchmark="qqq",
+        run_mode="universe_per_asset",
+    )
+
+    path = save_model_profile(profile, tmp_path)
+    loaded = load_model_profile("custom_model_profile_v1", tmp_path)
+
+    assert path.exists()
+    assert loaded is not None
+    assert loaded.profile_id == "custom_model_profile_v1"
+    assert loaded.schema_version == "quant_model_profile_v1"
+    assert loaded.tickers == ["MSFT", "NVDA"]
+    assert loaded.benchmark == "QQQ"
+    assert loaded.created_at
+    assert loaded.updated_at
+    deleted = delete_model_profile("custom_model_profile_v1", tmp_path)
+    assert deleted is True
+
+
+def test_model_profile_rejects_same_bar_execution() -> None:
+    profile = QuantModelProfile(profile_id="bad_delay_v1")
+    profile = profile.model_copy(update={"backtest_config": profile.backtest_config.model_copy(update={"execution_delay_bars": 0})})
+
+    try:
+        validate_model_profile(profile)
+    except ValueError as exc:
+        assert "execution_delay_bars" in str(exc)
+    else:
+        raise AssertionError("model profile should reject same-bar execution")
+
+
+def test_quant_model_lab_adapter_compiles_forecast_requests() -> None:
+    profile = QuantModelProfile(
+        profile_id="adapter_profile_v1",
+        strategy_id="momentum_ranking_v1",
+        tickers=["MSFT", "NVDA"],
+        benchmark="QQQ",
+        max_assets=2,
+        ranking_metric="expected_return",
+    )
+    strategy = {"strategy_id": "momentum_ranking_v1", "execution": {"trade_at": "next_bar_close"}}
+
+    run_request = compile_forecast_request(profile, strategy=strategy, ticker="NVDA")
+    universe_request = compile_universe_request(profile, strategy=strategy)
+
+    assert run_request.dataset_config.ticker == "NVDA"
+    assert run_request.dataset_config.benchmark == "QQQ"
+    assert run_request.target_config.benchmark == "QQQ"
+    assert run_request.backtest_config.execution_delay_bars == 1
+    assert run_request.source_context.source == "quant_model_lab"
+    assert run_request.source_context.profile_id == "adapter_profile_v1"
+    assert run_request.source_context.strategy_id == "momentum_ranking_v1"
+    assert run_request.source_context.profile_hash
+    assert universe_request.max_assets == 2
+    assert universe_request.ranking_metric == "expected_return"

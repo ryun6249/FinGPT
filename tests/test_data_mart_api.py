@@ -39,6 +39,43 @@ def test_data_health_and_prices_endpoint_use_structured_store(tmp_path, monkeypa
     assert prices.json()["latest"]["date"] == "2026-01-03"
 
 
+def test_data_auto_refresh_run_invokes_scheduler(monkeypatch) -> None:
+    class FakeScheduler:
+        async def run_once(self) -> dict:
+            return {
+                "status": "success",
+                "jobs": {
+                    "price_history": {"status": "success"},
+                    "sec_company_data": {"status": "success"},
+                    "macro_platform_data": {"status": "success"},
+                    "data_quality_checks": {"status": "success"},
+                },
+            }
+
+        def status(self) -> dict:
+            return {
+                "enabled": True,
+                "running": True,
+                "jobs": {
+                    "price_history": True,
+                    "sec_company_data": True,
+                    "macro_platform_data": True,
+                    "data_quality_checks": True,
+                },
+            }
+
+    monkeypatch.setattr(data_router, "get_data_mart_scheduler", lambda: FakeScheduler())
+    client = TestClient(app)
+
+    response = client.post("/api/v1/data/auto-refresh/run")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "success"
+    assert body["refresh"]["jobs"]["price_history"]["status"] == "success"
+    assert body["scheduler"]["jobs"]["sec_company_data"] is True
+
+
 def test_data_prices_refreshes_before_returning_rows(tmp_path, monkeypatch) -> None:
     db_path = tmp_path / "research_mart.db"
     monkeypatch.setenv("DATA_MART_DB_PATH", str(db_path))

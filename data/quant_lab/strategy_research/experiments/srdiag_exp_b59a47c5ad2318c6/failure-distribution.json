@@ -1,0 +1,54 @@
+[
+  {
+    "count": 24,
+    "decision_use": "Test volatility sizing and drawdown guard before accepting more exposure.",
+    "evidence": {
+      "loss_count": 596,
+      "max_drawdown_pct": -30.0586,
+      "min_drawdown": -0.30058623,
+      "trade_count": 3
+    },
+    "severity": "high",
+    "share_pct": 4.026846,
+    "tag": "Volatility Spike"
+  },
+  {
+    "count": 469,
+    "decision_use": "Test a trend-strength filter, but reject it if trade count collapses.",
+    "evidence": {
+      "loss_count": 596,
+      "max_drawdown_pct": -30.0586,
+      "min_drawdown": -0.30058623,
+      "trade_count": 3
+    },
+    "severity": "medium",
+    "share_pct": 78.691275,
+    "tag": "Choppy Market Loss"
+  },
+  {
+    "count": 1,
+    "decision_use": "Do not accept added filters until sample size improves.",
+    "evidence": {
+      "loss_count": 596,
+      "max_drawdown_pct": -30.0586,
+      "min_drawdown": -0.30058623,
+      "trade_count": 3
+    },
+    "severity": "medium",
+    "share_pct": 0.167785,
+    "tag": "Low Trade Count Risk"
+  },
+  {
+    "count": 1,
+    "decision_use": "Use as a validation target, not an automatic strategy change.",
+    "evidence": {
+      "loss_count": 596,
+      "max_drawdown_pct": -30.0586,
+      "min_drawdown": -0.30058623,
+      "trade_count": 3
+    },
+    "severity": "medium",
+    "share_pct": 0.167785,
+    "tag": "Parameter Instability"
+  }
+]

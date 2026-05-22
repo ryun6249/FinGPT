@@ -115,7 +115,7 @@ def lookup_company(payload: Any, symbol: str) -> dict[str, str] | None:
             "cik": cik,
             "company_name": str(row.get("name") or row.get("title") or symbol_upper),
             "exchange": str(row.get("exchange") or ""),
-            "source": "sec_company_tickers",
+            "source": str(row.get("source") or "sec_company_tickers"),
         }
     return None
 

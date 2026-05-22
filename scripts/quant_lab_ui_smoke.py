@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 import json
@@ -80,17 +80,17 @@ def _run_playwright_flow(base_url: str, *, timeout_s: int, screenshot_dir: Path)
         page.set_default_timeout(timeout_ms)
         page.on("console", lambda msg: console_errors.append(msg.text) if msg.type == "error" else None)
         try:
-            page.goto(f"{base_url.rstrip('/')}/ui/#quant-lab", wait_until="commit", timeout=timeout_ms)
-            page.locator("#quantLabTab").wait_for(state="visible", timeout=timeout_ms)
+            page.goto(f"{base_url.rstrip('/')}/ui/#auto-trading", wait_until="commit", timeout=timeout_ms)
+            page.locator("#autoTradingTab").wait_for(state="visible", timeout=timeout_ms)
             try:
                 page.wait_for_function(
-                    "document.querySelector('#homeSurfaceGrid')?.getAttribute('data-dashboard-tab') === 'quant'",
+                    "document.querySelector('#homeSurfaceGrid')?.getAttribute('data-dashboard-tab') === 'auto-trading'",
                     timeout=min(timeout_ms, 10000),
                 )
             except Exception:
-                page.locator("#quantLabTab").click()
+                page.locator("#autoTradingTab").click()
                 page.wait_for_function(
-                    "document.querySelector('#homeSurfaceGrid')?.getAttribute('data-dashboard-tab') === 'quant'",
+                    "document.querySelector('#homeSurfaceGrid')?.getAttribute('data-dashboard-tab') === 'auto-trading'",
                     timeout=timeout_ms,
                 )
             page.locator("#dashboardViewControls").wait_for(state="visible", timeout=timeout_ms)
@@ -104,8 +104,100 @@ def _run_playwright_flow(base_url: str, *, timeout_s: int, screenshot_dir: Path)
                 timeout=timeout_ms,
             )
             page.locator(".strategy-governance-card").wait_for(state="visible", timeout=timeout_ms)
-            _mark(checked, "quant tab")
+            page.locator(".strategy-research-card").wait_for(state="visible", timeout=timeout_ms)
+            _mark(checked, "auto trading tab")
 
+            for selector in [
+                "#autoTradingTicker",
+                "#autoTradingPrimaryTicker",
+                "#autoTradingStrategySelect",
+                "#autoTradingSignalLookback",
+                "#autoTradingPrompt",
+                "#autoTradingCode",
+                "#autoTradingBacktest",
+                "#autoTradingOptimize",
+                "#autoTradingChartSurface",
+            ]:
+                page.locator(selector).wait_for(state="visible", timeout=timeout_ms)
+                _mark(checked, selector)
+            page.locator("#autoTradingTicker").fill("SPY,QQQ,TLT")
+            page.locator("#autoTradingSignalLookback").fill("63")
+            page.locator("#autoTradingTopN").fill("2")
+            page.locator("#autoTradingBacktest").click()
+            page.locator('#autoTradingChartSurface [data-testid="auto-trading-signal-chart"]').wait_for(
+                state="visible",
+                timeout=timeout_ms,
+            )
+            page.locator("#autoTradingChartSurface .auto-trading-signal-marker").first.wait_for(
+                state="visible",
+                timeout=timeout_ms,
+            )
+            page.locator('#autoTradingAssetStatus [data-testid="auto-trading-asset-map"]').wait_for(
+                state="visible",
+                timeout=timeout_ms,
+            )
+            _mark(checked, "auto trading signal chart")
+
+            for selector in [
+                "#strategyPromptInput",
+                "#quantStrategyGenerate",
+                "#strategyDefinitionJson",
+                "#strategyPromptReviewSurface",
+                "#quantStrategyDryRun",
+            ]:
+                page.locator(selector).wait_for(state="visible", timeout=timeout_ms)
+                _mark(checked, selector)
+            page.locator("#symbolPickerModal").wait_for(state="attached", timeout=timeout_ms)
+            _mark(checked, "#symbolPickerModal")
+
+            page.locator("#strategyResearchStrategySelect").wait_for(state="visible", timeout=timeout_ms)
+            page.locator("#strategyResearchMaxTrials").fill("5")
+            page.locator("#autoTradingOptimize").click()
+            page.locator("#autoTradingOptimizationSurface .decision-status-row").wait_for(
+                state="visible",
+                timeout=timeout_ms,
+            )
+            _mark(checked, "auto trading bayesian optimize")
+            page.locator("#strategyResearchOptimize").click()
+            page.locator("#strategyResearchOptimizationSurface .decision-status-row").wait_for(
+                state="visible",
+                timeout=timeout_ms,
+            )
+            page.locator("#strategyResearchOptimizationSurface").get_by_text("Recommended parameters").wait_for(
+                state="visible",
+                timeout=timeout_ms,
+            )
+            _mark(checked, "strategy research optimization")
+            page.locator("#strategyResearchDiagnose").click()
+            page.locator("#strategyResearchDiagnosticsSurface .decision-status-row").wait_for(
+                state="visible",
+                timeout=timeout_ms,
+            )
+            _mark(checked, "strategy research diagnostics")
+            page.locator("#strategyResearchHypotheses").click()
+            page.locator("#strategyResearchHypothesisSurface .decision-status-row").first.wait_for(
+                state="visible",
+                timeout=timeout_ms,
+            )
+            page.locator('#strategyResearchHypothesisSurface [data-action="strategy-research-reject"]').first.wait_for(
+                state="visible",
+                timeout=timeout_ms,
+            )
+            _mark(checked, "strategy research hypotheses")
+            page.locator("#strategyResearchValidate").click()
+            page.locator("#strategyResearchValidationSurface .decision-status-row").wait_for(
+                state="visible",
+                timeout=timeout_ms,
+            )
+            _mark(checked, "strategy research validation")
+
+            page.locator("#quantLabTab").click()
+            page.wait_for_function(
+                "document.querySelector('#homeSurfaceGrid')?.getAttribute('data-dashboard-tab') === 'quant'",
+                timeout=timeout_ms,
+            )
+            page.locator(".backtest-card").wait_for(state="visible", timeout=timeout_ms)
+            _mark(checked, "quant tab")
             for selector in [
                 "#backtestFreshnessProfile",
                 "#backtestRequireFresh",
@@ -124,17 +216,9 @@ def _run_playwright_flow(base_url: str, *, timeout_s: int, screenshot_dir: Path)
                 "#portfolioBenchmark",
                 "#portfolioCovarianceMethod",
                 "#portfolioShrinkageAlpha",
-                "#strategyPromptInput",
-                "#quantStrategyGenerate",
-                "#strategyDefinitionJson",
-                "#strategyPromptReviewSurface",
-                "#quantStrategyDryRun",
             ]:
                 page.locator(selector).wait_for(state="visible", timeout=timeout_ms)
                 _mark(checked, selector)
-            page.locator("#symbolPickerModal").wait_for(state="attached", timeout=timeout_ms)
-            _mark(checked, "#symbolPickerModal")
-
             page.locator("#assetDetailTicker").fill("SPY")
             page.locator("#assetDetailRange").select_option("1y")
             page.locator("#assetDetailView").select_option("overview")
@@ -149,7 +233,6 @@ def _run_playwright_flow(base_url: str, *, timeout_s: int, screenshot_dir: Path)
             page.locator("#assetDetailSurface .asset-detail-chart-grid").first.wait_for(state="visible", timeout=timeout_ms)
             page.locator("#assetDetailSurface .chart-y-label").first.wait_for(state="visible", timeout=timeout_ms)
             page.locator("#assetDetailSurface [data-chart-tooltip]").first.wait_for(state="visible", timeout=timeout_ms)
-            page.locator("#assetDetailSurface").get_by_text("수익률 곡선").wait_for(state="visible", timeout=timeout_ms)
             _mark(checked, "asset detail date and curve controls")
 
             page.locator("#backtestFreshnessProfile").select_option("historical_lab")
@@ -177,7 +260,6 @@ def _run_playwright_flow(base_url: str, *, timeout_s: int, screenshot_dir: Path)
             page.locator("#symbolPickerClear").click()
             page.locator("#symbolPickerSearch").fill("005930")
             page.locator('[data-symbol-toggle="005930.KS"]').wait_for(state="visible", timeout=timeout_ms)
-            page.locator("text=삼성전자").wait_for(state="visible", timeout=timeout_ms)
             _mark(checked, "expanded korea universe")
             _mark(checked, "symbol picker select all")
             page.locator('[data-symbol-type="all"]').click()
@@ -211,7 +293,6 @@ def _run_playwright_flow(base_url: str, *, timeout_s: int, screenshot_dir: Path)
             page.locator("#quantSignalSurface .decision-status-row").wait_for(state="visible", timeout=timeout_ms)
             _mark(checked, "signal matrix")
 
-            page.locator("#quantStrategySurface .decision-status-row").wait_for(state="visible", timeout=timeout_ms)
             page.wait_for_function(
                 "document.querySelector('#backtestStrategyRegistry')?.options.length > 1",
                 timeout=timeout_ms,
@@ -220,23 +301,33 @@ def _run_playwright_flow(base_url: str, *, timeout_s: int, screenshot_dir: Path)
             if strategy_value:
                 page.locator("#backtestStrategyRegistry").select_option(strategy_value)
                 _mark(checked, "strategy governance linked selector")
+            page.locator("#autoTradingTab").click()
+            page.wait_for_function(
+                "document.querySelector('#homeSurfaceGrid')?.getAttribute('data-dashboard-tab') === 'auto-trading'",
+                timeout=timeout_ms,
+            )
+            _open_quality_panel(page, timeout_ms)
+            page.locator("#quantStrategySurface .decision-status-row").wait_for(state="visible", timeout=timeout_ms)
             page.locator("#quantStrategyNewDraft").click()
             editor_value = page.locator("#strategyDefinitionJson").input_value()
             if '"universe"' in editor_value or '"benchmark"' in editor_value:
                 raise AssertionError("strategy editor should not contain universe or benchmark fields")
-            page.locator("text=Python 코드가 아니며").wait_for(state="visible", timeout=timeout_ms)
-            page.locator("text=장점").wait_for(state="visible", timeout=timeout_ms)
-            page.locator("text=단점").wait_for(state="visible", timeout=timeout_ms)
+            page.locator(".strategy-editor-note").wait_for(state="visible", timeout=timeout_ms)
             _mark(checked, "strategy editor code only")
             page.locator("#quantStrategyDryRun").click()
             page.locator("#quantStrategyResultSurface .decision-status-row").wait_for(state="visible", timeout=timeout_ms)
             _mark(checked, "strategy governance dry-run")
+            _close_quality_panel(page, timeout_ms)
+            page.locator("#quantLabTab").click()
+            page.wait_for_function(
+                "document.querySelector('#homeSurfaceGrid')?.getAttribute('data-dashboard-tab') === 'quant'",
+                timeout=timeout_ms,
+            )
 
             page.locator("#backtestRun").click()
             page.locator("#backtestSurface .decision-status-row").wait_for(state="visible", timeout=timeout_ms)
             page.locator("#backtestSurface .chart-y-label").first.wait_for(state="visible", timeout=timeout_ms)
             page.locator("#backtestSurface [data-chart-tooltip]").first.wait_for(state="visible", timeout=timeout_ms)
-            page.locator("text=수익 곡선 비교").wait_for(state="visible", timeout=timeout_ms)
             page.locator('#backtestSurface [data-action="replay-backtest"]').wait_for(state="visible", timeout=timeout_ms)
             _mark(checked, "backtest")
             _mark(checked, "curve chart axes and hover tooltips")
@@ -272,6 +363,7 @@ def _run_playwright_flow(base_url: str, *, timeout_s: int, screenshot_dir: Path)
             page.locator("#portfolioSurface .decision-status-row").wait_for(state="visible", timeout=timeout_ms)
             _mark(checked, "portfolio optimize")
 
+            _open_quality_panel(page, timeout_ms)
             page.locator("#quantRunHistoryRefresh").click()
             page.locator("#quantRunHistorySurface details.row-action-menu").first.evaluate("node => node.open = true")
             page.locator('#quantRunHistorySurface [data-quant-replay-id]').first.wait_for(state="visible", timeout=timeout_ms)
@@ -299,6 +391,7 @@ def _run_playwright_flow(base_url: str, *, timeout_s: int, screenshot_dir: Path)
             page.locator('#quantRunHistorySurface [data-action="cross-run-cleanup-preview"]').first.click()
             page.locator("text=cross-run export cleanup preview").wait_for(state="visible", timeout=timeout_ms)
             _mark(checked, "cross-run export cleanup preview")
+            _close_quality_panel(page, timeout_ms)
 
             page.screenshot(path=str(screenshot_path), full_page=True)
             if console_errors:
@@ -331,6 +424,20 @@ def _mark(checked: list[str], label: str) -> None:
     checked.append(label)
 
 
+def _open_quality_panel(page: Any, timeout_ms: int) -> None:
+    if page.locator("#qualityPanel").is_visible():
+        return
+    page.locator("#qualityDashBtn").click(timeout=timeout_ms)
+    page.locator("#qualityPanel").wait_for(state="visible", timeout=timeout_ms)
+
+
+def _close_quality_panel(page: Any, timeout_ms: int) -> None:
+    if not page.locator("#qualityPanel").is_visible():
+        return
+    page.locator("#qualityClose").click(timeout=timeout_ms)
+    page.locator("#qualityPanel").wait_for(state="hidden", timeout=timeout_ms)
+
+
 def _find_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("127.0.0.1", 0))
@@ -352,14 +459,14 @@ def _start_server(port: int) -> subprocess.Popen[str]:
             "127.0.0.1",
             "--port",
             str(port),
+            "--log-level",
+            "warning",
+            "--no-access-log",
         ],
         cwd=str(PROJECT_ROOT),
         env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
 

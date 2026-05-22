@@ -30,7 +30,6 @@ const API = {
     if (options.topic) params.set("topic", options.topic);
     return `/api/v1/dashboard/news?${params.toString()}`;
   },
-  dashboardMarket: "/api/v1/dashboard/market",
   dashboardMarketOverview: "/api/v1/dashboard/market/overview",
   dashboardDecisionCards: "/api/v1/dashboard/decision-cards",
   dashboardCrossAssetAnalyze: (options = {}) => {
@@ -85,6 +84,8 @@ const API = {
     scenario: "/api/v1/risk/scenario",
   },
   dataHealth: "/api/v1/data/health",
+  dataAutoRefreshStatus: "/api/v1/data/auto-refresh/status",
+  dataAutoRefreshRun: "/api/v1/data/auto-refresh/run",
   dataPrices: (ticker, limit = 252, options = {}) => {
     const params = new URLSearchParams({ limit: String(limit) });
     if (options.refresh) params.set("refresh", "true");
@@ -120,6 +121,27 @@ const API = {
   quantStrategyDryRun: "/api/v1/quant/strategy/dry-run",
   quantStrategyGenerate: "/api/v1/quant/strategy/generate",
   quantStrategySave: "/api/v1/quant/strategy/save",
+  quantModelProfiles: "/api/v1/quant/model-profile/list",
+  quantModelProfile: (profileId) => `/api/v1/quant/model-profile/${encodeURIComponent(profileId)}`,
+  quantModelProfileDryRun: "/api/v1/quant/model-profile/dry-run",
+  quantModelProfileSave: "/api/v1/quant/model-profile/save",
+  quantModelLabRun: "/api/v1/quant/model-lab/run",
+  quantModelLabJob: "/api/v1/quant/model-lab/job",
+  quantStrategyResearchStatus: "/api/v1/quant/strategy-research/backend-status",
+  quantStrategyResearchProtectedRuntimeStatus: "/api/v1/quant/strategy-research/protected-runtime/status",
+  quantStrategyResearchStrategies: "/api/v1/quant/strategy-research/strategies",
+  quantStrategyResearchStrategy: (strategyId) => `/api/v1/quant/strategy-research/strategies/${encodeURIComponent(strategyId)}`,
+  quantStrategyResearchVersions: (strategyId) => `/api/v1/quant/strategy-research/strategies/${encodeURIComponent(strategyId)}/versions`,
+  quantStrategyResearchOptimize: (strategyId) => `/api/v1/quant/strategy-research/strategies/${encodeURIComponent(strategyId)}/optimize`,
+  quantStrategyResearchOptimizations: "/api/v1/quant/strategy-research/optimizations",
+  quantStrategyResearchOptimizationTrials: (optimizationId) => `/api/v1/quant/strategy-research/optimizations/${encodeURIComponent(optimizationId)}/trials`,
+  quantStrategyResearchDiagnose: (strategyId) => `/api/v1/quant/strategy-research/strategies/${encodeURIComponent(strategyId)}/diagnose`,
+  quantStrategyResearchHypothesesGenerate: (strategyId) => `/api/v1/quant/strategy-research/strategies/${encodeURIComponent(strategyId)}/hypotheses/generate`,
+  quantStrategyResearchHypotheses: "/api/v1/quant/strategy-research/hypotheses",
+  quantStrategyResearchHypothesisAccept: (hypothesisId) => `/api/v1/quant/strategy-research/hypotheses/${encodeURIComponent(hypothesisId)}/accept`,
+  quantStrategyResearchHypothesisReject: (hypothesisId) => `/api/v1/quant/strategy-research/hypotheses/${encodeURIComponent(hypothesisId)}/reject`,
+  quantStrategyResearchValidate: (strategyId) => `/api/v1/quant/strategy-research/strategies/${encodeURIComponent(strategyId)}/validate`,
+  quantStrategyResearchValidations: "/api/v1/quant/strategy-research/validations",
   quantUniverseResolve: "/api/v1/quant/universe/resolve",
   forecastHealth: "/api/v1/forecast/health",
   forecastModels: "/api/v1/forecast/models",
@@ -128,6 +150,7 @@ const API = {
   forecastFeaturesBuild: "/api/v1/forecast/features/build",
   forecastLeakageCheck: "/api/v1/forecast/leakage/check",
   forecastTrain: "/api/v1/forecast/train",
+  forecastUniverseRun: "/api/v1/forecast/universe/run",
   forecastJobs: "/api/v1/forecast/jobs",
   forecastJob: (jobId) => `/api/v1/forecast/jobs/${encodeURIComponent(jobId)}`,
   forecastJobCancel: (jobId) => `/api/v1/forecast/jobs/${encodeURIComponent(jobId)}/cancel`,
@@ -268,6 +291,7 @@ const DASHBOARD_RANGE_LOOKBACK_DAYS = {
   "5Y": 1260,
   MAX: 5000,
 };
+const QUANT_CROSS_SECTIONAL_RANK_SCHEMA_VERSION = "quant_model_lab_cross_sectional_rank_v1";
 
 const TV_ADVANCED_CHART_SCRIPT = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
 const TV_CHART_DEFAULTS = { source: "internal", symbolKey: "SPY", interval: "D", compareKey: "" };
@@ -412,10 +436,16 @@ const els = {
   qualityArtifactPaths: document.getElementById("qualityArtifactPaths"),
   qualityContextSummary: document.getElementById("qualityContextSummary"),
   qualityDataHealth: document.getElementById("qualityDataHealth"),
+  dataAutoRefreshRun: document.getElementById("dataAutoRefreshRun"),
+  dataAutoRefreshStatus: document.getElementById("dataAutoRefreshStatus"),
   qualityMacroData: document.getElementById("qualityMacroData"),
   qualityQuantamentalData: document.getElementById("qualityQuantamentalData"),
   qualityForecastData: document.getElementById("qualityForecastData"),
   qualityAiPortfolioData: document.getElementById("qualityAiPortfolioData"),
+  qualityOpsQuant: document.getElementById("qualityOpsQuant"),
+  qualityOpsForecast: document.getElementById("qualityOpsForecast"),
+  qualityOpsQuantamental: document.getElementById("qualityOpsQuantamental"),
+  qualityOpsAiPortfolio: document.getElementById("qualityOpsAiPortfolio"),
   qualityCategories: document.getElementById("qualityCategories"),
   qualityCases: document.getElementById("qualityCases"),
   qualityCasesNote: document.getElementById("qualityCasesNote"),
@@ -503,6 +533,7 @@ const els = {
   marketDashboardTab: document.getElementById("marketDashboardTab"),
   macroDashboardTab: document.getElementById("macroDashboardTab"),
   riskDashboardTab: document.getElementById("riskDashboardTab"),
+  autoTradingTab: document.getElementById("autoTradingTab"),
   quantLabTab: document.getElementById("quantLabTab"),
   quantamentalTab: document.getElementById("quantamentalTab"),
   mlForecastTab: document.getElementById("mlForecastTab"),
@@ -520,7 +551,6 @@ const els = {
   crossAssetRun: document.getElementById("crossAssetRun"),
   crossAssetStatus: document.getElementById("crossAssetStatus"),
   crossAssetAnalysisSurface: document.getElementById("crossAssetAnalysisSurface"),
-  homeMarketList: document.getElementById("homeMarketList"),
   macroRefresh: document.getElementById("macroRefresh"),
   macroBriefGenerate: document.getElementById("macroBriefGenerate"),
   macroReportExport: document.getElementById("macroReportExport"),
@@ -605,6 +635,32 @@ const els = {
   backtestSlippageBps: document.getElementById("backtestSlippageBps"),
   backtestRun: document.getElementById("backtestRun"),
   backtestSurface: document.getElementById("backtestSurface"),
+  autoTradingTicker: document.getElementById("autoTradingTicker"),
+  autoTradingTickerOpen: document.getElementById("autoTradingTickerOpen"),
+  autoTradingAssetChips: document.getElementById("autoTradingAssetChips"),
+  autoTradingPrimaryTicker: document.getElementById("autoTradingPrimaryTicker"),
+  autoTradingStrategySelect: document.getElementById("autoTradingStrategySelect"),
+  autoTradingTemplate: document.getElementById("autoTradingTemplate"),
+  autoTradingTimeframe: document.getElementById("autoTradingTimeframe"),
+  autoTradingLookbackDays: document.getElementById("autoTradingLookbackDays"),
+  autoTradingSignalLookback: document.getElementById("autoTradingSignalLookback"),
+  autoTradingTopN: document.getElementById("autoTradingTopN"),
+  autoTradingRebalanceEvery: document.getElementById("autoTradingRebalanceEvery"),
+  autoTradingCostBps: document.getElementById("autoTradingCostBps"),
+  autoTradingSlippageBps: document.getElementById("autoTradingSlippageBps"),
+  autoTradingPrompt: document.getElementById("autoTradingPrompt"),
+  autoTradingCode: document.getElementById("autoTradingCode"),
+  autoTradingDraft: document.getElementById("autoTradingDraft"),
+  autoTradingGenerate: document.getElementById("autoTradingGenerate"),
+  autoTradingDryRun: document.getElementById("autoTradingDryRun"),
+  autoTradingSave: document.getElementById("autoTradingSave"),
+  autoTradingBacktest: document.getElementById("autoTradingBacktest"),
+  autoTradingOptimize: document.getElementById("autoTradingOptimize"),
+  autoTradingAssetStatus: document.getElementById("autoTradingAssetStatus"),
+  autoTradingDryRunSurface: document.getElementById("autoTradingDryRunSurface"),
+  autoTradingChartSurface: document.getElementById("autoTradingChartSurface"),
+  autoTradingBacktestSurface: document.getElementById("autoTradingBacktestSurface"),
+  autoTradingOptimizationSurface: document.getElementById("autoTradingOptimizationSurface"),
   quantFeatureRun: document.getElementById("quantFeatureRun"),
   quantFeatureSurface: document.getElementById("quantFeatureSurface"),
   quantSignalRun: document.getElementById("quantSignalRun"),
@@ -620,6 +676,31 @@ const els = {
   strategyPromptReviewSurface: document.getElementById("strategyPromptReviewSurface"),
   quantStrategySurface: document.getElementById("quantStrategySurface"),
   quantStrategyResultSurface: document.getElementById("quantStrategyResultSurface"),
+  quantModelProfileRefresh: document.getElementById("quantModelProfileRefresh"),
+  quantModelProfileSelect: document.getElementById("quantModelProfileSelect"),
+  quantModelProfileId: document.getElementById("quantModelProfileId"),
+  quantModelProfileRunMode: document.getElementById("quantModelProfileRunMode"),
+  quantModelProfileDryRun: document.getElementById("quantModelProfileDryRun"),
+  quantModelProfileSave: document.getElementById("quantModelProfileSave"),
+  quantModelProfileRun: document.getElementById("quantModelProfileRun"),
+  quantModelProfileQueue: document.getElementById("quantModelProfileQueue"),
+  quantModelProfileDelete: document.getElementById("quantModelProfileDelete"),
+  quantModelProfileSurface: document.getElementById("quantModelProfileSurface"),
+  quantRankSurface: document.getElementById("quantRankSurface"),
+  strategyResearchRefresh: document.getElementById("strategyResearchRefresh"),
+  strategyResearchStrategySelect: document.getElementById("strategyResearchStrategySelect"),
+  strategyResearchMethod: document.getElementById("strategyResearchMethod"),
+  strategyResearchMaxTrials: document.getElementById("strategyResearchMaxTrials"),
+  strategyResearchOptimize: document.getElementById("strategyResearchOptimize"),
+  strategyResearchDiagnose: document.getElementById("strategyResearchDiagnose"),
+  strategyResearchHypotheses: document.getElementById("strategyResearchHypotheses"),
+  strategyResearchValidate: document.getElementById("strategyResearchValidate"),
+  strategyResearchOverviewSurface: document.getElementById("strategyResearchOverviewSurface"),
+  strategyResearchOptimizationSurface: document.getElementById("strategyResearchOptimizationSurface"),
+  strategyResearchDiagnosticsSurface: document.getElementById("strategyResearchDiagnosticsSurface"),
+  strategyResearchHypothesisSurface: document.getElementById("strategyResearchHypothesisSurface"),
+  strategyResearchValidationSurface: document.getElementById("strategyResearchValidationSurface"),
+  strategyResearchVersionsSurface: document.getElementById("strategyResearchVersionsSurface"),
   quantRunHistoryRefresh: document.getElementById("quantRunHistoryRefresh"),
   quantExportStorageReport: document.getElementById("quantExportStorageReport"),
   quantCrossRunCleanupPreview: document.getElementById("quantCrossRunCleanupPreview"),
@@ -641,6 +722,15 @@ const els = {
   forecastHydrateDataset: document.getElementById("forecastHydrateDataset"),
   forecastBuildFeatures: document.getElementById("forecastBuildFeatures"),
   forecastRunTrain: document.getElementById("forecastRunTrain"),
+  forecastUniversePreset: document.getElementById("forecastUniversePreset"),
+  forecastUniverseTickers: document.getElementById("forecastUniverseTickers"),
+  forecastUniverseOpen: document.getElementById("forecastUniverseOpen"),
+  forecastUniverseChips: document.getElementById("forecastUniverseChips"),
+  forecastUniverseMaxAssets: document.getElementById("forecastUniverseMaxAssets"),
+  forecastUniverseRankMetric: document.getElementById("forecastUniverseRankMetric"),
+  forecastRunUniverse: document.getElementById("forecastRunUniverse"),
+  forecastUniverseStatus: document.getElementById("forecastUniverseStatus"),
+  forecastUniverseSurface: document.getElementById("forecastUniverseSurface"),
   forecastQueueJob: document.getElementById("forecastQueueJob"),
   forecastGenerateAi: document.getElementById("forecastGenerateAi"),
   forecastGenerateProviderAi: document.getElementById("forecastGenerateProviderAi"),
@@ -836,10 +926,11 @@ const state = {
   historyExpanded: false,
   dashboardLoaded: false,
   marketOverviewLoaded: false,
-  marketLoaded: false,
   dataHealthLoaded: false,
   dataHealth: null,
   dataHealthError: "",
+  dataAutoRefresh: null,
+  dataAutoRefreshRunning: false,
   dashboardHeatmapLoaded: false,
   tradingViewInitialized: false,
   dashboardNewsItems: [],
@@ -848,7 +939,6 @@ const state = {
   crossAssetAnalysis: null,
   crossAssetRequestKey: "",
   marketOverview: null,
-  dashboardMarketItems: [],
   dashboardDecisionCardsByTab: {},
   dashboardDecisionCardsLoaded: false,
   dashboardDecisionCardsRequest: null,
@@ -887,6 +977,9 @@ const state = {
   lastBacktestRequest: null,
   lastQuantBacktestRequest: null,
   lastBacktestResult: null,
+  autoTradingLastBacktest: null,
+  autoTradingPricePayload: null,
+  autoTradingLastOptimization: null,
   lastFeatureResult: null,
   lastSignalResult: null,
   lastUniverseResolution: null,
@@ -894,6 +987,21 @@ const state = {
   quantStrategiesLoaded: false,
   quantStrategyItems: [],
   activeStrategyId: "",
+  quantModelProfilesLoaded: false,
+  quantModelProfiles: [],
+  activeModelProfileId: "core_universe_forecast_v1",
+  lastQuantModelProfileDryRun: null,
+  lastQuantModelLabPayload: null,
+  strategyResearchLoaded: false,
+  strategyResearchStatus: null,
+  strategyResearchStrategies: [],
+  strategyResearchVersions: [],
+  strategyResearchHypotheses: [],
+  activeStrategyResearchId: "risk_adjusted_momentum_v1",
+  lastStrategyResearchOptimization: null,
+  lastStrategyResearchTrials: [],
+  lastStrategyResearchDiagnostics: null,
+  lastStrategyResearchValidation: null,
   symbolPickerType: "all",
   symbolPickerTarget: null,
   symbolPickerFilteredSymbols: [],
@@ -910,6 +1018,7 @@ const state = {
   forecastAiProviderStatus: null,
   forecastRiskHandoff: null,
   lastForecastPayload: null,
+  lastForecastUniversePayload: null,
   forecastJobPollTimer: null,
   chartTooltipBound: false,
   aiPortfolioLoaded: false,
@@ -2527,6 +2636,15 @@ const SYMBOL_PICKER_TARGETS = {
     emptyLabel: "백테스트에 사용할 심볼을 선택하세요.",
     applyLabel: "유니버스 적용",
   },
+  autoTrading: {
+    inputKey: "autoTradingTicker",
+    chipsKey: "autoTradingAssetChips",
+    mode: "multi",
+    title: "Auto Trading 자산 선택",
+    description: "전략 작성, 시그널 백테스트, 최적화에 사용할 자산군을 선택합니다.",
+    emptyLabel: "Auto Trading에 사용할 심볼을 선택하세요.",
+    applyLabel: "자산 적용",
+  },
   backtestBenchmark: {
     inputKey: "backtestBenchmark",
     mode: "single",
@@ -2567,6 +2685,15 @@ const SYMBOL_PICKER_TARGETS = {
     description: "excess return과 비교 평가에 사용할 벤치마크를 선택합니다.",
     emptyLabel: "예측 벤치마크를 선택하세요.",
     applyLabel: "벤치마크 적용",
+  },
+  forecastUniverse: {
+    inputKey: "forecastUniverseTickers",
+    chipsKey: "forecastUniverseChips",
+    mode: "multi",
+    title: "ML Forecast 유니버스 선택",
+    description: "단일 종목 Forecast 설정을 적용할 종목 유니버스를 검색하고 선택합니다.",
+    emptyLabel: "유니버스에 포함할 심볼을 선택하세요.",
+    applyLabel: "유니버스 적용",
   },
   quantamentalTicker: {
     inputKey: "quantamentalTicker",
@@ -3538,6 +3665,71 @@ function renderQualityDataHealth(data) {
   `;
 }
 
+function renderDataAutoRefreshStatus(payload = {}) {
+  if (!els.dataAutoRefreshStatus) return;
+  const scheduler = payload.scheduler || payload || {};
+  const jobs = scheduler.jobs || {};
+  const lastResult = scheduler.last_result || {};
+  const lastJobs = lastResult.jobs || {};
+  const enabled = Boolean(scheduler.enabled);
+  const running = Boolean(scheduler.running);
+  const intervalHours = Number(scheduler.interval_s || 0) / 3600;
+  const enabledJobs = [
+    jobs.price_history ? "가격" : "",
+    jobs.sec_company_data ? "재무/SEC" : "",
+    jobs.macro_platform_data ? "매크로" : "",
+    jobs.data_quality_checks ? "품질점검" : "",
+  ].filter(Boolean);
+  const lastStatuses = [
+    lastJobs.price_history?.status ? `가격 ${lastJobs.price_history.status}` : "",
+    lastJobs.sec_company_data?.status ? `재무 ${lastJobs.sec_company_data.status}` : "",
+    lastJobs.macro_platform_data?.status ? `매크로 ${lastJobs.macro_platform_data.status}` : "",
+    lastJobs.data_quality_checks?.status ? `품질 ${lastJobs.data_quality_checks.status}` : "",
+  ].filter(Boolean);
+  const statusText = enabled
+    ? `자동 최신화 켜짐 · ${running ? "스케줄러 실행 중" : "대기"} · ${intervalHours ? `${fmtDecimal(intervalHours, 1)}시간 주기` : "주기 확인 중"}`
+    : "자동 최신화 꺼짐";
+  els.dataAutoRefreshStatus.textContent = [
+    statusText,
+    enabledJobs.length ? `대상: ${enabledJobs.join(", ")}` : "대상 없음",
+    lastStatuses.length ? `최근: ${lastStatuses.join(" / ")}` : "",
+  ].filter(Boolean).join(" · ");
+}
+
+async function refreshAllDataNow() {
+  if (!els.dataAutoRefreshRun) return;
+  const startedAt = Date.now();
+  state.dataAutoRefreshRunning = true;
+  els.dataAutoRefreshRun.disabled = true;
+  els.dataAutoRefreshRun.setAttribute("aria-busy", "true");
+  if (els.dataAutoRefreshStatus) {
+    els.dataAutoRefreshStatus.textContent = "가격·재무·SEC·매크로 데이터와 품질 점검을 즉시 갱신하는 중입니다.";
+  }
+  try {
+    const response = await fetch(API.dataAutoRefreshRun, { method: "POST" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.detail || data.error || `HTTP ${response.status}`);
+    state.dataAutoRefresh = data;
+    renderDataAutoRefreshStatus(data);
+    if (els.qualityDataHealth) {
+      els.qualityDataHealth.insertAdjacentHTML(
+        "afterbegin",
+        renderActionCompletion("전체 데이터 갱신 완료", startedAt, `상태 ${data.refresh?.status || data.status || "unknown"}`, decisionStatusClass(data.refresh?.status || data.status || "ok"))
+      );
+    }
+    await loadQualityDashboard();
+    loadActiveDashboardResources(true);
+  } catch (err) {
+    if (els.dataAutoRefreshStatus) {
+      els.dataAutoRefreshStatus.textContent = `전체 데이터 갱신 실패: ${err.message || err}`;
+    }
+  } finally {
+    state.dataAutoRefreshRunning = false;
+    els.dataAutoRefreshRun.disabled = false;
+    els.dataAutoRefreshRun.removeAttribute("aria-busy");
+  }
+}
+
 function dataHealthGlobalQuality(data) {
   const summary = data?.summary || {};
   const status = summary.decision_status || data?.status || "unknown";
@@ -3777,6 +3969,11 @@ function renderLocalQualitySections() {
   } else if (els.qualityDataHealth && state.dataHealthError) {
     els.qualityDataHealth.innerHTML = decisionEmpty(`데이터 마트 품질 조회 실패: ${state.dataHealthError}`);
   }
+  if (els.macroDataQualitySurface && state.macroDataQuality) {
+    renderMacroDataQuality(state.macroDataQuality, state.macroRefreshStatus || {});
+  }
+  if (els.macroCoverageSurface && state.macroSeriesList) renderMacroCoverage(state.macroSeriesList);
+  if (els.macroProviderHealthSurface && state.macroProviderHealth) renderMacroProviderHealth(state.macroProviderHealth);
   if (els.qualityQuantamentalData) els.qualityQuantamentalData.innerHTML = renderQualityQuantamentalState();
   if (els.qualityForecastData) els.qualityForecastData.innerHTML = renderQualityForecastState();
   if (els.qualityAiPortfolioData) els.qualityAiPortfolioData.innerHTML = renderQualityAiPortfolioState();
@@ -3788,21 +3985,31 @@ async function loadQualityDashboard() {
   els.qualitySubtitle.textContent = "평가 결과를 로드 중…";
   renderQualityArtifactPaths(null);
   if (els.qualityDataHealth) els.qualityDataHealth.innerHTML = decisionEmpty("데이터 마트 품질을 불러오는 중입니다.");
+  if (els.dataAutoRefreshStatus) els.dataAutoRefreshStatus.textContent = "자동 최신화 상태를 확인 중입니다.";
   if (els.qualityMacroData) els.qualityMacroData.innerHTML = decisionEmpty("매크로 시계열 품질을 불러오는 중입니다.");
+  if (els.macroDataQualitySurface) els.macroDataQualitySurface.innerHTML = decisionEmpty("매크로 데이터 품질을 불러오는 중입니다.");
+  if (els.macroCoverageSurface) els.macroCoverageSurface.innerHTML = decisionEmpty("매크로 커버리지를 불러오는 중입니다.");
+  if (els.macroProviderHealthSurface) els.macroProviderHealthSurface.innerHTML = decisionEmpty("매크로 공급자 상태를 불러오는 중입니다.");
   renderLocalQualitySections();
-  const [evalResult, dataHealthResult, macroQualityResult, macroRefreshResult, forecastProviderResult, forecastModelsResult] = await Promise.all([
+  const [evalResult, dataHealthResult, dataAutoRefreshResult, macroQualityResult, macroRefreshResult, macroCoverageResult, macroProviderHealthResult, forecastProviderResult, forecastModelsResult] = await Promise.all([
     qualityFetchJson(API.evalDashboard),
     qualityFetchJson(API.dataHealth),
+    qualityFetchJson(API.dataAutoRefreshStatus),
     qualityFetchJson(API.macroDataQuality),
     qualityFetchJson(API.macroRefreshStatus),
+    qualityFetchJson(API.macroSeriesList),
+    qualityFetchJson(API.macroProviderHealth),
     qualityFetchJson(API.forecastAiProviderHealth),
     qualityFetchJson(API.forecastModels),
   ]);
   renderQualityDashboard(evalResult.ok ? evalResult.data : null, {
     evalError: evalResult.error,
     dataHealth: dataHealthResult,
+    dataAutoRefresh: dataAutoRefreshResult,
     macroQuality: macroQualityResult,
     macroRefresh: macroRefreshResult,
+    macroCoverage: macroCoverageResult,
+    macroProviderHealth: macroProviderHealthResult,
     forecastProvider: forecastProviderResult,
     forecastModels: forecastModelsResult,
   });
@@ -3826,10 +4033,47 @@ function renderQualityDashboard(data, extras = {}) {
     if (extras.dataHealth?.ok) applyDataHealthState(extras.dataHealth.data);
     else renderDataHealthFailure(extras.dataHealth?.error || "unknown");
   }
+  if (extras.dataAutoRefresh?.ok) {
+    state.dataAutoRefresh = extras.dataAutoRefresh.data;
+    renderDataAutoRefreshStatus(extras.dataAutoRefresh.data);
+  } else if (els.dataAutoRefreshStatus) {
+    els.dataAutoRefreshStatus.textContent = `자동 최신화 상태 조회 실패: ${extras.dataAutoRefresh?.error || "unknown"}`;
+  }
   if (els.qualityMacroData) {
     els.qualityMacroData.innerHTML = extras.macroQuality?.ok
       ? renderQualityMacroData(extras.macroQuality.data, extras.macroRefresh?.data || {})
       : decisionEmpty(`매크로 데이터 품질 조회 실패: ${extras.macroQuality?.error || "unknown"}`);
+  }
+  if (els.macroDataQualitySurface) {
+    if (extras.macroQuality?.ok) {
+      state.macroDataQuality = extras.macroQuality.data;
+      state.macroRefreshStatus = extras.macroRefresh?.ok ? extras.macroRefresh.data : (state.macroRefreshStatus || {});
+      renderMacroDataQuality(state.macroDataQuality, state.macroRefreshStatus);
+    } else if (state.macroDataQuality) {
+      renderMacroDataQuality(state.macroDataQuality, state.macroRefreshStatus || {});
+    } else {
+      renderMacroPanelFailure(els.macroDataQualitySurface, "매크로 데이터 품질", extras.macroQuality?.error || "unknown");
+    }
+  }
+  if (els.macroCoverageSurface) {
+    if (extras.macroCoverage?.ok) {
+      state.macroSeriesList = extras.macroCoverage.data;
+      renderMacroCoverage(extras.macroCoverage.data);
+    } else if (state.macroSeriesList) {
+      renderMacroCoverage(state.macroSeriesList);
+    } else {
+      renderMacroPanelFailure(els.macroCoverageSurface, "매크로 커버리지", extras.macroCoverage?.error || "unknown");
+    }
+  }
+  if (els.macroProviderHealthSurface) {
+    if (extras.macroProviderHealth?.ok) {
+      state.macroProviderHealth = extras.macroProviderHealth.data;
+      renderMacroProviderHealth(extras.macroProviderHealth.data);
+    } else if (state.macroProviderHealth) {
+      renderMacroProviderHealth(state.macroProviderHealth);
+    } else {
+      renderMacroPanelFailure(els.macroProviderHealthSurface, "매크로 공급자 상태", extras.macroProviderHealth?.error || "unknown");
+    }
   }
   if (!data) {
     els.qualitySummary.innerHTML = `<span class='error'>평가 품질 조회 실패: ${escapeHtml(extras.evalError || "unknown")}</span>`;
@@ -4045,7 +4289,8 @@ const UI_LANGUAGE_COPY = {
       market: ["시장 대시보드", "티커를 입력하면 종목 분석으로, 비워두고 질문만 입력하면 금리·신용·FX·원자재·테마 topic 분석으로 라우팅합니다."],
       macro: ["매크로", "데이터 품질, 레짐, 자산군 영향, 정책 힌트, 리서치 맥락을 AI 해석과 분리해 점검합니다."],
       risk: ["Risk", "기업, 매크로, 전이 경로, 시나리오, 데이터 품질을 한 화면에서 점검하되 투자 행동 지시는 생성하지 않습니다."],
-      quant: ["퀀트 랩", "저장 가격 기반 리스크, 전략 검증, 포트폴리오 배분을 같은 조건으로 점검합니다."],
+      "auto-trading": ["Auto Trading", "전략 정의, 로컬 LLM 초안, 검증, 파라미터 리서치, paper/live seam 후보 관리를 한 탭에서 조작합니다."],
+      quant: ["퀀트 랩", "전략 검증, Model Lab 예측, 유니버스 랭킹, 백테스트, 포트폴리오 배분을 같은 조건으로 점검합니다."],
       quantamental: ["Quantamental", "재무제표, 가격, 팩터, 리스크를 deterministic engine으로 계산하고 AI는 구조화 결과만 해석합니다."],
       forecast: ["ML Forecast", "검증 가능한 예측 실험실입니다. 가격 경로가 아니라 OOS forward return, 확률, 신뢰도, 신호, 비용 반영 백테스트를 분리해 점검합니다."],
       "ai-portfolio": ["AI Portfolio", "투자형과 정책을 선택하고, 정량 엔진이 계산한 포트폴리오를 AI가 설명하는 사용자 승인 기반 워크플로우입니다."],
@@ -4241,6 +4486,26 @@ const UI_LANGUAGE_COPY = {
         decisionCompass: "결정 내비게이터",
         decisionPath: "의사결정 경로",
         decisionQuality: "결정 품질",
+        visualPriority: "시각화 우선순위",
+        visualControlPlane: "시각 통제판",
+        readinessRadar: "준비도 레이더",
+        workflowLane: "워크플로우 레인",
+        causalPathMap: "인과 경로 맵",
+        causalPathSummary: "입력부터 서비스 게이트까지",
+        coverageTopology: "커버리지 토폴로지",
+        coverageTopologySummary: "근거 도메인과 워크플로우 연결",
+        pressureStack: "압력 스택",
+        pressureStackSummary: "점수·전이·시나리오 압력",
+        driverPressure: "동인 압력",
+        transmissionPressure: "전이 압력",
+        scenarioStress: "시나리오 스트레스",
+        dataPenalty: "데이터 패널티",
+        evidenceTraceMap: "근거 추적 맵",
+        serviceGateRail: "서비스 게이트 레일",
+        riskPressure: "리스크 압력",
+        decisionMeaning: "의사결정 의미도",
+        nonObviousValue: "비단순 근거",
+        resultTemplate: "결과 템플릿",
         evidenceCoverage: "근거 커버리지",
         compatibilityMatrix: "호환성 매트릭스",
         primaryAction: "우선 조치",
@@ -4253,6 +4518,7 @@ const UI_LANGUAGE_COPY = {
         acceptanceCriteria: "통과 기준",
         serviceGate: "서비스 게이트",
         qualityBasis: "품질 근거",
+        meaningBasis: "점수, 근거, 검증 연결 상태",
         actionChecklist: "실행 체크리스트",
         monitoringTriggers: "감시 트리거",
         priorityMap: "우선순위 위험맵",
@@ -4263,6 +4529,8 @@ const UI_LANGUAGE_COPY = {
         releasePacket: "배포 패킷",
         releaseChecks: "배포 체크",
         runLineage: "실행 감사",
+        lineageAdapters: "어댑터",
+        releaseCheckRatio: "체크 통과",
         inputReceipt: "입력 확인서",
         aiOutputControls: "AI 출력 가드레일",
         grounding: "근거 요약",
@@ -4286,6 +4554,7 @@ const UI_LANGUAGE_COPY = {
         noDecisionCompass: "결정 내비게이터 정보가 없습니다.",
         noDecisionPath: "의사결정 경로 정보가 없습니다.",
         noDecisionQuality: "결정 품질 정보가 없습니다.",
+        noDecisionMeaning: "의사결정 의미도 정보가 충분하지 않습니다.",
         noEvidenceCoverage: "근거 커버리지 정보가 없습니다.",
         noCompatibilityMatrix: "호환성 매트릭스 정보가 없습니다.",
         noForecastValidationPlan: "Forecast 검증 계획 정보가 없습니다.",
@@ -4396,7 +4665,8 @@ const UI_LANGUAGE_COPY = {
       market: ["Market Dashboard", "Enter a ticker for single-name research, or leave it blank so the question can route to rates, credit, FX, commodities, or themes."],
       macro: ["Macro", "Review data quality, regimes, asset impact, policy hints, and research context separately from AI interpretation."],
       risk: ["Risk", "Review company, macro, transmission, scenario, and data-quality risk without generating trade action instructions."],
-      quant: ["Quant Lab", "Evaluate stored-price risk, strategy validation, and portfolio allocation under consistent assumptions."],
+      "auto-trading": ["Auto Trading", "Operate strategy definitions, local LLM drafts, validation, parameter research, and paper/live seam candidates in one tab."],
+      quant: ["Quant Lab", "Evaluate strategy validation, Model Lab forecasts, universe ranking, backtests, and portfolio allocation under consistent assumptions."],
       quantamental: ["Quantamental", "Compute fundamentals, price, factor, and risk signals deterministically while AI only interprets the structured output."],
       forecast: ["ML Forecast", "A verifiable forecasting lab for OOS forward returns, probabilities, confidence, signals, and cost-aware backtests."],
       "ai-portfolio": ["AI Portfolio", "Choose investment type and policy, then review user-approved portfolios calculated by the quantitative engine and explained by AI."],
@@ -4592,6 +4862,26 @@ const UI_LANGUAGE_COPY = {
         decisionCompass: "Decision navigator",
         decisionPath: "Decision path",
         decisionQuality: "Decision quality",
+        visualPriority: "Visual priority",
+        visualControlPlane: "Visual control plane",
+        readinessRadar: "Readiness radar",
+        workflowLane: "Workflow lane",
+        causalPathMap: "Causal path map",
+        causalPathSummary: "input to service gate",
+        coverageTopology: "Coverage topology",
+        coverageTopologySummary: "evidence domains and workflow links",
+        pressureStack: "Pressure stack",
+        pressureStackSummary: "score, transmission, and scenario pressure",
+        driverPressure: "Driver pressure",
+        transmissionPressure: "Transmission pressure",
+        scenarioStress: "Scenario stress",
+        dataPenalty: "Data penalty",
+        evidenceTraceMap: "Evidence trace map",
+        serviceGateRail: "Service gate rail",
+        riskPressure: "Risk pressure",
+        decisionMeaning: "Decision value",
+        nonObviousValue: "Non-obvious basis",
+        resultTemplate: "Output template",
         evidenceCoverage: "Evidence coverage",
         compatibilityMatrix: "Compatibility matrix",
         primaryAction: "Primary action",
@@ -4604,6 +4894,7 @@ const UI_LANGUAGE_COPY = {
         acceptanceCriteria: "Acceptance criteria",
         serviceGate: "Service gate",
         qualityBasis: "Quality basis",
+        meaningBasis: "score, evidence, and validation linkage",
         actionChecklist: "Action checklist",
         monitoringTriggers: "Monitoring triggers",
         priorityMap: "Priority risk map",
@@ -4614,6 +4905,8 @@ const UI_LANGUAGE_COPY = {
         releasePacket: "Release packet",
         releaseChecks: "Release checks",
         runLineage: "Run lineage",
+        lineageAdapters: "Adapters",
+        releaseCheckRatio: "Checks passing",
         inputReceipt: "Input receipt",
         aiOutputControls: "AI output guardrails",
         grounding: "Grounding summary",
@@ -4637,6 +4930,7 @@ const UI_LANGUAGE_COPY = {
         noDecisionCompass: "Decision navigator is unavailable.",
         noDecisionPath: "Decision path is unavailable.",
         noDecisionQuality: "Decision quality is unavailable.",
+        noDecisionMeaning: "Decision value signal is not available.",
         noEvidenceCoverage: "Evidence coverage is unavailable.",
         noCompatibilityMatrix: "Compatibility matrix is unavailable.",
         noForecastValidationPlan: "Forecast validation plan is unavailable.",
@@ -5305,6 +5599,34 @@ function setCardHeader(surfaceId, title, subtitle = "") {
   if (caption && subtitle) caption.textContent = subtitle;
 }
 
+const QUALITY_PORTAL_CARDS = [
+  ["forecastSignalQualitySurface", "qualityOpsForecast"],
+  ["forecastAiProviderSurface", "qualityOpsForecast"],
+  ["forecastDriftSurface", "qualityOpsForecast"],
+  ["forecastModelComparisonSurface", "qualityOpsForecast"],
+  ["forecastJobsSurface", "qualityOpsForecast"],
+  ["forecastHistorySurface", "qualityOpsForecast"],
+  ["forecastRegistrySurface", "qualityOpsForecast"],
+  ["quantamentalDataQualitySurface", "qualityOpsQuantamental"],
+  ["aiPortfolioOpsSurface", "qualityOpsAiPortfolio"],
+  ["aiPortfolioCoverageSurface", "qualityOpsAiPortfolio"],
+  ["aiPortfolioSnapshotTimelineSurface", "qualityOpsAiPortfolio"],
+  ["aiPortfolioOperationsSurface", "qualityOpsAiPortfolio"],
+];
+
+function moveOperationalQualityCardsToQualityPanel() {
+  QUALITY_PORTAL_CARDS.forEach(([surfaceId, targetId]) => {
+    const surface = document.getElementById(surfaceId);
+    const card = surface?.closest?.(".home-card");
+    const target = document.getElementById(targetId);
+    if (!card || !target || card.parentElement === target) return;
+    card.dataset.qualityPortal = "true";
+    card.dataset.originalPanelTier = card.dataset.panelTier || "";
+    card.dataset.panelTier = "quality";
+    target.appendChild(card);
+  });
+}
+
 function fallbackDashboardContextItems(tab = "market") {
   const itemsByTab = {
     market: [
@@ -5324,6 +5646,12 @@ function fallbackDashboardContextItems(tab = "market") {
       { label: "근거", value: "Quantamental + Macro", status: "warn", detail: "어댑터 입력과 freshness 확인" },
       { label: "가드", value: "No trade action", status: "warn", detail: "투자 행동 지시는 표시하지 않음" },
       { label: "작업", value: "Run Risk", status: "ok", detail: "시나리오와 evidence 검토" },
+    ],
+    "auto-trading": [
+      { label: "범위", value: "Strategy control", status: "ok", detail: "전략 초안, 저장, dry-run, 리서치" },
+      { label: "근거", value: "Validation gated", status: "warn", detail: "검증 전 가설은 pending" },
+      { label: "가드", value: "Core protected", status: "warn", detail: "Core logic 자동 변경 금지" },
+      { label: "실행", value: "paper/live seam", status: "warn", detail: "protected runtime 없으면 fail-closed" },
     ],
     quant: [
       { label: "데이터", value: "저장 가격 이력", status: "ok", detail: "data mart 가격" },
@@ -5517,6 +5845,361 @@ function riskScoreText(value) {
   return fmtDecimal(Number(value), 1);
 }
 
+function riskBoundedScore(value, fallback = 0) {
+  const parsed = Number(value);
+  const score = Number.isFinite(parsed) ? parsed : fallback;
+  return Math.max(0, Math.min(100, score));
+}
+
+function riskCompactLabel(value, maxLength = 34) {
+  const text = String(value || "").trim();
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, Math.max(0, maxLength - 3))}...`;
+}
+
+function riskScaledWidth(value, fallback = 0) {
+  return Math.max(2, Math.min(100, riskBoundedScore(value, fallback)));
+}
+
+function riskVisualScoreFromStatus(status, fallback = 50) {
+  const clean = riskActionStatusClass(status);
+  if (clean === "ok") return 88;
+  if (clean === "warn") return 58;
+  if (clean === "fail") return 24;
+  return riskBoundedScore(fallback, 50);
+}
+
+function riskPressureStatusFromScore(value, fallback = 50) {
+  const score = riskBoundedScore(value, fallback);
+  if (score >= 70) return "fail";
+  if (score >= 45) return "warn";
+  return "ok";
+}
+
+function riskAggregateStatus(items, fallback = "review") {
+  const statuses = (Array.isArray(items) ? items : [])
+    .map((item) => riskActionStatusClass(typeof item === "string" ? item : item?.status))
+    .filter(Boolean);
+  if (!statuses.length) return riskActionStatusClass(fallback);
+  if (statuses.includes("fail")) return "fail";
+  if (statuses.includes("warn") || statuses.includes("muted")) return "warn";
+  return "ok";
+}
+
+function renderRiskVisualRail(items, title, className, testId, summary = "") {
+  const safeItems = (Array.isArray(items) ? items : []).filter(Boolean).slice(0, 7);
+  if (!safeItems.length) return "";
+  const okCount = safeItems.filter((item) => item.status === "ok").length;
+  const failCount = safeItems.filter((item) => item.status === "fail").length;
+  const railStatus = failCount ? "fail" : okCount === safeItems.length ? "ok" : "warn";
+  return `
+    <div class="${escapeHtml(className)} ${escapeHtml(railStatus)}" data-testid="${escapeHtml(testId)}">
+      <div class="risk-visual-rail-head">
+        <span>${escapeHtml(title)}</span>
+        <strong>${escapeHtml(summary || `${okCount}/${safeItems.length}`)}</strong>
+      </div>
+      <div class="risk-visual-rail">
+        ${safeItems.map((item, index) => {
+          const status = item.status || "muted";
+          const score = riskScaledWidth(item.score ?? riskVisualScoreFromStatus(status, 50));
+          return `
+            <div class="risk-visual-node ${escapeHtml(status)}" style="--risk-node-score:${score}%">
+              <span>${escapeHtml(String(index + 1).padStart(2, "0"))}</span>
+              <strong><i class="table-status ${escapeHtml(status)}">${escapeHtml(item.label || "")}</i>${escapeHtml(riskCompactLabel(item.value || "", 34))}</strong>
+              <b aria-hidden="true"><i></i></b>
+              ${item.detail ? `<small>${escapeHtml(riskDriverText(item.detail))}</small>` : ""}
+            </div>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function riskRadarPoint(index, total, score, center = 72, radius = 58) {
+  const angle = (-90 + (360 / Math.max(1, total)) * index) * Math.PI / 180;
+  const distance = radius * (riskBoundedScore(score, 0) / 100);
+  return {
+    x: center + Math.cos(angle) * distance,
+    y: center + Math.sin(angle) * distance,
+  };
+}
+
+function renderRiskReadinessRadar(items, title) {
+  const safeItems = (Array.isArray(items) ? items : []).filter(Boolean).slice(0, 6);
+  if (!safeItems.length) return "";
+  const center = 72;
+  const radius = 58;
+  const outerPoints = safeItems.map((_, index) => riskRadarPoint(index, safeItems.length, 100, center, radius));
+  const midPoints = safeItems.map((_, index) => riskRadarPoint(index, safeItems.length, 58, center, radius));
+  const scorePoints = safeItems.map((item, index) => riskRadarPoint(index, safeItems.length, item.score, center, radius));
+  return `
+    <div class="risk-readiness-radar" data-testid="risk-readiness-radar">
+      <div class="risk-radar-head">
+        <span>${escapeHtml(title)}</span>
+        <strong>${escapeHtml(riskScoreText(safeItems.reduce((total, item) => total + riskBoundedScore(item.score, 0), 0) / safeItems.length))}%</strong>
+      </div>
+      <svg viewBox="0 0 144 144" role="img" aria-label="${escapeHtml(title)}">
+        <polygon class="risk-radar-grid" points="${outerPoints.map((point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(" ")}"></polygon>
+        <polygon class="risk-radar-grid risk-radar-grid-mid" points="${midPoints.map((point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(" ")}"></polygon>
+        ${outerPoints.map((point) => `<line class="risk-radar-axis" x1="${center}" y1="${center}" x2="${point.x.toFixed(2)}" y2="${point.y.toFixed(2)}"></line>`).join("")}
+        <polygon class="risk-radar-area" points="${scorePoints.map((point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(" ")}"></polygon>
+        ${scorePoints.map((point, index) => `<circle class="risk-radar-point ${escapeHtml(safeItems[index].status || "muted")}" cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="3.4"></circle>`).join("")}
+      </svg>
+      <div class="risk-radar-legend">
+        ${safeItems.map((item) => `
+          <div class="${escapeHtml(item.status || "muted")}">
+            <span>${escapeHtml(item.label || "")}</span>
+            <strong>${escapeHtml(riskScoreText(item.score))}%</strong>
+            ${item.detail ? `<small>${escapeHtml(item.detail)}</small>` : ""}
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderRiskCausalPathMap(items, title, summary = "") {
+  const safeItems = (Array.isArray(items) ? items : []).filter(Boolean).slice(0, 6);
+  if (!safeItems.length) return "";
+  const failCount = safeItems.filter((item) => riskActionStatusClass(item.status) === "fail").length;
+  const warnCount = safeItems.filter((item) => riskActionStatusClass(item.status) === "warn").length;
+  const mapStatus = failCount ? "fail" : warnCount ? "warn" : "ok";
+  return `
+    <div class="risk-causal-path-map ${escapeHtml(mapStatus)}" data-testid="risk-causal-path-map">
+      <div class="risk-causal-path-head">
+        <span>${escapeHtml(title)}</span>
+        <strong>${escapeHtml(summary || `${safeItems.length} steps`)}</strong>
+      </div>
+      <div class="risk-causal-chain">
+        ${safeItems.map((item, index) => {
+          const status = riskActionStatusClass(item.status || "review");
+          const score = riskScaledWidth(item.score ?? riskVisualScoreFromStatus(status, 50));
+          return `
+            <div class="risk-causal-node ${escapeHtml(status)}">
+              <span>${escapeHtml(String(index + 1).padStart(2, "0"))}</span>
+              <strong><i class="table-status ${escapeHtml(status)}">${escapeHtml(item.label || "")}</i>${escapeHtml(riskCompactLabel(item.value || "", 42))}</strong>
+              <b aria-hidden="true"><i style="width:${score}%"></i></b>
+              ${item.detail ? `<small>${escapeHtml(riskDriverText(item.detail))}</small>` : ""}
+            </div>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderRiskCoverageTopology(coverageItems, compatibilityRows, title, summary = "", className = "risk-coverage-topology", testId = "risk-coverage-topology") {
+  const copy = riskCopy();
+  const safeCoverage = (Array.isArray(coverageItems) ? coverageItems : []).filter(Boolean).slice(0, 7);
+  const workflowMap = new Map();
+  const addWorkflow = (name, type, subject = "") => {
+    const label = String(name || "").trim();
+    if (!label) return;
+    if (!workflowMap.has(label)) {
+      workflowMap.set(label, { label, supported: 0, blocked: 0, subjects: new Set() });
+    }
+    const entry = workflowMap.get(label);
+    if (type === "blocked") entry.blocked += 1;
+    else entry.supported += 1;
+    if (subject) entry.subjects.add(String(subject).trim().toUpperCase());
+  };
+  (Array.isArray(compatibilityRows) ? compatibilityRows : []).forEach((row) => {
+    const supported = Array.isArray(row?.supported_workflows) ? row.supported_workflows : [];
+    const blockedWorkflows = Array.isArray(row?.blocked_workflows) ? row.blocked_workflows : [];
+    supported.forEach((name) => addWorkflow(name, "supported", row?.subject));
+    blockedWorkflows.forEach((name) => addWorkflow(name, "blocked", row?.subject));
+  });
+  const workflowItems = Array.from(workflowMap.values())
+    .map((item) => {
+      const status = item.blocked && !item.supported ? "fail" : item.blocked ? "warn" : "ok";
+      return {
+        ...item,
+        status,
+        total: item.supported + item.blocked,
+        subjectText: Array.from(item.subjects).slice(0, 4).join(", "),
+      };
+    })
+    .sort((left, right) => (right.total - left.total) || (right.blocked - left.blocked) || left.label.localeCompare(right.label))
+    .slice(0, 6);
+  if (!safeCoverage.length && !workflowItems.length) return "";
+  const topologyStatus = riskAggregateStatus([
+    ...safeCoverage.map((item) => ({ status: item.status || "review" })),
+    ...workflowItems.map((item) => ({ status: item.status })),
+  ], "review");
+  const topologySummary = summary || `${copy.brief.evidenceCoverage} ${safeCoverage.length} · ${copy.brief.compatibilityMatrix} ${workflowItems.length}`;
+  return `
+    <div class="${escapeHtml(className)} ${escapeHtml(topologyStatus)}" data-testid="${escapeHtml(testId)}">
+      <div class="risk-topology-head">
+        <span>${escapeHtml(title)}</span>
+        <strong>${escapeHtml(topologySummary)}</strong>
+      </div>
+      <div class="risk-topology-grid">
+        <div class="risk-topology-domains">
+          ${safeCoverage.map((item) => {
+            const status = riskActionStatusClass(item.status || "review");
+            const evidenceCount = Number(item.evidence_count || 0);
+            const score = status === "ok"
+              ? Math.min(100, 52 + evidenceCount * 8)
+              : riskVisualScoreFromStatus(status, 42);
+            const meta = [
+              String(item.domain || "").replaceAll("_", " "),
+              item.coverage_scope || "",
+              `${copy.messages.source} ${evidenceCount}`,
+            ].filter(Boolean).join(" · ");
+            return `
+              <div class="risk-topology-domain ${escapeHtml(status)}" style="--risk-domain-score:${riskScaledWidth(score)}%">
+                <span>${escapeHtml(item.label || item.coverage_id || copy.brief.evidenceCoverage)}</span>
+                <strong><i class="table-status ${escapeHtml(status)}">${escapeHtml(localizedRiskStatus(item.status || "review"))}</i>${escapeHtml(riskCompactLabel(item.subject || item.coverage_scope || "-", 28))}</strong>
+                <b aria-hidden="true"><i></i></b>
+                ${meta ? `<small>${escapeHtml(meta)}</small>` : ""}
+              </div>
+            `;
+          }).join("")}
+        </div>
+        <div class="risk-topology-workflows">
+          ${(workflowItems.length ? workflowItems : [{ label: copy.brief.noCompatibilityMatrix, supported: 0, blocked: 0, total: 0, status: "warn", subjectText: "" }]).map((item) => `
+            <div class="risk-topology-workflow ${escapeHtml(item.status)}">
+              <span>${escapeHtml(riskCompactLabel(item.label, 34))}</span>
+              <strong>${escapeHtml(String(item.supported))}/${escapeHtml(String(item.total))}</strong>
+              <small>${escapeHtml(copy.brief.blockedWorkflows)} ${escapeHtml(String(item.blocked))}${item.subjectText ? ` · ${escapeHtml(item.subjectText)}` : ""}</small>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function buildRiskPressureStackItems(result = {}) {
+  const copy = riskCopy();
+  const drivers = Array.isArray(result.driver_contributions) ? result.driver_contributions : [];
+  const transmissionChannels = Array.isArray(result.transmission_channels) ? result.transmission_channels : [];
+  const scenarioRows = Array.isArray(result.scenario_matrix) ? result.scenario_matrix : [];
+  const dataQuality = result.data_quality || {};
+  const forecastPlan = result.forecast_validation_plan || {};
+  const topDriver = [...drivers].sort((left, right) => {
+    const leftValue = Math.abs(Number(left.contribution ?? left.score ?? 0));
+    const rightValue = Math.abs(Number(right.contribution ?? right.score ?? 0));
+    return rightValue - leftValue;
+  })[0] || {};
+  const topChannel = [...transmissionChannels].sort((left, right) => Number(right.risk_delta || 0) - Number(left.risk_delta || 0))[0] || {};
+  const topScenario = [...scenarioRows].sort((left, right) => Number(right.risk_index_delta || 0) - Number(left.risk_index_delta || 0))[0] || {};
+  const driverScore = Number(topDriver.score);
+  const driverContribution = Number(topDriver.contribution);
+  const channelDelta = Number(topChannel.risk_delta);
+  const channelSensitivity = Number(topChannel.sensitivity);
+  const scenarioProjected = Number(topScenario.projected_risk_index);
+  const scenarioDelta = Number(topScenario.risk_index_delta);
+  const dataPenalty = Number(dataQuality.penalty ?? dataQuality.confidence_penalty ?? 0);
+  const runOrder = Array.isArray(forecastPlan.run_order) ? forecastPlan.run_order : [];
+  const criteria = Array.isArray(forecastPlan.acceptance_criteria) ? forecastPlan.acceptance_criteria : [];
+  const validationDepth = runOrder.length + criteria.length;
+  const forecastScore = validationDepth
+    ? Math.min(100, 45 + validationDepth * 12)
+    : riskVisualScoreFromStatus(forecastPlan.status || "review", 35);
+  const riskScore = riskBoundedScore(result.risk_index, 0);
+  const driverStackScore = riskBoundedScore(
+    Number.isFinite(driverScore) ? driverScore : (Number.isFinite(driverContribution) ? Math.abs(driverContribution) * 2 : riskScore),
+    riskScore,
+  );
+  const channelStackScore = riskBoundedScore(
+    Number.isFinite(channelDelta) ? channelDelta * 2 : riskVisualScoreFromStatus(topChannel.pressure || "review", 35),
+    35,
+  );
+  const scenarioStackScore = riskBoundedScore(
+    Number.isFinite(scenarioProjected) ? scenarioProjected : (Number.isFinite(scenarioDelta) ? scenarioDelta * 2 : 35),
+    35,
+  );
+  const dataPenaltyScore = riskBoundedScore(Number.isFinite(dataPenalty) ? dataPenalty : 0, 0);
+  return [
+    {
+      label: copy.brief.riskPressure,
+      status: riskPressureStatusFromScore(riskScore, 0),
+      value: `${riskScoreText(result.risk_index)} · ${localizedRiskStatus(result.risk_level || "unknown")}`,
+      detail: copy.metrics.riskIndex,
+      score: riskScore,
+    },
+    {
+      label: copy.brief.driverPressure,
+      status: riskPressureStatusFromScore(driverStackScore, 40),
+      value: topDriver.driver ? riskDisplayLabel("vectorLabels", topDriver.driver) : copy.brief.noPriority,
+      detail: Number.isFinite(driverContribution) ? `${copy.table.delta} ${riskScoreText(driverContribution)}` : copy.brief.noPriority,
+      score: driverStackScore,
+    },
+    {
+      label: copy.brief.transmissionPressure,
+      status: riskPressureStatusFromScore(channelStackScore, 35),
+      value: topChannel.channel ? riskDisplayLabel("channelLabels", topChannel.channel) : copy.messages.channelsUnavailable,
+      detail: Number.isFinite(channelDelta)
+        ? `${copy.table.delta} ${riskScoreText(channelDelta)} · ${copy.table.sensitivity} ${riskScoreText(Number.isFinite(channelSensitivity) ? channelSensitivity * 100 : null)}%`
+        : copy.messages.channelsUnavailable,
+      score: channelStackScore,
+    },
+    {
+      label: copy.brief.scenarioStress,
+      status: riskPressureStatusFromScore(scenarioStackScore, 35),
+      value: topScenario.scenario_id || topScenario.scenario
+        ? riskDisplayLabel("scenarioLabels", topScenario.scenario_id || topScenario.scenario)
+        : copy.messages.unavailableScenario,
+      detail: Number.isFinite(scenarioProjected)
+        ? `${copy.messages.projectedRisk} ${riskScoreText(scenarioProjected)} · ${copy.table.delta} ${riskScoreText(scenarioDelta)}`
+        : copy.messages.unavailableScenario,
+      score: scenarioStackScore,
+    },
+    {
+      label: copy.brief.dataPenalty,
+      status: riskPressureStatusFromScore(dataPenaltyScore, 0),
+      value: `${riskScoreText(dataPenaltyScore)}%`,
+      detail: localizedRiskStatus(dataQuality.freshness || "unknown"),
+      score: dataPenaltyScore,
+    },
+    {
+      label: copy.brief.forecastValidation,
+      status: riskActionStatusClass(forecastPlan.status || "review"),
+      value: forecastPlan.primary_label || forecastPlan.primary_test_id || copy.brief.noForecastValidationPlan,
+      detail: forecastPlan.readiness_note || `${copy.brief.runOrder} ${String(runOrder.length || 0)}`,
+      score: forecastScore,
+    },
+  ];
+}
+
+function renderRiskPressureStack(items, title, summary = "", className = "risk-pressure-stack", testId = "risk-pressure-stack") {
+  const safeItems = (Array.isArray(items) ? items : []).filter(Boolean).slice(0, 6);
+  if (!safeItems.length) return "";
+  const totalScore = safeItems.reduce((total, item) => total + riskBoundedScore(item.score, 0), 0) || safeItems.length;
+  const stackStatus = riskAggregateStatus(safeItems, "review");
+  return `
+    <div class="${escapeHtml(className)} ${escapeHtml(stackStatus)}" data-testid="${escapeHtml(testId)}">
+      <div class="risk-pressure-head">
+        <span>${escapeHtml(title)}</span>
+        <strong>${escapeHtml(summary || riskCopy().brief.pressureStackSummary)}</strong>
+      </div>
+      <div class="risk-pressure-strip" aria-hidden="true">
+        ${safeItems.map((item) => {
+          const status = riskActionStatusClass(item.status || "review");
+          const share = Math.max(6, Math.min(38, (riskBoundedScore(item.score, 0) / totalScore) * 100));
+          return `<i class="${escapeHtml(status)}" style="--risk-stack-share:${share.toFixed(2)}%"></i>`;
+        }).join("")}
+      </div>
+      <div class="risk-pressure-grid">
+        ${safeItems.map((item) => {
+          const status = riskActionStatusClass(item.status || "review");
+          const score = riskScaledWidth(item.score ?? riskVisualScoreFromStatus(status, 50));
+          return `
+            <div class="risk-pressure-item ${escapeHtml(status)}" style="--risk-pressure-score:${score}%">
+              <span>${escapeHtml(item.label || "")}</span>
+              <strong><i class="table-status ${escapeHtml(status)}">${escapeHtml(localizedRiskStatus(item.status || "review"))}</i>${escapeHtml(riskCompactLabel(item.value || "", 36))}</strong>
+              <b aria-hidden="true"><i></i></b>
+              ${item.detail ? `<small>${escapeHtml(riskDriverText(item.detail))}</small>` : ""}
+            </div>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  `;
+}
+
 function renderRiskExecutiveStrip(result) {
   if (!els.riskExecutiveStrip) return;
   const copy = riskCopy();
@@ -5549,6 +6232,7 @@ function renderRiskDecisionBrief(result) {
   const inputReceipt = result.input_receipt || {};
   const aiControls = result.ai_output_controls || {};
   const forecastPlan = result.forecast_validation_plan || {};
+  const lineage = result.run_lineage || {};
   const readinessStatus = readiness.status || (result.decision_usable ? "review_required" : "blocked");
   const releaseStatus = releasePacket.status || readinessStatus;
   const compassStatus = riskActionStatusClass(decisionCompass.status || decisionQuality.status || readinessStatus || "review");
@@ -5578,6 +6262,12 @@ function renderRiskDecisionBrief(result) {
   const forecastPlanCriteria = Array.isArray(forecastPlan.acceptance_criteria) ? forecastPlan.acceptance_criteria : [];
   const forecastPlanBlocked = Array.isArray(forecastPlan.blocked_reasons) ? forecastPlan.blocked_reasons : [];
   const releaseChecks = Array.isArray(releasePacket.deployment_checks) ? releasePacket.deployment_checks : [];
+  const adapterStatuses = Object.entries(lineage.adapter_statuses || {});
+  const adapterStatus = riskAggregateStatus(adapterStatuses.map(([, status]) => ({ status })), "review");
+  const releaseCheckStatus = riskAggregateStatus(releaseChecks, releaseStatus);
+  const releaseCheckOkCount = releaseChecks.filter((item) => riskActionStatusClass(item.status) === "ok").length;
+  const actionChecklistStatus = riskAggregateStatus(actionItems, "review");
+  const monitoringStatus = riskAggregateStatus(triggerItems, "review");
   const qualityBasis = Array.isArray(decisionQuality.basis) ? decisionQuality.basis : [];
   const qualityBlockers = Array.isArray(decisionQuality.blockers) ? decisionQuality.blockers : [];
   const qualityActions = Array.isArray(decisionQuality.next_best_actions) ? decisionQuality.next_best_actions : [];
@@ -5590,6 +6280,8 @@ function renderRiskDecisionBrief(result) {
   const qualityWidth = Number.isFinite(qualityScore) ? Math.max(2, Math.min(100, qualityScore)) : 4;
   const coverageItems = Array.isArray(evidenceCoverage.items) ? evidenceCoverage.items : [];
   const compatibilityRows = Array.isArray(compatibilityMatrix.rows) ? compatibilityMatrix.rows : [];
+  const transmissionChannels = Array.isArray(result.transmission_channels) ? result.transmission_channels : [];
+  const scenarioRows = Array.isArray(result.scenario_matrix) ? result.scenario_matrix : [];
   const coverageScore = Number(evidenceCoverage.score);
   const coverageWidth = Number.isFinite(coverageScore) ? Math.max(2, Math.min(100, coverageScore)) : 4;
   const coverageDomainSummary = [
@@ -5616,10 +6308,335 @@ function renderRiskDecisionBrief(result) {
     ...readinessNextSteps.slice(0, 2),
     ...readinessChecklist.slice(0, 1),
   ].filter(Boolean);
+  const evidenceDepth = coverageItems.reduce((total, item) => total + Number(item.evidence_count || 0), 0);
+  const validationDepth = mlValidationItems.length + forecastPlanRunOrder.length + forecastPlanCriteria.length;
+  const decisionUsableScore = result.decision_usable ? 100 : 35;
+  const meaningScore = riskBoundedScore(
+    (riskBoundedScore(decisionQuality.score, 40) * 0.34)
+      + (riskBoundedScore(evidenceCoverage.score, 35) * 0.28)
+      + (riskBoundedScore(result.confidence, 35) * 0.22)
+      + (decisionUsableScore * 0.16),
+    0,
+  );
+  const meaningStatus = meaningScore >= 72 && result.decision_usable ? "ok" : meaningScore >= 52 ? "warn" : "fail";
+  const meaningLabel = meaningStatus === "ok"
+    ? (state.uiLanguage === "en" ? "decision-grade" : "의사결정 등급")
+    : meaningStatus === "warn"
+      ? (state.uiLanguage === "en" ? "review-grade" : "검토 등급")
+      : (state.uiLanguage === "en" ? "simple-answer risk" : "단순 답변 위험");
+  const meaningRows = [
+    {
+      label: copy.brief.decisionQuality,
+      score: riskBoundedScore(decisionQuality.score, 40),
+      status: decisionQualityStatus,
+      detail: decisionQuality.label || copy.brief.noDecisionQuality,
+    },
+    {
+      label: copy.brief.evidenceCoverage,
+      score: riskBoundedScore(evidenceCoverage.score, 35),
+      status: coverageStatus,
+      detail: `${copy.messages.source} ${evidenceDepth}`,
+    },
+    {
+      label: copy.metrics.confidence,
+      score: riskBoundedScore(result.confidence, 35),
+      status: Number(result.confidence || 0) >= 60 ? "ok" : "warn",
+      detail: `${copy.metrics.confidencePenalty} ${riskScoreText((result.data_quality || {}).penalty)}`,
+    },
+    {
+      label: copy.brief.forecastValidation,
+      score: riskBoundedScore(validationDepth ? Math.min(100, 45 + validationDepth * 12) : 25),
+      status: forecastPlanStatus,
+      detail: forecastPlan.primary_label || forecastPlan.primary_test_id || copy.brief.noForecastValidationPlan,
+    },
+  ];
+  const proofItems = [
+    ...priorityItems.slice(0, 2).map((item) => `${item.subject || ""}${item.vector ? ` · ${riskDisplayLabel("vectorLabels", item.vector)}` : ""}${item.reason ? ` · ${riskDriverText(item.reason)}` : ""}`),
+    ...confidenceItems.slice(0, 2).map((item) => `${item.label || item.factor_id || ""}${item.rationale ? ` · ${riskDriverText(item.rationale)}` : ""}`),
+    ...qualityBasis.slice(0, 2).map((item) => riskDriverText(item)),
+  ].filter(Boolean).slice(0, 5);
+  const templateLines = [
+    `${copy.brief.decisionPath}: ${decisionPath.primary_action || brief.summary || copy.brief.noDecisionPath}`,
+    `${copy.brief.evidenceCoverage}: ${riskScoreText(evidenceCoverage.score)}% · ${coverageDomainSummary || copy.brief.noEvidenceCoverage}`,
+    `${copy.brief.forecastValidation}: ${forecastPlan.primary_label || forecastPlan.primary_test_id || copy.brief.noForecastValidationPlan}`,
+  ];
+  const forecastValidationScore = validationDepth
+    ? Math.min(100, 45 + validationDepth * 12)
+    : riskVisualScoreFromStatus(forecastPlan.status || "review", 35);
+  const aiControlScore = aiRequiredRefs.length
+    ? Math.min(100, 52 + aiRequiredRefs.length * 8)
+    : riskVisualScoreFromStatus(aiControls.status || "review", 40);
+  const visualRadarItems = [
+    {
+      label: copy.brief.riskPressure,
+      score: riskBoundedScore(result.risk_index, 0),
+      status: riskLevelStatus(result.risk_level || "unknown"),
+      detail: localizedRiskStatus(result.risk_level || "unknown"),
+    },
+    {
+      label: copy.brief.decisionQuality,
+      score: riskBoundedScore(decisionQuality.score, 40),
+      status: decisionQualityStatus,
+      detail: decisionQuality.label || copy.brief.noDecisionQuality,
+    },
+    {
+      label: copy.brief.evidenceCoverage,
+      score: riskBoundedScore(evidenceCoverage.score, 35),
+      status: coverageStatus,
+      detail: coverageDomainSummary || copy.brief.noEvidenceCoverage,
+    },
+    {
+      label: copy.metrics.confidence,
+      score: riskBoundedScore(result.confidence, 35),
+      status: Number(result.confidence || 0) >= 60 ? "ok" : "warn",
+      detail: `${copy.messages.penalty} ${riskScoreText((result.data_quality || {}).penalty)}`,
+    },
+    {
+      label: copy.brief.forecastValidation,
+      score: riskBoundedScore(forecastValidationScore, 35),
+      status: forecastPlanStatus,
+      detail: forecastPlan.primary_label || forecastPlan.primary_test_id || copy.brief.noForecastValidationPlan,
+    },
+    {
+      label: copy.brief.aiOutputControls,
+      score: riskBoundedScore(aiControlScore, 35),
+      status: aiControlStatus,
+      detail: aiControls.grounding_summary || copy.brief.noAiOutputControls,
+    },
+  ];
+  const workflowLaneItems = [
+    {
+      label: copy.brief.inputReceipt,
+      status: receiptStatus,
+      value: localizedRiskStatus(inputReceipt.status || "review"),
+      detail: `${copy.brief.subjects} ${String(inputReceipt.subject_count ?? receiptSubjects.length ?? 0)}`,
+    },
+    {
+      label: copy.brief.decisionPath,
+      status: decisionPathStatus,
+      value: decisionPath.primary_handoff_label || copy.brief.noHandoff,
+      detail: decisionPath.primary_action || brief.summary || copy.brief.noDecisionPath,
+    },
+    {
+      label: copy.brief.evidenceCoverage,
+      status: coverageStatus,
+      value: `${riskScoreText(evidenceCoverage.score)}%`,
+      detail: `${copy.messages.source} ${evidenceDepth}`,
+    },
+    {
+      label: copy.brief.forecastValidation,
+      status: forecastPlanStatus,
+      value: forecastPlan.primary_label || forecastPlan.primary_test_id || copy.brief.noForecastValidationPlan,
+      detail: forecastPlan.readiness_note || copy.brief.experimentControls,
+    },
+    {
+      label: copy.brief.serviceGate,
+      status: riskReadinessStatusClass(readinessStatus),
+      value: localizedRiskStatus(readinessStatus),
+      detail: readinessNextSteps[0] || readinessWarnings[0] || copy.brief.noReadiness,
+    },
+    {
+      label: copy.brief.aiOutputControls,
+      status: aiControlStatus,
+      value: aiControls.language || state.uiLanguage || "ko",
+      detail: aiBlockedClaims[0] || aiAllowedClaims[0] || copy.brief.noAiOutputControls,
+    },
+  ];
+  const firstOpenReleaseCheck = releaseChecks.find((item) => riskActionStatusClass(item.status) !== "ok") || releaseChecks[0] || {};
+  const firstAction = actionItems[0] || {};
+  const firstTrigger = triggerItems[0] || {};
+  const evidenceTraceItems = [
+    {
+      label: copy.brief.inputReceipt,
+      status: receiptStatus,
+      value: inputReceipt.mode || state.risk.mode || "company",
+      detail: `${copy.brief.subjects} ${String(inputReceipt.subject_count ?? receiptSubjects.length ?? 0)}`,
+      score: riskVisualScoreFromStatus(receiptStatus, 50),
+    },
+    {
+      label: copy.brief.evidenceCoverage,
+      status: coverageStatus,
+      value: `${riskScoreText(evidenceCoverage.score)}%`,
+      detail: `${copy.messages.source} ${evidenceDepth}`,
+      score: evidenceCoverage.score,
+    },
+    {
+      label: copy.brief.compatibilityMatrix,
+      status: compatibilityStatus,
+      value: String(compatibilityRows.length || 0),
+      detail: compatibilityMatrix.summary || copy.brief.noCompatibilityMatrix,
+      score: riskVisualScoreFromStatus(compatibilityStatus, 50),
+    },
+    {
+      label: copy.brief.forecastValidation,
+      status: forecastPlanStatus,
+      value: forecastPlan.primary_test_id || forecastPlan.primary_label || copy.brief.noForecastValidationPlan,
+      detail: forecastPlan.readiness_note || `${copy.brief.runOrder} ${String(forecastPlanRunOrder.length || 0)}`,
+      score: forecastValidationScore,
+    },
+    {
+      label: copy.brief.runLineage,
+      status: adapterStatus,
+      value: lineage.service_version || copy.brief.noLineage,
+      detail: adapterStatuses.length
+        ? `${copy.brief.lineageAdapters} ${adapterStatuses.slice(0, 3).map(([name, status]) => `${name}:${localizedRiskStatus(status)}`).join(" / ")}`
+        : copy.brief.noLineage,
+      score: riskVisualScoreFromStatus(adapterStatus, 50),
+    },
+    {
+      label: copy.brief.aiOutputControls,
+      status: aiControlStatus,
+      value: String(aiRequiredRefs.length || 0),
+      detail: aiControls.grounding_summary || copy.brief.noAiOutputControls,
+      score: aiControlScore,
+    },
+  ];
+  const serviceGateRailItems = [
+    {
+      label: copy.brief.serviceReadiness,
+      status: riskReadinessStatusClass(readinessStatus),
+      value: localizedRiskStatus(readinessStatus),
+      detail: readinessNextSteps[0] || readinessWarnings[0] || copy.brief.noReadiness,
+      score: riskVisualScoreFromStatus(readinessStatus, 50),
+    },
+    {
+      label: copy.brief.releasePacket,
+      status: riskReadinessStatusClass(releaseStatus),
+      value: releasePacket.contract_version || localizedRiskStatus(releaseStatus),
+      detail: releasePacket.deployment_target || copy.brief.serviceContract,
+      score: riskVisualScoreFromStatus(releaseStatus, 50),
+    },
+    {
+      label: copy.brief.releaseChecks,
+      status: releaseCheckStatus,
+      value: `${releaseCheckOkCount}/${releaseChecks.length || 0}`,
+      detail: firstOpenReleaseCheck.next_step || firstOpenReleaseCheck.label || copy.brief.noReleasePacket,
+      score: releaseChecks.length ? (releaseCheckOkCount / releaseChecks.length) * 100 : riskVisualScoreFromStatus(releaseCheckStatus, 45),
+    },
+    {
+      label: copy.brief.actionChecklist,
+      status: actionChecklistStatus,
+      value: String(actionItems.length || 0),
+      detail: firstAction.next_step || firstAction.label || copy.brief.noActions,
+      score: riskVisualScoreFromStatus(actionChecklistStatus, 50),
+    },
+    {
+      label: copy.brief.monitoringTriggers,
+      status: monitoringStatus,
+      value: String(triggerItems.length || 0),
+      detail: firstTrigger.trigger_condition || firstTrigger.label || copy.brief.noTriggers,
+      score: riskVisualScoreFromStatus(monitoringStatus, 50),
+    },
+  ];
+  const topPriority = priorityItems.find((item) => item?.score !== null && item?.score !== undefined) || priorityItems[0] || {};
+  const topChannel = [...transmissionChannels].sort((left, right) => Number(right.risk_delta || 0) - Number(left.risk_delta || 0))[0] || {};
+  const topScenario = [...scenarioRows].sort((left, right) => Number(right.risk_index_delta || 0) - Number(left.risk_index_delta || 0))[0] || {};
+  const topPriorityScore = Number(topPriority.score);
+  const topChannelDelta = Number(topChannel.risk_delta);
+  const topScenarioProjected = Number(topScenario.projected_risk_index);
+  const topScenarioDelta = Number(topScenario.risk_index_delta);
+  const causalSubjects = receiptSubjects.length
+    ? receiptSubjects
+    : (Array.isArray(state.risk.tickers) ? state.risk.tickers : String(state.risk.tickers || "").split(/[,\s]+/).filter(Boolean));
+  const causalPathItems = [
+    {
+      label: copy.brief.inputReceipt,
+      status: receiptStatus,
+      value: `${inputReceipt.mode || state.risk.mode || "company"} · ${String(inputReceipt.subject_count ?? receiptSubjects.length ?? 0)}`,
+      detail: causalSubjects.slice(0, 4).join(", ") || copy.brief.noInputReceipt,
+      score: riskVisualScoreFromStatus(receiptStatus, 50),
+    },
+    {
+      label: copy.brief.priorityMap,
+      status: riskLevelStatus(topPriority.level || (Number.isFinite(topPriorityScore) ? topPriorityScore : result.risk_level)),
+      value: [topPriority.subject, topPriority.vector ? riskDisplayLabel("vectorLabels", topPriority.vector) : ""].filter(Boolean).join(" · ") || copy.brief.noPriority,
+      detail: topPriority.reason || `${copy.metrics.riskIndex} ${riskScoreText(Number.isFinite(topPriorityScore) ? topPriorityScore : result.risk_index)}`,
+      score: Number.isFinite(topPriorityScore) ? topPriorityScore : result.risk_index,
+    },
+    {
+      label: copy.cards.transmission?.[0] || copy.table.channel,
+      status: riskLevelStatus(topChannel.pressure || (Number.isFinite(topChannelDelta) ? topChannelDelta * 2 : "unknown")),
+      value: topChannel.channel ? riskDisplayLabel("channelLabels", topChannel.channel) : copy.messages.channelsUnavailable,
+      detail: Number.isFinite(topChannelDelta) ? `${copy.table.delta} ${riskScoreText(topChannelDelta)}` : copy.messages.channelsUnavailable,
+      score: Number.isFinite(topChannelDelta) ? Math.min(100, topChannelDelta * 2) : riskVisualScoreFromStatus(topChannel.pressure || "review", 35),
+    },
+    {
+      label: copy.cards.scenario?.[0] || copy.labels.scenario,
+      status: riskLevelStatus(topScenario.severity || (Number.isFinite(topScenarioProjected) ? topScenarioProjected : "unknown")),
+      value: topScenario.scenario ? riskDisplayLabel("scenarioLabels", topScenario.scenario) : copy.messages.unavailableScenario,
+      detail: Number.isFinite(topScenarioProjected)
+        ? `${copy.messages.projectedRisk} ${riskScoreText(topScenarioProjected)} · ${copy.table.delta} ${riskScoreText(topScenarioDelta)}`
+        : copy.messages.unavailableScenario,
+      score: Number.isFinite(topScenarioProjected) ? topScenarioProjected : riskVisualScoreFromStatus(topScenario.severity || "review", 35),
+    },
+    {
+      label: copy.brief.forecastValidation,
+      status: forecastPlanStatus,
+      value: forecastPlan.primary_label || forecastPlan.primary_test_id || copy.brief.noForecastValidationPlan,
+      detail: forecastPlan.readiness_note || `${copy.brief.runOrder} ${String(forecastPlanRunOrder.length || 0)}`,
+      score: forecastValidationScore,
+    },
+    {
+      label: copy.brief.serviceGate,
+      status: riskReadinessStatusClass(readinessStatus),
+      value: localizedRiskStatus(readinessStatus),
+      detail: readinessNextSteps[0] || readinessWarnings[0] || copy.brief.noReadiness,
+      score: riskVisualScoreFromStatus(readinessStatus, 50),
+    },
+  ];
+  const pressureStackItems = buildRiskPressureStackItems(result);
   els.riskDecisionBrief.innerHTML = `
     <div class="risk-brief-head">
       <strong>${escapeHtml(brief.summary || copy.brief.unavailable)}</strong>
       <span>${escapeHtml(result.not_investment_advice ? copy.brief.advisory : copy.brief.policyUnknown)}</span>
+    </div>
+    <div class="risk-visual-control-plane">
+      ${renderRiskReadinessRadar(visualRadarItems, copy.brief.readinessRadar)}
+      <div class="risk-workflow-lane" data-testid="risk-workflow-lane">
+        <div class="risk-workflow-lane-head">
+          <span>${escapeHtml(copy.brief.workflowLane)}</span>
+          <strong>${escapeHtml(copy.brief.visualControlPlane)}</strong>
+        </div>
+        <div class="risk-workflow-steps">
+          ${workflowLaneItems.map((item, index) => `
+            <div class="risk-workflow-step ${escapeHtml(item.status || "muted")}">
+              <span>${escapeHtml(String(index + 1).padStart(2, "0"))}</span>
+              <strong><i class="table-status ${escapeHtml(item.status || "muted")}">${escapeHtml(item.label || "")}</i>${escapeHtml(riskCompactLabel(item.value || "", 34))}</strong>
+              ${item.detail ? `<small>${escapeHtml(riskDriverText(item.detail))}</small>` : ""}
+            </div>
+          `).join("")}
+        </div>
+      </div>
+      ${renderRiskVisualRail(evidenceTraceItems, copy.brief.evidenceTraceMap, "risk-evidence-trace-map", "risk-evidence-trace-map", coverageDomainSummary || copy.brief.noEvidenceCoverage)}
+      ${renderRiskVisualRail(serviceGateRailItems, copy.brief.serviceGateRail, "risk-service-gate-rail", "risk-service-gate-rail", `${copy.brief.releaseCheckRatio} ${releaseCheckOkCount}/${releaseChecks.length || 0}`)}
+      ${renderRiskCausalPathMap(causalPathItems, copy.brief.causalPathMap, `${copy.brief.causalPathSummary} · ${riskScoreText(meaningScore)}%`)}
+      ${renderRiskPressureStack(pressureStackItems, copy.brief.pressureStack, copy.brief.pressureStackSummary)}
+      ${renderRiskCoverageTopology(coverageItems, compatibilityRows, copy.brief.coverageTopology, `${copy.brief.coverageTopologySummary} · ${riskScoreText(evidenceCoverage.score)}%`)}
+    </div>
+    <div class="risk-decision-grade-template ${escapeHtml(meaningStatus)}">
+      <div class="risk-grade-summary">
+        <span>${escapeHtml(copy.brief.decisionMeaning)}</span>
+        <strong><span class="table-status ${escapeHtml(meaningStatus)}">${escapeHtml(meaningLabel)}</span>${escapeHtml(riskScoreText(meaningScore))}%</strong>
+        <small>${escapeHtml(copy.brief.meaningBasis)} · ${escapeHtml(result.decision_usable ? copy.status.usable : copy.status.blocked)}</small>
+      </div>
+      <div class="risk-grade-bars">
+        ${meaningRows.map((item) => `
+          <div class="risk-grade-bar-row ${escapeHtml(item.status)}">
+            <span>${escapeHtml(item.label)}</span>
+            <b><i style="width:${riskBoundedScore(item.score)}%"></i></b>
+            <strong>${escapeHtml(riskScoreText(item.score))}%</strong>
+            <small>${escapeHtml(item.detail || "")}</small>
+          </div>
+        `).join("")}
+      </div>
+      <div class="risk-non-obvious-proof">
+        <span>${escapeHtml(copy.brief.nonObviousValue)}</span>
+        <ul>${(proofItems.length ? proofItems : [copy.brief.noDecisionMeaning]).map((item) => `<li>${escapeHtml(riskDriverText(item))}</li>`).join("")}</ul>
+      </div>
+      <div class="risk-output-template">
+        <span>${escapeHtml(copy.brief.resultTemplate)}</span>
+        <ul>${templateLines.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+      </div>
     </div>
     <div class="risk-brief-grid">
       <div class="risk-decision-compass ${escapeHtml(compassStatus)}">
@@ -5890,10 +6907,59 @@ function renderRiskDriverWaterfall(result) {
   if (!els.riskDriverWaterfall) return;
   const copy = riskCopy();
   const rows = Array.isArray(result.driver_contributions) ? result.driver_contributions : [];
-  els.riskDriverWaterfall.innerHTML = rows.length ? `
+  if (!rows.length) {
+    els.riskDriverWaterfall.innerHTML = decisionEmpty(copy.messages.unavailableWaterfall);
+    return;
+  }
+  const visualRows = rows.slice(0, 8);
+  const maxContribution = Math.max(
+    1,
+    ...visualRows.map((row) => Math.abs(Number(row.contribution || 0))).filter(Number.isFinite),
+  );
+  const chartWidth = 680;
+  const rowHeight = 34;
+  const chartHeight = 34 + visualRows.length * rowHeight;
+  const labelX = 12;
+  const trackX = 208;
+  const trackWidth = 360;
+  const valueX = trackX + trackWidth + 16;
+  const axisY = chartHeight - 10;
+  const totalContribution = rows.reduce((total, row) => {
+    const contribution = Number(row.contribution || 0);
+    return Number.isFinite(contribution) ? total + contribution : total;
+  }, 0);
+  els.riskDriverWaterfall.innerHTML = `
+    <div class="risk-driver-visual" data-testid="risk-driver-visual">
+      <div class="risk-driver-visual-summary">
+        <span>${escapeHtml(copy.brief.visualPriority)}</span>
+        <strong>${escapeHtml(riskScoreText(totalContribution))}</strong>
+        <small>${escapeHtml(copy.messages.scoreDirection)}</small>
+      </div>
+      <svg viewBox="0 0 ${chartWidth} ${chartHeight}" role="img" aria-label="${escapeHtml(copy.cards.waterfall?.[0] || "Driver Waterfall")}">
+        <line class="risk-waterfall-baseline" x1="${trackX}" x2="${trackX + trackWidth}" y1="${axisY}" y2="${axisY}"></line>
+        ${visualRows.map((row, index) => {
+          const contribution = Number(row.contribution || 0);
+          const score = row.score === null || row.score === undefined ? null : Number(row.score);
+          const weight = row.weight === null || row.weight === undefined ? null : Number(row.weight);
+          const status = riskLevelStatus(row.level || score);
+          const y = 16 + index * rowHeight;
+          const width = Math.max(4, Math.min(trackWidth, Math.abs(contribution) / maxContribution * trackWidth));
+          const label = riskCompactLabel(riskDisplayLabel("vectorLabels", row.driver || ""), 31);
+          const value = score === null || Number.isNaN(score)
+            ? copy.status.unknown
+            : `${riskScoreText(score)} x ${riskScoreText(weight)}`;
+          return `
+            <text class="risk-waterfall-label" x="${labelX}" y="${y + 12}">${escapeHtml(label)}</text>
+            <rect class="risk-waterfall-track" x="${trackX}" y="${y}" width="${trackWidth}" height="14" rx="7"></rect>
+            <rect class="risk-waterfall-bar ${escapeHtml(status)}" x="${trackX}" y="${y}" width="${width.toFixed(2)}" height="14" rx="7"></rect>
+            <text class="risk-waterfall-value" x="${valueX}" y="${y + 12}">${escapeHtml(value)}</text>
+          `;
+        }).join("")}
+      </svg>
+    </div>
     <div class="risk-waterfall-list">
       ${rows.map((row) => {
-        const width = Math.max(2, Math.min(100, Number(row.contribution || 0) * 4));
+        const width = Math.max(2, Math.min(100, Math.abs(Number(row.contribution || 0)) / maxContribution * 100));
         return `
           <div class="risk-waterfall-row ${escapeHtml(riskLevelStatus(row.level))}">
             <span>${escapeHtml(riskDisplayLabel("vectorLabels", row.driver || ""))}</span>
@@ -5903,7 +6969,7 @@ function renderRiskDriverWaterfall(result) {
         `;
       }).join("")}
     </div>
-  ` : decisionEmpty(copy.messages.unavailableWaterfall);
+  `;
 }
 
 function renderRiskCompanyTable(result) {
@@ -5961,7 +7027,29 @@ function renderRiskTransmissionMatrix(result) {
   if (!els.riskTransmissionMatrix) return;
   const copy = riskCopy();
   const rows = Array.isArray(result.transmission_channels) ? result.transmission_channels : [];
-  els.riskTransmissionMatrix.innerHTML = rows.length ? `
+  if (!rows.length) {
+    els.riskTransmissionMatrix.innerHTML = decisionEmpty(copy.messages.unavailableTransmission);
+    return;
+  }
+  els.riskTransmissionMatrix.innerHTML = `
+    <div class="risk-transmission-flow" data-testid="risk-transmission-flow">
+      ${rows.slice(0, 7).map((row) => {
+        const pressure = riskLevelStatus(row.pressure || "unknown");
+        const sensitivity = riskScaledWidth(Number(row.sensitivity || 0) * 100);
+        const delta = riskScoreText(row.risk_delta);
+        const affected = (row.affected_subjects || []).join(", ") || copy.status.all;
+        return `
+          <div class="risk-transmission-node ${escapeHtml(pressure)}" style="--risk-flow-width:${sensitivity}%">
+            <div>
+              <span>${escapeHtml(riskDisplayLabel("channelLabels", row.channel || ""))}</span>
+              <strong><span class="table-status ${escapeHtml(pressure)}">${escapeHtml(localizedRiskStatus(row.pressure || "unknown"))}</span>${escapeHtml(copy.table.delta)} ${escapeHtml(delta)}</strong>
+            </div>
+            <b aria-hidden="true"><i></i></b>
+            <small>${escapeHtml(`${copy.table.sensitivity} ${riskScoreText(sensitivity)}% · ${affected}`)}</small>
+          </div>
+        `;
+      }).join("")}
+    </div>
     <div class="decision-table-wrap">
       <table class="decision-table risk-table">
         <thead><tr><th>${escapeHtml(copy.table.channel)}</th><th>${escapeHtml(copy.table.pressure)}</th><th>${escapeHtml(copy.table.sensitivity)}</th><th>${escapeHtml(copy.table.delta)}</th><th>${escapeHtml(copy.table.affected)}</th><th>${escapeHtml(copy.table.mechanism)}</th></tr></thead>
@@ -5979,15 +7067,30 @@ function renderRiskTransmissionMatrix(result) {
         </tbody>
       </table>
     </div>
-  ` : decisionEmpty(copy.messages.unavailableTransmission);
+  `;
 }
 
 function renderRiskScenarioMatrix(result) {
   if (!els.riskScenarioMatrix) return;
   const copy = riskCopy();
   const rows = Array.isArray(result.scenario_matrix) ? result.scenario_matrix : [];
-  els.riskScenarioMatrix.innerHTML = rows.length ? `
-    <div class="risk-scenario-grid">
+  if (!rows.length) {
+    els.riskScenarioMatrix.innerHTML = decisionEmpty(copy.messages.unavailableScenario);
+    return;
+  }
+  els.riskScenarioMatrix.innerHTML = `
+    <div class="risk-scenario-heatmap" data-testid="risk-scenario-heatmap">
+      ${rows.map((row) => `
+        <div class="risk-scenario-cell ${escapeHtml(decisionStatusClass(row.severity === "severe" ? "fail" : row.severity === "adverse" ? "warn" : "ok"))}" style="--risk-score:${riskScaledWidth(row.projected_risk_index)}%; --risk-delta:${riskScaledWidth(Math.abs(Number(row.risk_index_delta || 0)) * 2)}%;">
+          <span>${escapeHtml(localizedRiskStatus(row.severity || ""))}</span>
+          <strong>${escapeHtml(riskCopy().scenarioLabels?.[row.scenario_id] || row.label || row.scenario_id || "scenario")}</strong>
+          <b aria-hidden="true"><i></i></b>
+          <small>${escapeHtml(copy.messages.projectedRisk)} ${escapeHtml(riskScoreText(row.projected_risk_index))} · ${escapeHtml(copy.table.delta)} ${escapeHtml(riskScoreText(row.risk_index_delta))}</small>
+          <em>${escapeHtml((row.top_damage_channels || []).join(", ") || copy.messages.channelsUnavailable)}</em>
+        </div>
+      `).join("")}
+    </div>
+    <div class="risk-scenario-grid risk-scenario-detail-list">
       ${rows.map((row) => `
         <div class="risk-scenario-card ${escapeHtml(decisionStatusClass(row.severity === "severe" ? "fail" : row.severity === "adverse" ? "warn" : "ok"))}">
           <span>${escapeHtml(localizedRiskStatus(row.severity || ""))}</span>
@@ -5997,7 +7100,7 @@ function renderRiskScenarioMatrix(result) {
         </div>
       `).join("")}
     </div>
-  ` : decisionEmpty(copy.messages.unavailableScenario);
+  `;
 }
 
 function renderRiskEvidence(result) {
@@ -6008,6 +7111,8 @@ function renderRiskEvidence(result) {
   const policy = result.calculation_policy || {};
   const lineage = result.run_lineage || {};
   const releasePacket = result.release_packet || {};
+  const readiness = result.service_readiness || {};
+  const inputReceipt = result.input_receipt || {};
   const evidenceCoverage = result.evidence_coverage || {};
   const compatibilityMatrix = result.compatibility_matrix || {};
   const aiControls = result.ai_output_controls || {};
@@ -6025,12 +7130,103 @@ function renderRiskEvidence(result) {
     ...(Array.isArray(releasePacket.ui_routes) ? releasePacket.ui_routes : []),
   ];
   const releaseCommands = Array.isArray(releasePacket.validation_commands) ? releasePacket.validation_commands : [];
+  const releaseChecks = Array.isArray(releasePacket.deployment_checks) ? releasePacket.deployment_checks : [];
+  const readinessNextSteps = Array.isArray(readiness.next_steps) ? readiness.next_steps : [];
+  const readinessWarnings = Array.isArray(readiness.warnings) ? readiness.warnings : [];
   const aiRequiredRefs = Array.isArray(aiControls.required_evidence_refs) ? aiControls.required_evidence_refs : [];
   const aiPromptContext = Array.isArray(aiControls.prompt_context) ? aiControls.prompt_context : [];
   const aiAllowedClaims = Array.isArray(aiControls.allowed_claims) ? aiControls.allowed_claims : [];
   const aiBlockedClaims = Array.isArray(aiControls.blocked_claims) ? aiControls.blocked_claims : [];
   const aiCitationPolicy = Array.isArray(aiControls.citation_policy) ? aiControls.citation_policy : [];
   const aiReviewInstructions = Array.isArray(aiControls.review_instructions) ? aiControls.review_instructions : [];
+  const readinessStatus = readiness.status || (result.decision_usable ? "review_required" : "blocked");
+  const releaseStatus = releasePacket.status || readinessStatus;
+  const receiptSubjects = Array.isArray(inputReceipt.subjects) ? inputReceipt.subjects : [];
+  const coverageStatus = riskActionStatusClass(evidenceCoverage.status || readinessStatus || "review");
+  const compatibilityStatus = riskActionStatusClass(compatibilityMatrix.status || evidenceCoverage.status || "review");
+  const forecastPlanStatus = riskActionStatusClass(forecastPlan.status || "review");
+  const aiControlStatus = riskActionStatusClass(aiControls.status || readinessStatus || "review");
+  const adapterStatus = riskAggregateStatus(adapterStatuses.map(([, status]) => ({ status })), "review");
+  const releaseCheckStatus = riskAggregateStatus(releaseChecks, releaseStatus);
+  const releaseCheckOkCount = releaseChecks.filter((item) => riskActionStatusClass(item.status) === "ok").length;
+  const validationDepth = forecastPlanRunOrder.length + forecastPlanCriteria.length;
+  const evidenceDepth = coverageItems.reduce((total, item) => total + Number(item.evidence_count || 0), 0);
+  const forecastValidationScore = validationDepth
+    ? Math.min(100, 45 + validationDepth * 12)
+    : riskVisualScoreFromStatus(forecastPlan.status || "review", 35);
+  const aiControlScore = aiRequiredRefs.length
+    ? Math.min(100, 52 + aiRequiredRefs.length * 8)
+    : riskVisualScoreFromStatus(aiControls.status || "review", 40);
+  const evidenceTraceItems = [
+    {
+      label: copy.brief.inputReceipt,
+      status: riskActionStatusClass(inputReceipt.status || "review"),
+      value: inputReceipt.mode || state.risk.mode || "company",
+      detail: `${copy.brief.subjects} ${String(inputReceipt.subject_count ?? receiptSubjects.length ?? 0)}`,
+      score: riskVisualScoreFromStatus(inputReceipt.status || "review", 50),
+    },
+    {
+      label: copy.brief.evidenceCoverage,
+      status: coverageStatus,
+      value: `${riskScoreText(evidenceCoverage.score)}%`,
+      detail: `${copy.messages.source} ${evidenceDepth}`,
+      score: evidenceCoverage.score,
+    },
+    {
+      label: copy.brief.compatibilityMatrix,
+      status: compatibilityStatus,
+      value: String(compatibilityRows.length || 0),
+      detail: compatibilityMatrix.summary || copy.brief.noCompatibilityMatrix,
+      score: riskVisualScoreFromStatus(compatibilityStatus, 50),
+    },
+    {
+      label: copy.brief.forecastValidation,
+      status: forecastPlanStatus,
+      value: forecastPlan.primary_test_id || forecastPlan.primary_label || copy.brief.noForecastValidationPlan,
+      detail: forecastPlan.readiness_note || `${copy.brief.runOrder} ${String(forecastPlanRunOrder.length || 0)}`,
+      score: forecastValidationScore,
+    },
+    {
+      label: copy.brief.runLineage,
+      status: adapterStatus,
+      value: lineage.service_version || copy.brief.noLineage,
+      detail: adapterStatuses.length
+        ? `${copy.brief.lineageAdapters} ${adapterStatuses.slice(0, 3).map(([name, status]) => `${name}:${localizedRiskStatus(status)}`).join(" / ")}`
+        : copy.brief.noLineage,
+      score: riskVisualScoreFromStatus(adapterStatus, 50),
+    },
+    {
+      label: copy.brief.aiOutputControls,
+      status: aiControlStatus,
+      value: String(aiRequiredRefs.length || 0),
+      detail: aiControls.grounding_summary || copy.brief.noAiOutputControls,
+      score: aiControlScore,
+    },
+  ];
+  const serviceGateRailItems = [
+    {
+      label: copy.brief.serviceReadiness,
+      status: riskReadinessStatusClass(readinessStatus),
+      value: localizedRiskStatus(readinessStatus),
+      detail: readinessNextSteps[0] || readinessWarnings[0] || copy.brief.noReadiness,
+      score: riskVisualScoreFromStatus(readinessStatus, 50),
+    },
+    {
+      label: copy.brief.releasePacket,
+      status: riskReadinessStatusClass(releaseStatus),
+      value: releasePacket.contract_version || localizedRiskStatus(releaseStatus),
+      detail: releasePacket.deployment_target || copy.brief.serviceContract,
+      score: riskVisualScoreFromStatus(releaseStatus, 50),
+    },
+    {
+      label: copy.brief.releaseChecks,
+      status: releaseCheckStatus,
+      value: `${releaseCheckOkCount}/${releaseChecks.length || 0}`,
+      detail: (releaseChecks.find((item) => riskActionStatusClass(item.status) !== "ok") || {}).next_step || copy.brief.noReleasePacket,
+      score: releaseChecks.length ? (releaseCheckOkCount / releaseChecks.length) * 100 : riskVisualScoreFromStatus(releaseCheckStatus, 45),
+    },
+  ];
+  const pressureStackItems = buildRiskPressureStackItems(result);
   els.riskEvidenceContent.innerHTML = `
     <div class="risk-evidence-summary">
       ${riskMetric(copy.metrics.dataQuality, localizedRiskStatus(quality.freshness || "unknown"), quality.decision_usable ? "ok" : "fail", `${copy.messages.penalty} ${riskScoreText(quality.penalty)}`)}
@@ -6040,6 +7236,10 @@ function renderRiskEvidence(result) {
     </div>
     ${(quality.missing_inputs || []).length ? `<div class="decision-warning">${escapeHtml(copy.messages.missing)}: ${escapeHtml(quality.missing_inputs.slice(0, 8).join(", "))}</div>` : ""}
     ${(quality.stale_inputs || []).length ? `<div class="decision-warning">${escapeHtml(copy.messages.stale)}: ${escapeHtml(quality.stale_inputs.slice(0, 8).join(", "))}</div>` : ""}
+    ${renderRiskVisualRail(evidenceTraceItems, copy.brief.evidenceTraceMap, "risk-evidence-trace-map risk-evidence-trace-map-detail", "risk-evidence-trace-map-detail", `${copy.messages.source} ${evidenceDepth}`)}
+    ${renderRiskVisualRail(serviceGateRailItems, copy.brief.serviceGateRail, "risk-service-gate-rail risk-service-gate-rail-detail", "risk-service-gate-rail-detail", `${copy.brief.releaseCheckRatio} ${releaseCheckOkCount}/${releaseChecks.length || 0}`)}
+    ${renderRiskPressureStack(pressureStackItems, copy.brief.pressureStack, copy.brief.pressureStackSummary, "risk-pressure-stack risk-pressure-stack-detail", "risk-pressure-stack-detail")}
+    ${renderRiskCoverageTopology(coverageItems, compatibilityRows, copy.brief.coverageTopology, `${copy.brief.coverageTopologySummary} · ${riskScoreText(evidenceCoverage.score)}%`, "risk-coverage-topology risk-coverage-topology-detail", "risk-coverage-topology-detail")}
     ${coverageItems.length ? `
       <div class="risk-evidence-coverage-detail">
         <span>${escapeHtml(copy.brief.evidenceCoverage)}</span>
@@ -6344,24 +7544,46 @@ function dashboardTabFromLocation() {
   const params = new URLSearchParams(window.location.search);
   const fromParam = params.get("tab") || params.get("dashboard");
   if (fromParam === "ai-portfolio" || fromParam === "ai") return "ai-portfolio";
-  if (fromParam === "ml-forecast" || fromParam === "forecast") return "forecast";
+  if (fromParam === "ml-forecast" || fromParam === "forecast") return "quant";
   if (fromParam === "macro") return "macro";
   if (fromParam === "risk") return "risk";
+  if (fromParam === "auto-trading" || fromParam === "auto" || fromParam === "trading") return "auto-trading";
   if (fromParam === "quantamental") return "quantamental";
   if (fromParam === "quant") return "quant";
   if (fromParam === "market") return "market";
   if (window.location.hash === "#ai-portfolio" || window.location.hash === "#ai") return "ai-portfolio";
-  if (window.location.hash === "#ml-forecast" || window.location.hash === "#forecast-lab" || window.location.hash === "#forecast") return "forecast";
+  if (window.location.hash === "#ml-forecast" || window.location.hash === "#forecast-lab" || window.location.hash === "#forecast") return "quant";
   if (window.location.hash === "#macro") return "macro";
   if (window.location.hash === "#risk") return "risk";
+  if (window.location.hash === "#auto-trading" || window.location.hash === "#auto" || window.location.hash === "#trading") return "auto-trading";
   if (window.location.hash === "#quantamental") return "quantamental";
   if (window.location.hash === "#quant-lab" || window.location.hash === "#quant") return "quant";
   if (window.location.hash === "#market-dashboard" || window.location.hash === "#market") return "market";
   return "";
 }
 
+function isLegacyForecastRoute() {
+  const params = new URLSearchParams(window.location.search);
+  const fromParam = params.get("tab") || params.get("dashboard");
+  return ["ml-forecast", "forecast"].includes(fromParam)
+    || ["#ml-forecast", "#forecast-lab", "#forecast"].includes(window.location.hash);
+}
+
+function normalizeLegacyForecastRoute() {
+  if (!window.history?.replaceState || !isLegacyForecastRoute()) return;
+  const url = new URL(window.location.href);
+  if (["ml-forecast", "forecast"].includes(url.searchParams.get("tab") || "")) {
+    url.searchParams.set("tab", "quant");
+  }
+  if (["ml-forecast", "forecast"].includes(url.searchParams.get("dashboard") || "")) {
+    url.searchParams.set("dashboard", "quant");
+  }
+  url.hash = "#quant-lab";
+  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
 function setDashboardTab(tab = "market", options = {}) {
-  const active = tab === "quantamental" ? "quantamental" : (tab === "quant" ? "quant" : (tab === "forecast" || tab === "ml-forecast" ? "forecast" : (tab === "macro" ? "macro" : (tab === "risk" ? "risk" : (tab === "ai-portfolio" || tab === "ai" ? "ai-portfolio" : "market")))));
+  const active = tab === "quantamental" ? "quantamental" : (tab === "auto-trading" || tab === "auto" || tab === "trading" ? "auto-trading" : (tab === "quant" || tab === "forecast" || tab === "ml-forecast" ? "quant" : (tab === "macro" ? "macro" : (tab === "risk" ? "risk" : (tab === "ai-portfolio" || tab === "ai" ? "ai-portfolio" : "market")))));
   state.activeDashboardTab = active;
   if (els.homeSurfaceGrid) {
     els.homeSurfaceGrid.dataset.dashboardTab = active;
@@ -6373,6 +7595,7 @@ function setDashboardTab(tab = "market", options = {}) {
     { el: els.marketDashboardTab, tab: "market" },
     { el: els.macroDashboardTab, tab: "macro" },
     { el: els.riskDashboardTab, tab: "risk" },
+    { el: els.autoTradingTab, tab: "auto-trading" },
     { el: els.quantLabTab, tab: "quant" },
     { el: els.quantamentalTab, tab: "quantamental" },
     { el: els.mlForecastTab, tab: "forecast" },
@@ -6385,9 +7608,16 @@ function setDashboardTab(tab = "market", options = {}) {
     el.setAttribute("aria-selected", isActive ? "true" : "false");
   });
   updateDashboardHero(active);
-  if (active === "quant") {
+  if (active === "auto-trading") {
+    syncAutoTradingPrimaryTickerOptions();
+    renderSymbolTargetChips("autoTrading");
+    loadQuantStrategies(false);
+    loadStrategyResearchLab(false);
+  } else if (active === "quant") {
     loadQuantRunHistory(false);
     loadQuantStrategies(false);
+    loadQuantModelProfiles(false);
+    loadForecastLab(false);
   } else if (active === "quantamental") {
     loadQuantamental(false);
   } else if (active === "forecast") {
@@ -6402,7 +7632,7 @@ function setDashboardTab(tab = "market", options = {}) {
     loadMarketDashboard(false);
   }
   if (options.updateUrl && window.history?.replaceState) {
-    const hash = active === "quantamental" ? "#quantamental" : (active === "quant" ? "#quant-lab" : (active === "forecast" ? "#ml-forecast" : (active === "macro" ? "#macro" : (active === "risk" ? "#risk" : (active === "ai-portfolio" ? "#ai-portfolio" : "#market-dashboard")))));
+    const hash = active === "quantamental" ? "#quantamental" : (active === "auto-trading" ? "#auto-trading" : (active === "quant" ? "#quant-lab" : (active === "forecast" ? "#ml-forecast" : (active === "macro" ? "#macro" : (active === "risk" ? "#risk" : (active === "ai-portfolio" ? "#ai-portfolio" : "#market-dashboard"))))));
     window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${hash}`);
   }
 }
@@ -6493,12 +7723,24 @@ function renderForecastRiskHandoffNotice(handoff = null) {
 function applyUrlUiMode() {
   const params = new URLSearchParams(window.location.search);
   const requestedTab = dashboardTabFromLocation();
+  const legacyForecastEntry = isLegacyForecastRoute();
   applyForecastPrefillFromLocation();
   if (requestedTab) setDashboardTab(requestedTab);
   else setDashboardTab(state.activeDashboardTab || "market");
+  if (legacyForecastEntry) {
+    normalizeLegacyForecastRoute();
+    focusQuantModelLabSection();
+  }
   if (params.get("focus") !== "heatmap") return;
   document.body.classList.add("heatmap-focus-mode");
   setDashboardTab("market");
+}
+
+function focusQuantModelLabSection() {
+  const target = document.getElementById("mlForecastSurface") || document.querySelector(".model-profile-card");
+  if (!target) return;
+  target.setAttribute("data-legacy-focus", "ml-forecast");
+  window.requestAnimationFrame(() => target.scrollIntoView({ block: "start", behavior: "smooth" }));
 }
 
 function normalizeStaticLabels() {
@@ -6525,16 +7767,15 @@ function normalizeStaticLabels() {
   setText(".market-overview-card .home-card-head h3", "시장 테이프 / 내부 스냅샷");
   setText(".home-chart-card .home-card-head h3", "TradingView 단일 차트");
   setText(".home-heatmap-card .home-card-head h3", "미국 주식 5분봉 히트맵");
-  setText(".home-market-panel .home-card-head h3", "내부 시장 스냅샷 (시장 테이프에 통합)");
   if (els.marketDashboardTab) els.marketDashboardTab.textContent = "Market Dashboard";
   if (els.macroDashboardTab) els.macroDashboardTab.textContent = "Macro";
   if (els.riskDashboardTab) els.riskDashboardTab.textContent = "Risk";
+  if (els.autoTradingTab) els.autoTradingTab.textContent = "Auto Trading";
   if (els.quantLabTab) els.quantLabTab.textContent = "Quant Lab";
   if (els.quantamentalTab) els.quantamentalTab.textContent = "Quantamental";
-  if (els.mlForecastTab) els.mlForecastTab.textContent = "ML Forecast";
+  if (els.mlForecastTab) els.mlForecastTab.textContent = "Model Lab";
   if (els.aiPortfolioTab) els.aiPortfolioTab.textContent = "AI Portfolio";
   setCardHeader("macroOverviewSurface", "매크로 레짐 요약", "데이터, 신호, 해석 분리");
-  setCardHeader("macroCoverageSurface", "매크로 데이터 커버리지", "레지스트리, 공급자, 범주");
   setCardHeader("macroIndicatorTable", "핵심 지표", "최근값, 변화, 품질");
   setCardHeader("macroChartSurface", "매크로 차트", "관측 데이터만 표시");
   setCardHeader("macroInterestRatesSurface", "금리", "정책금리, 커브, 실질금리");
@@ -6557,7 +7798,7 @@ function normalizeStaticLabels() {
   setText(".asset-detail-card .home-card-head h3", "자산 상세");
   setText(".backtest-card .home-card-head h3", "백테스트");
   setText(".portfolio-card .home-card-head h3", "포트폴리오");
-  setText(".forecast-setup-card .home-card-head h3", "ML Forecast");
+  setText(".forecast-setup-card .home-card-head h3", "Quant Model Lab");
   setText(".forecast-setup-card .home-card-head span", "검증 가능한 예측 실험실");
   setText(".ai-portfolio-overview-card .home-card-head h3", "AI Portfolio");
   setText(".ai-portfolio-overview-card .home-card-head span", "정책 기반 포트폴리오 관리");
@@ -6643,7 +7884,7 @@ function mountTradingViewWidget(container, fallback, scriptSrc, config, label) {
   const iframeMounted = mountTradingViewIframe(container, scriptSrc, config, label);
   if (!iframeMounted) {
     container.dataset.tvStatus = "failed";
-    showTvFallback(fallback, `${label} 로드에 실패했습니다. 아래 내부 시장 스냅샷을 기준으로 확인하세요.`);
+    showTvFallback(fallback, `${label} 로드에 실패했습니다. 시장 테이프를 기준으로 확인하세요.`);
     return;
   }
   container.dataset.tvStatus = "iframe-loading";
@@ -6658,7 +7899,7 @@ function mountTradingViewWidget(container, fallback, scriptSrc, config, label) {
   window.setTimeout(() => {
     if (container.dataset.tvStatus === "ready") return;
     container.dataset.tvStatus = "iframe-fallback";
-    showTvFallback(fallback, `${label}는 직접 iframe 경로로 로드 중입니다. 외부 네트워크가 느리면 내부 시장 스냅샷을 함께 확인하세요.`);
+    showTvFallback(fallback, `${label}는 직접 iframe 경로로 로드 중입니다. 외부 네트워크가 느리면 시장 테이프를 함께 확인하세요.`);
   }, 6000);
 }
 
@@ -7985,58 +9226,6 @@ async function loadDashboardEquityHeatmap(force = false) {
   }
 }
 
-async function loadDashboardMarket(force = false) {
-  if (!els.homeMarketList || (state.marketLoaded && !force)) return;
-  els.homeMarketList.innerHTML = '<div class="home-news-empty">시장 데이터를 불러오는 중입니다.</div>';
-  try {
-    const res = await fetch(API.dashboardMarket);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    const items = Array.isArray(data.items) ? data.items : [];
-    state.dashboardMarketItems = items;
-    if (!items.length) {
-      els.homeMarketList.innerHTML = '<div class="home-news-empty">표시할 시장 데이터가 없습니다.</div>';
-      state.marketLoaded = true;
-      return;
-    }
-    els.homeMarketList.innerHTML = items.map((item) => {
-      const r = item.returns || {};
-      const dayCls = Number(r["1d"]) >= 0 ? "up" : "down";
-      const freshness = item.freshness_status || "unknown";
-      const usable = isDecisionUsableMarketItem(item);
-      const ageText = Number.isFinite(Number(item.age_minutes)) ? `${Math.round(Number(item.age_minutes))}분` : "";
-      const source = item.source || "";
-      return `
-        <article class="home-market-card ${usable ? "" : "stale"} ${escapeHtml(freshness)}">
-          <div class="home-market-head">
-            <span class="home-market-symbol">${escapeHtml(item.symbol || "")}</span>
-            <span class="home-market-class">${escapeHtml(item.asset_class || "")}</span>
-          </div>
-          <div class="home-market-label">${escapeHtml(item.label || "")}</div>
-          <div class="home-market-price">${item.price === null || item.price === undefined ? "-" : escapeHtml(String(item.price))}</div>
-          <div class="home-market-returns">
-            <span class="${dayCls}">1D ${escapeHtml(fmtPct(r["1d"]))}</span>
-            <span>1M ${escapeHtml(fmtPct(r["1m"]))}</span>
-          </div>
-          <div class="home-market-meta">
-            <span>${escapeHtml(item.as_of || "기준일 미확인")}</span>
-            <span>${escapeHtml(source)}</span>
-          </div>
-          <div class="home-market-freshness ${usable ? "ok" : "warn"}">
-            <span>${escapeHtml(FRESHNESS_LABELS[freshness] || freshness)}</span>
-            ${ageText ? `<span>${escapeHtml(ageText)}</span>` : ""}
-            ${usable ? "" : "<strong>의사결정 제외</strong>"}
-          </div>
-        </article>
-      `;
-    }).join("");
-    state.marketLoaded = true;
-  } catch (err) {
-    state.dashboardMarketItems = [];
-    els.homeMarketList.innerHTML = `<div class="home-news-empty">시장 데이터 로드 실패: ${escapeHtml(err.message || err)}</div>`;
-  }
-}
-
 function renderMarketTape(overview) {
   const rendered = window.FinGPTMarketUi?.marketTape?.(overview, { freshnessLabels: FRESHNESS_LABELS });
   if (!rendered) {
@@ -8567,15 +9756,21 @@ async function loadDashboardMarketOverview(force = false) {
 
 function decisionStatusClass(status) {
   const key = String(status || "").toLowerCase();
-  if (["ok", "success"].includes(key)) return "ok";
-  if (["failed", "fail", "error"].includes(key)) return "fail";
-  if (["partial", "warn", "stale", "empty", "credentials_missing", "dependency_missing", "unavailable", "missing_series", "provider_error", "transformation_error"].includes(key)) return "warn";
+  if (["ok", "success", "succeeded", "accepted"].includes(key)) return "ok";
+  if (["failed", "fail", "error", "rejected"].includes(key)) return "fail";
+  if (["partial", "warn", "stale", "empty", "pending", "queued", "running", "credentials_missing", "dependency_missing", "unavailable", "missing_series", "provider_error", "transformation_error"].includes(key)) return "warn";
   return "muted";
 }
 
 function decisionStatusLabel(status) {
   const key = String(status || "").toLowerCase();
   if (key === "success" || key === "ok") return "정상";
+  if (key === "succeeded") return "완료";
+  if (key === "accepted") return "승인";
+  if (key === "rejected") return "거절";
+  if (key === "pending") return "대기";
+  if (key === "queued") return "큐";
+  if (key === "running") return "실행 중";
   if (key === "failed" || key === "fail" || key === "error") return "실패";
   if (key === "partial") return "부분";
   if (key === "warn" || key === "stale") return "경고";
@@ -10292,7 +11487,7 @@ function renderMacroDataQuality(data = {}, refreshStatus = {}) {
   const scheduler = refreshStatus.scheduler || {};
   const lastResult = scheduler.last_result || {};
   const macroJob = lastResult.jobs?.macro_platform_data || {};
-  const autoEnabled = scheduler.enabled && scheduler.jobs?.macro_platform_data;
+  const autoEnabled = Boolean((scheduler.enabled || scheduler.running) && scheduler.jobs?.macro_platform_data !== false);
   const intervalHours = Number(scheduler.interval_s || 0) / 3600;
   els.macroDataQualitySurface.innerHTML = `
     <div class="decision-status-row">
@@ -12800,6 +13995,7 @@ function setStrategyEditor(strategy) {
   if (!els.strategyDefinitionJson) return;
   els.strategyDefinitionJson.value = JSON.stringify(strategyCodeOnlyPayload(strategy), null, 2);
   state.activeStrategyId = String(strategy?.strategy_id || "");
+  setAutoTradingEditor(strategy);
 }
 
 function strategyGenerationContextFromControls() {
@@ -12954,10 +14150,429 @@ function populateBacktestStrategyRegistry() {
   }
 }
 
+function autoTradingTickers() {
+  const tickers = parseTickerInput(els.autoTradingTicker?.value || "");
+  return tickers.length ? tickers : ["SPY"];
+}
+
+function syncAutoTradingPrimaryTickerOptions() {
+  if (!els.autoTradingPrimaryTicker) return;
+  const tickers = autoTradingTickers();
+  const selected = normalizeTickerToken(els.autoTradingPrimaryTicker.value || "") || tickers[0] || "SPY";
+  els.autoTradingPrimaryTicker.innerHTML = tickers
+    .map((ticker) => `<option value="${escapeHtml(ticker)}">${escapeHtml(ticker)}</option>`)
+    .join("");
+  els.autoTradingPrimaryTicker.value = tickers.includes(selected) ? selected : tickers[0];
+}
+
+function populateAutoTradingStrategySelect() {
+  if (!els.autoTradingStrategySelect) return;
+  const items = Array.isArray(state.quantStrategyItems) ? state.quantStrategyItems : [];
+  const selected = state.activeStrategyId || els.autoTradingStrategySelect.value || "";
+  els.autoTradingStrategySelect.innerHTML = `
+    <option value="">Default draft</option>
+    ${items.map((item) => {
+      const id = item.strategy_id || "";
+      const label = item.name || id;
+      const source = item.source || "default";
+      return `<option value="${escapeHtml(id)}">${escapeHtml(label)} · ${escapeHtml(source)}</option>`;
+    }).join("")}
+  `;
+  if (selected && items.some((item) => item.strategy_id === selected)) {
+    els.autoTradingStrategySelect.value = selected;
+  }
+}
+
+function setAutoTradingEditor(strategy) {
+  if (!els.autoTradingCode || !strategy) return;
+  els.autoTradingCode.value = JSON.stringify(strategyCodeOnlyPayload(strategy), null, 2);
+}
+
+function autoTradingPayloadFromEditor() {
+  const raw = els.autoTradingCode?.value || "";
+  if (!raw.trim()) return quantStrategyDraftFromControls();
+  return strategyCodeOnlyPayload(JSON.parse(raw));
+}
+
+function syncAutoTradingCodeToGovernance() {
+  if (!els.autoTradingCode || !els.strategyDefinitionJson) return;
+  if (els.autoTradingCode.value.trim()) {
+    els.strategyDefinitionJson.value = els.autoTradingCode.value;
+  }
+}
+
+function syncAutoTradingToSharedControls() {
+  const tickers = autoTradingTickers();
+  syncAutoTradingPrimaryTickerOptions();
+  if (els.backtestTicker) {
+    setBacktestUniverse(tickers);
+  }
+  if (els.backtestStrategy) {
+    const template = els.autoTradingTemplate?.value || "risk_adjusted_momentum";
+    const strategyValue = template === "moving_average_trend" ? "moving_average" : template;
+    setSelectValueIfPresent(els.backtestStrategy, strategyValue === "risk_adjusted_momentum" ? "risk_adjusted_momentum" : strategyValue);
+  }
+  if (els.backtestStrategyRegistry && els.autoTradingStrategySelect) {
+    els.backtestStrategyRegistry.value = els.autoTradingStrategySelect.value || "";
+    state.activeStrategyId = els.autoTradingStrategySelect.value || state.activeStrategyId || "";
+  }
+  if (els.backtestBenchmark) els.backtestBenchmark.value = "SPY";
+  if (els.backtestLookbackDays) els.backtestLookbackDays.value = String(numberInputValue(els.autoTradingLookbackDays, 756, { min: 120, max: 5000 }));
+  if (els.backtestShortWindow) els.backtestShortWindow.value = String(numberInputValue(els.autoTradingSignalLookback, 63, { min: 5, max: 756 }));
+  if (els.backtestTopN) els.backtestTopN.value = String(numberInputValue(els.autoTradingTopN, 2, { min: 1, max: 20 }));
+  if (els.backtestRebalanceEvery) els.backtestRebalanceEvery.value = String(numberInputValue(els.autoTradingRebalanceEvery, 21, { min: 1, max: 252 }));
+  if (els.backtestCostBps) els.backtestCostBps.value = String(numberInputValue(els.autoTradingCostBps, 5, { min: 0, max: 1000 }));
+  if (els.backtestSlippageBps) els.backtestSlippageBps.value = String(numberInputValue(els.autoTradingSlippageBps, 2, { min: 0, max: 1000 }));
+}
+
+function autoTradingBacktestRequest() {
+  syncAutoTradingToSharedControls();
+  const legacy = backtestRequestFromControls();
+  const request = quantBacktestRequestFromControls();
+  const template = els.autoTradingTemplate?.value || request.template || "risk_adjusted_momentum";
+  return {
+    legacy: {
+      ...legacy,
+      strategy: template === "moving_average_trend" ? "moving_average" : template,
+      lookback_days: numberInputValue(els.autoTradingLookbackDays, legacy.lookback_days || 756, { min: 120, max: 5000 }),
+      short_window: numberInputValue(els.autoTradingSignalLookback, legacy.short_window || 63, { min: 5, max: 756 }),
+      top_n: numberInputValue(els.autoTradingTopN, legacy.top_n || 2, { min: 1, max: 20 }),
+      rebalance_every: numberInputValue(els.autoTradingRebalanceEvery, legacy.rebalance_every || 21, { min: 1, max: 252 }),
+    },
+    request: {
+      ...request,
+      strategy_id: state.activeStrategyId || els.autoTradingStrategySelect?.value || null,
+      tickers: autoTradingTickers(),
+      benchmark: "SPY",
+      template,
+      lookback: numberInputValue(els.autoTradingSignalLookback, request.lookback || 63, { min: 5, max: 756 }),
+      top_n: numberInputValue(els.autoTradingTopN, request.top_n || 2, { min: 1, max: 20 }),
+      rebalance_every: numberInputValue(els.autoTradingRebalanceEvery, request.rebalance_every || 21, { min: 1, max: 252 }),
+      transaction_cost_bps: numberInputValue(els.autoTradingCostBps, request.transaction_cost_bps || 5, { min: 0, max: 1000 }),
+      slippage_bps: numberInputValue(els.autoTradingSlippageBps, request.slippage_bps || 2, { min: 0, max: 1000 }),
+    },
+  };
+}
+
+function renderAutoTradingAssetStatus(data = {}, request = {}) {
+  if (!els.autoTradingAssetStatus) return;
+  const diagnostics = data.diagnostics || {};
+  const tickers = data.tickers || request.tickers || autoTradingTickers();
+  const priceCounts = diagnostics.price_counts || data.data_snapshot?.price_counts || {};
+  const latestDates = diagnostics.latest_price_dates || data.data_snapshot?.latest_price_dates || {};
+  const excluded = new Set([...(diagnostics.excluded_assets || []), ...(diagnostics.missing_assets || [])]);
+  const stale = new Set(diagnostics.stale_assets || []);
+  els.autoTradingAssetStatus.innerHTML = `
+    <div class="decision-section-title">Asset evidence map</div>
+    <div class="auto-trading-asset-grid" data-testid="auto-trading-asset-map">
+      ${tickers.map((ticker) => {
+        const status = excluded.has(ticker) ? "blocked" : (stale.has(ticker) ? "stale" : "executable");
+        const statusClass = status === "executable" ? "ok" : "warn";
+        return `
+          <div class="auto-trading-asset-pill ${escapeHtml(statusClass)}">
+            <strong>${escapeHtml(ticker)}</strong>
+            <span>${escapeHtml(status)} · rows ${escapeHtml(_fmtNumber(priceCounts[ticker] || 0))} · ${escapeHtml(latestDates[ticker] || "latest unknown")}</span>
+          </div>
+        `;
+      }).join("")}
+    </div>
+    <div class="decision-assumption">This is strategy research evidence only. It does not create orders or a live trading recommendation.</div>
+  `;
+}
+
+function autoTradingMarkerKind(trade) {
+  const action = String(trade?.action || "").toLowerCase();
+  const delta = Number(trade?.delta_weight);
+  if (action === "enter" || action === "increase" || delta > 0) return "entry";
+  if (action === "exit" || action === "decrease" || delta < 0) return "exit";
+  return "rebalance";
+}
+
+function nearestChartPoint(points, date) {
+  if (!points.length) return null;
+  const exact = points.find((point) => point.date === date);
+  if (exact) return exact;
+  const target = Date.parse(date || "");
+  if (!Number.isFinite(target)) return points[points.length - 1];
+  let best = points[0];
+  let bestDistance = Math.abs(Date.parse(best.date || "") - target);
+  points.forEach((point) => {
+    const distance = Math.abs(Date.parse(point.date || "") - target);
+    if (Number.isFinite(distance) && distance < bestDistance) {
+      best = point;
+      bestDistance = distance;
+    }
+  });
+  return best;
+}
+
+function renderAutoTradingSignalChart(data = {}, pricePayload = {}, request = {}) {
+  const primary = normalizeTickerToken(els.autoTradingPrimaryTicker?.value || "") || (request.tickers || [])[0] || "SPY";
+  const rows = normalizeInternalChartRows(pricePayload).slice(-Math.max(2, numberInputValue(els.autoTradingLookbackDays, 756, { min: 2, max: 5000 })));
+  if (rows.length < 2) {
+    return decisionEmpty(`${primary} internal price rows are insufficient for a signal chart.`);
+  }
+  const width = Math.max(980, Math.min(5600, rows.length * 8 + 160));
+  const height = 430;
+  const padLeft = 74;
+  const padRight = 58;
+  const padTop = 28;
+  const padBottom = 50;
+  const { min, max } = paddedChartDomain(rows.flatMap((row) => [row.high || row.close, row.low || row.close, row.close]));
+  const points = rows.map((row, index) => {
+    const x = padLeft + (index / Math.max(1, rows.length - 1)) * (width - padLeft - padRight);
+    return {
+      ...row,
+      x,
+      y: chartY(min, max, row.close, height, padTop, padBottom),
+      highY: chartY(min, max, row.high, height, padTop, padBottom),
+      lowY: chartY(min, max, row.low, height, padTop, padBottom),
+    };
+  });
+  const trades = (Array.isArray(data.trades) ? data.trades : [])
+    .filter((trade) => !trade.ticker || String(trade.ticker).toUpperCase() === primary)
+    .slice(-120);
+  const markers = trades.map((trade, index) => {
+    const point = nearestChartPoint(points, trade.execution_date || trade.date || trade.signal_date);
+    if (!point) return "";
+    const kind = autoTradingMarkerKind(trade);
+    const y = Number.isFinite(Number(trade.price))
+      ? chartY(min, max, Number(trade.price), height, padTop, padBottom)
+      : point.y;
+    const markerClass = kind === "entry" ? "entry" : (kind === "exit" ? "exit" : "rebalance");
+    const tooltip = `${trade.execution_date || trade.date || point.date} · ${kind} · weight ${formatQuantValue(trade.previous_weight)} -> ${formatQuantValue(trade.target_weight)} · price ${formatQuantValue(trade.price || point.close)}`;
+    const shape = kind === "exit"
+      ? `<path d="M ${point.x.toFixed(2)} ${(y + 9).toFixed(2)} L ${(point.x - 7).toFixed(2)} ${(y - 5).toFixed(2)} L ${(point.x + 7).toFixed(2)} ${(y - 5).toFixed(2)} Z"></path>`
+      : `<path d="M ${point.x.toFixed(2)} ${(y - 9).toFixed(2)} L ${(point.x - 7).toFixed(2)} ${(y + 5).toFixed(2)} L ${(point.x + 7).toFixed(2)} ${(y + 5).toFixed(2)} Z"></path>`;
+    return `
+      <g class="auto-trading-signal-marker ${markerClass}" data-testid="auto-trading-${markerClass}-marker" data-chart-tooltip="${escapeHtml(tooltip)}" transform="translate(0 ${index % 2 === 0 ? 0 : markerClass === "entry" ? -8 : 8})">
+        ${shape}
+        <title>${escapeHtml(tooltip)}</title>
+      </g>
+    `;
+  }).join("");
+  const first = rows[0];
+  const last = rows[rows.length - 1];
+  const metrics = backtestMetricsWithDerivedTotals(data.metrics || {}, data.equity_curve || []);
+  const entryCount = trades.filter((trade) => autoTradingMarkerKind(trade) === "entry").length;
+  const exitCount = trades.filter((trade) => autoTradingMarkerKind(trade) === "exit").length;
+  return `
+    <div class="auto-trading-chart" data-testid="auto-trading-signal-chart">
+      <div class="internal-chart-head">
+        <div>
+          <strong>${escapeHtml(primary)} internal signal chart</strong>
+          <span>${escapeHtml(first.date)} -> ${escapeHtml(last.date)} · ${escapeHtml(_fmtNumber(rows.length))} bars · ${escapeHtml(request.template || data.template || "strategy")}</span>
+        </div>
+        <b class="${Number(metrics.total_return || 0) >= 0 ? "ok" : "warn"}">${escapeHtml(formatQuantValue(metrics.total_return))}</b>
+      </div>
+      <div class="auto-trading-metric-strip">
+        ${decisionMetric("Total return", formatQuantValue(metrics.total_return), Number(metrics.total_return || 0) >= 0 ? "ok" : "warn")}
+        ${decisionMetric("Sharpe", formatQuantValue(metrics.sharpe), Number(metrics.sharpe || 0) > 0.8 ? "ok" : "warn")}
+        ${decisionMetric("Max DD", formatQuantValue(metrics.max_drawdown), Number(metrics.max_drawdown || 0) < -0.2 ? "warn" : "ok")}
+        ${decisionMetric("Trades", _fmtNumber((data.trades || []).length), (data.trades || []).length ? "ok" : "warn")}
+        ${decisionMetric("Entry/Exit", `${_fmtNumber(entryCount)} / ${_fmtNumber(exitCount)}`, entryCount || exitCount ? "ok" : "warn")}
+      </div>
+      <div class="internal-chart-scroll" tabindex="0" aria-label="Auto Trading signal chart horizontal scroll">
+        <svg class="internal-ohlc-chart auto-trading-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(primary)} strategy signal chart">
+          ${renderChartYAxis({ width, height, padLeft, padRight, padTop, padBottom, min, max, formatter: (value) => fmtDecimal(value, Math.abs(value) >= 100 ? 0 : 2) })}
+          <polyline points="${svgPolylinePoints(points)}" class="internal-close-line"></polyline>
+          ${markers}
+          ${renderChartHoverTargets(points.map((point) => ({ ...point, value: point.close })), (point) => `${point.date || "-"} · Close ${fmtDecimal(point.value, 2)}`)}
+        </svg>
+      </div>
+      <div class="auto-trading-legend">
+        <span><i class="entry"></i> Entry/increase</span>
+        <span><i class="exit"></i> Exit/decrease</span>
+        <span><i class="rebalance"></i> Rebalance</span>
+      </div>
+      <div class="decision-assumption">Signals use prior-close calculation and next-bar execution. This chart is not live-market proof.</div>
+    </div>
+  `;
+}
+
+function renderAutoTradingBacktestSummary(data = {}, request = {}) {
+  if (!els.autoTradingBacktestSurface) return;
+  const metrics = backtestMetricsWithDerivedTotals(data.metrics || {}, data.equity_curve || []);
+  const diagnostics = data.diagnostics || {};
+  const warnings = [...(diagnostics.warnings || []), ...(data.warnings || [])];
+  const runId = data.run_id || "run";
+  const pass = data.status === "success" && Number(metrics.sharpe || 0) > 0 && Number(metrics.max_drawdown || 0) > -0.35;
+  els.autoTradingBacktestSurface.innerHTML = `
+    <div class="decision-status-row">
+      <span class="decision-badge ${escapeHtml(decisionStatusClass(data.status || "unknown"))}">${escapeHtml(data.status || "unknown")}</span>
+      <span>${escapeHtml(runId)} · ${escapeHtml((request.tickers || []).join(", ") || "-")} · ${escapeHtml(request.template || data.template || "strategy")}</span>
+    </div>
+    <div class="decision-practical-grid forecast-metric-grid">
+      ${decisionMetric("Evidence", pass ? "usable" : "review", pass ? "ok" : "warn")}
+      ${decisionMetric("Return", formatQuantValue(metrics.total_return), Number(metrics.total_return || 0) >= 0 ? "ok" : "warn")}
+      ${decisionMetric("Sharpe", formatQuantValue(metrics.sharpe), Number(metrics.sharpe || 0) > 0.8 ? "ok" : "warn")}
+      ${decisionMetric("Drawdown", formatQuantValue(metrics.max_drawdown), Number(metrics.max_drawdown || 0) < -0.2 ? "warn" : "ok")}
+      ${decisionMetric("Turnover", formatQuantValue(metrics.turnover), "neutral")}
+      ${decisionMetric("Lookahead", diagnostics.lookahead_safe ? "safe" : "check", diagnostics.lookahead_safe ? "ok" : "warn")}
+    </div>
+    <div class="strategy-research-explain">
+      <strong>How to read this</strong>
+      <p>${pass ? "The run produced usable strategy research evidence, but promotion still requires validation, OOS checks, and cost stress." : "The result needs review before it can be treated as deployment-candidate evidence."}</p>
+      <p>Executable assets and stale/missing symbols are shown above so the strategy is not evaluated against a hidden universe.</p>
+    </div>
+    ${warnings.length ? `<div class="decision-warning">${escapeHtml(formatQuantWarnings(warnings))}</div>` : ""}
+  `;
+}
+
+function showAutoTradingMessage(surface, message, status = "success") {
+  if (!surface) return;
+  surface.innerHTML = `
+    <div class="decision-status-row">
+      <span class="decision-badge ${escapeHtml(decisionStatusClass(status))}">${escapeHtml(decisionStatusLabel(status))}</span>
+      <span>${escapeHtml(message)}</span>
+    </div>
+  `;
+}
+
+async function runAutoTradingDraft() {
+  syncAutoTradingToSharedControls();
+  const draft = quantStrategyDraftFromControls();
+  setStrategyEditor(draft);
+  setAutoTradingEditor(draft);
+  renderStrategyPromptReview({
+    advantages: ["Auto Trading controls were converted into a governed strategy JSON draft."],
+    disadvantages: ["The draft must still pass dry-run, backtest, validation, and cost stress before promotion."],
+    warnings: [],
+  });
+  showAutoTradingMessage(els.autoTradingDryRunSurface, "Draft created from the Auto Trading controls.", "success");
+}
+
+async function runAutoTradingGenerate() {
+  if (!els.autoTradingPrompt) return;
+  syncAutoTradingToSharedControls();
+  if (els.strategyPromptInput) els.strategyPromptInput.value = els.autoTradingPrompt.value || "";
+  await runQuantStrategyGenerate();
+  if (els.strategyDefinitionJson?.value && els.autoTradingCode) {
+    els.autoTradingCode.value = els.strategyDefinitionJson.value;
+  }
+  if (els.quantStrategyResultSurface?.innerHTML && els.autoTradingDryRunSurface) {
+    els.autoTradingDryRunSurface.innerHTML = els.quantStrategyResultSurface.innerHTML;
+  }
+}
+
+async function runAutoTradingDryRun() {
+  syncAutoTradingToSharedControls();
+  syncAutoTradingCodeToGovernance();
+  await runQuantStrategyDryRun();
+  if (els.quantStrategyResultSurface?.innerHTML && els.autoTradingDryRunSurface) {
+    els.autoTradingDryRunSurface.innerHTML = els.quantStrategyResultSurface.innerHTML;
+  }
+}
+
+async function saveAutoTradingStrategy() {
+  syncAutoTradingCodeToGovernance();
+  await saveQuantStrategy();
+  if (els.quantStrategyResultSurface?.innerHTML && els.autoTradingDryRunSurface) {
+    els.autoTradingDryRunSurface.innerHTML = els.quantStrategyResultSurface.innerHTML;
+  }
+  populateAutoTradingStrategySelect();
+}
+
+async function fetchAutoTradingPricePayload(primary, lookbackDays) {
+  const res = await fetch(API.dataPrices(primary, Math.max(2, lookbackDays), {
+    freshnessProfile: els.backtestFreshnessProfile?.value || "research_default",
+    requireFreshPrices: !!els.backtestRequireFresh?.checked,
+  }));
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+  return data;
+}
+
+async function runAutoTradingBacktest() {
+  if (!els.autoTradingBacktest || !els.autoTradingChartSurface) return;
+  const startedAt = Date.now();
+  setButtonBusy(els.autoTradingBacktest, true, "Running");
+  try {
+    syncAutoTradingCodeToGovernance();
+    const { request, legacy } = autoTradingBacktestRequest();
+    if (!request.tickers.length) {
+      showAutoTradingMessage(els.autoTradingBacktestSurface, "At least one asset is required.", "failed");
+      return;
+    }
+    els.autoTradingChartSurface.innerHTML = decisionEmpty(`${request.tickers.join(", ")} strategy backtest is running.`);
+    showAutoTradingMessage(els.autoTradingBacktestSurface, "Backtest request submitted through the Quant API.", "partial");
+    const res = await fetch(API.quantBacktest, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    });
+    const raw = await res.json();
+    if (!res.ok) throw new Error(raw.detail || `HTTP ${res.status}`);
+    const enriched = await attachBenchmarkComparison(raw, { ...request, ...legacy });
+    state.autoTradingLastBacktest = enriched;
+    state.lastBacktestResult = enriched;
+    state.lastQuantBacktestRequest = request;
+    state.lastBacktestRequest = legacy;
+    const primary = normalizeTickerToken(els.autoTradingPrimaryTicker?.value || "") || request.tickers[0] || "SPY";
+    const pricePayload = await fetchAutoTradingPricePayload(primary, numberInputValue(els.autoTradingLookbackDays, 756, { min: 2, max: 5000 }));
+    state.autoTradingPricePayload = pricePayload;
+    els.autoTradingChartSurface.innerHTML = renderAutoTradingSignalChart(enriched, pricePayload, request);
+    renderAutoTradingAssetStatus(enriched, request);
+    renderAutoTradingBacktestSummary(enriched, request);
+    if (els.backtestSurface) renderQuantBacktestResult(enriched, { ...request, ...legacy });
+    els.autoTradingBacktestSurface.insertAdjacentHTML("afterbegin", renderActionCompletion("Auto Trading backtest complete", startedAt, `${raw.run_id || "run"} · ${raw.status || "success"}`));
+    const scroller = els.autoTradingChartSurface.querySelector?.(".internal-chart-scroll");
+    if (scroller) window.requestAnimationFrame(() => { scroller.scrollLeft = Math.max(0, scroller.scrollWidth - scroller.clientWidth); });
+    loadQuantRunHistory(true);
+  } catch (err) {
+    const message = err.message || String(err);
+    els.autoTradingChartSurface.innerHTML = decisionEmpty(`Auto Trading backtest failed: ${message}`);
+    showAutoTradingMessage(els.autoTradingBacktestSurface, `Backtest failed: ${message}`, "failed");
+  } finally {
+    setButtonBusy(els.autoTradingBacktest, false);
+  }
+}
+
+async function runAutoTradingOptimize() {
+  if (!els.autoTradingOptimizationSurface) return;
+  const startedAt = Date.now();
+  syncAutoTradingToSharedControls();
+  if (els.strategyResearchMethod) els.strategyResearchMethod.value = "bayesian";
+  setButtonBusy(els.autoTradingOptimize, true, "Optimizing");
+  els.autoTradingOptimizationSurface.innerHTML = decisionEmpty("Bayesian parameter search is running through Strategy Research.");
+  try {
+    await runStrategyResearchOptimize();
+    state.autoTradingLastOptimization = state.lastStrategyResearchOptimization;
+    const data = state.lastStrategyResearchOptimization || {};
+    const best = data.best_parameters || {};
+    const recommended = data.recommended_parameters || {};
+    els.autoTradingOptimizationSurface.innerHTML = `
+      ${renderActionCompletion("Bayesian optimization complete", startedAt, data.optimization_id || "strategy research")}
+      <div class="decision-status-row">
+        <span class="decision-badge ${escapeHtml(decisionStatusClass(data.status || "success"))}">${escapeHtml(data.status || "success")}</span>
+        <span>${escapeHtml(data.method || "bayesian")} · ${escapeHtml(data.bayesian_backend || state.strategyResearchStatus?.bayesian_backend || "backend unknown")}</span>
+      </div>
+      <div class="decision-practical-grid forecast-metric-grid">
+        ${decisionMetric("Best score", formatQuantValue(data.best_score), "ok")}
+        ${decisionMetric("Recommended", formatQuantValue(data.recommended_score), "ok")}
+        ${decisionMetric("Robustness", formatQuantValue(data.robustness_score), Number(data.robustness_score || 0) > 0.5 ? "ok" : "warn")}
+        ${decisionMetric("Overfitting", formatQuantValue(data.overfitting_score), Number(data.overfitting_score || 0) > 0.35 ? "warn" : "ok")}
+      </div>
+      <div class="strategy-research-explain">
+        <strong>Recommended parameters</strong>
+        <p>${escapeHtml(JSON.stringify(recommended || {}, null, 0) || "-")}</p>
+        <strong>Best raw parameters</strong>
+        <p>${escapeHtml(JSON.stringify(best || {}, null, 0) || "-")}</p>
+        <p>Recommended parameters are selected after stability, cost, drawdown, trade-count, and complexity checks rather than raw score only.</p>
+      </div>
+    `;
+  } catch (err) {
+    els.autoTradingOptimizationSurface.innerHTML = `${renderActionCompletion("Bayesian optimization failed", startedAt, err.message || String(err), "fail")}${decisionEmpty(err.message || String(err))}`;
+  } finally {
+    setButtonBusy(els.autoTradingOptimize, false);
+  }
+}
+
 function renderQuantStrategyList(extraHtml = "") {
   if (!els.quantStrategySurface) return;
   const items = Array.isArray(state.quantStrategyItems) ? state.quantStrategyItems : [];
   populateBacktestStrategyRegistry();
+  populateAutoTradingStrategySelect();
   if (!items.length) {
     els.quantStrategySurface.innerHTML = `${extraHtml}${decisionEmpty("아직 사용할 수 있는 전략 정의가 없습니다.")}`;
     return;
@@ -13076,6 +14691,10 @@ async function loadQuantStrategyDetail(strategyId) {
   setStrategyEditor(strategy);
   applyStrategyToControls(strategy);
   populateBacktestStrategyRegistry();
+  populateAutoTradingStrategySelect();
+  if (els.autoTradingStrategySelect && strategy.strategy_id) {
+    els.autoTradingStrategySelect.value = strategy.strategy_id;
+  }
   showQuantStrategyMessage(`${strategy.strategy_id || "전략"}을 작업 영역에 불러왔습니다.`, "success");
 }
 
@@ -13161,6 +14780,760 @@ function showQuantStrategyMessage(message, status = "success") {
       <span>${escapeHtml(message)}</span>
     </div>
   `;
+}
+
+function quantModelProfileFromControls() {
+  const request = forecastRunRequestFromControls();
+  const universeId = els.forecastUniversePreset?.value || "custom";
+  const profileId = (els.quantModelProfileId?.value || "core_universe_forecast_v1").trim() || "core_universe_forecast_v1";
+  const strategyId = state.activeStrategyId || els.backtestStrategyRegistry?.value || "momentum_ranking_v1";
+  return {
+    profile_id: profileId,
+    schema_version: "quant_model_profile_v1",
+    strategy_id: strategyId,
+    universe_id: universeId,
+    tickers: universeId === "custom" ? parseTickerInput(els.forecastUniverseTickers?.value || "") : [],
+    benchmark: request.dataset_config?.benchmark || "SPY",
+    start_date: request.dataset_config?.start_date || null,
+    end_date: request.dataset_config?.end_date || null,
+    include_macro: !!request.dataset_config?.include_macro,
+    include_cross_asset: !!request.dataset_config?.include_cross_asset,
+    target_config: request.target_config || {},
+    feature_config: request.feature_config || {},
+    validation_config: request.validation_config || {},
+    model_candidates: [request.model_config || {}],
+    signal_config: request.signal_config || {},
+    backtest_config: request.backtest_config || {},
+    ranking_metric: els.forecastUniverseRankMetric?.value || "confidence",
+    max_assets: numberInputValue(els.forecastUniverseMaxAssets, 6, { min: 1, max: 25 }),
+    run_mode: els.quantModelProfileRunMode?.value || "universe_per_asset",
+    notes: "ui_quant_model_lab",
+  };
+}
+
+function strategyForModelProfilePayload() {
+  try {
+    return strategyPayloadFromEditor();
+  } catch (err) {
+    showQuantModelProfileMessage(`전략 JSON 확인 필요: ${err.message || err}`, "failed");
+    return null;
+  }
+}
+
+function showQuantModelProfileMessage(message, status = "success") {
+  if (!els.quantModelProfileSurface) return;
+  els.quantModelProfileSurface.innerHTML = `
+    <div class="decision-status-row">
+      <span class="decision-badge ${escapeHtml(decisionStatusClass(status))}">${escapeHtml(decisionStatusLabel(status))}</span>
+      <span>${escapeHtml(message)}</span>
+    </div>
+  `;
+}
+
+function populateQuantModelProfileSelect() {
+  if (!els.quantModelProfileSelect) return;
+  const items = Array.isArray(state.quantModelProfiles) ? state.quantModelProfiles : [];
+  const selected = state.activeModelProfileId || els.quantModelProfileSelect.value || "";
+  els.quantModelProfileSelect.innerHTML = items.length
+    ? items.map((item) => `<option value="${escapeHtml(item.profile_id || "")}">${escapeHtml(item.profile_id || "profile")} · ${escapeHtml(item.run_mode || "run")}</option>`).join("")
+    : '<option value="">기본 프로필</option>';
+  if (selected && items.some((item) => item.profile_id === selected)) {
+    els.quantModelProfileSelect.value = selected;
+  }
+}
+
+function applyQuantModelProfileToControls(profile) {
+  if (!profile) return;
+  state.activeModelProfileId = profile.profile_id || "core_universe_forecast_v1";
+  if (els.quantModelProfileId) els.quantModelProfileId.value = state.activeModelProfileId;
+  if (els.quantModelProfileRunMode) els.quantModelProfileRunMode.value = profile.run_mode || "universe_per_asset";
+  if (els.backtestStrategyRegistry && profile.strategy_id) {
+    els.backtestStrategyRegistry.value = profile.strategy_id;
+    state.activeStrategyId = profile.strategy_id;
+  }
+  if (els.forecastUniversePreset) els.forecastUniversePreset.value = profile.universe_id || "custom";
+  if (els.forecastUniverseTickers && Array.isArray(profile.tickers)) els.forecastUniverseTickers.value = profile.tickers.join(",");
+  if (els.forecastBenchmark) els.forecastBenchmark.value = profile.benchmark || "SPY";
+  if (els.forecastStartDate) els.forecastStartDate.value = profile.start_date || "";
+  if (els.forecastEndDate) els.forecastEndDate.value = profile.end_date || "";
+  if (els.forecastIncludeMacro) els.forecastIncludeMacro.checked = !!profile.include_macro;
+  if (els.forecastIncludeCrossAsset) els.forecastIncludeCrossAsset.checked = !!profile.include_cross_asset;
+  if (els.forecastUniverseMaxAssets) els.forecastUniverseMaxAssets.value = String(profile.max_assets || 6);
+  if (els.forecastUniverseRankMetric) els.forecastUniverseRankMetric.value = profile.ranking_metric || "confidence";
+  const target = profile.target_config || {};
+  if (els.forecastHorizon && target.horizon) els.forecastHorizon.value = String(target.horizon);
+  if (els.forecastTargetType && target.target_type) setSelectValueIfPresent(els.forecastTargetType, target.target_type);
+  const validation = profile.validation_config || {};
+  if (els.forecastValidation && validation.validation_method) setSelectValueIfPresent(els.forecastValidation, validation.validation_method);
+  const model = (profile.model_candidates || [])[0] || {};
+  if (els.forecastModel && model.model_name) setSelectValueIfPresent(els.forecastModel, model.model_name);
+  syncForecastUniverseMode();
+}
+
+function renderQuantModelProfileDryRun(data) {
+  if (!els.quantModelProfileSurface) return;
+  const diagnostics = data.diagnostics || {};
+  const universe = diagnostics.universe || {};
+  const source = diagnostics.source_context || {};
+  const panelRanker = diagnostics.panel_ranker || {};
+  els.quantModelProfileSurface.innerHTML = `
+    <div class="decision-practical-grid forecast-metric-grid">
+      ${decisionMetric("검증", data.valid ? "통과" : "점검 필요", data.valid ? "ok" : "fail")}
+      ${decisionMetric("Run mode", diagnostics.run_mode || "-", "ok")}
+      ${decisionMetric("Universe", `${_fmtNumber(universe.selected_count || 0)} / ${_fmtNumber(universe.resolved_count || 0)}`, universe.selected_count ? "ok" : "warn")}
+      ${decisionMetric("Model", diagnostics.selected_model?.model_name || "-", "ok")}
+      ${decisionMetric("Target", `${diagnostics.target?.target_type || "-"} · ${diagnostics.target?.horizon || "-"}d`, "ok")}
+      ${decisionMetric("Delay", `${diagnostics.execution_delay_bars ?? "-"}봉`, Number(diagnostics.execution_delay_bars || 0) >= 1 ? "ok" : "fail")}
+    </div>
+    ${panelRanker.schema_version ? `
+      <div class="decision-note quant-rank-dry-run">
+        패널 랭커 준비됨 · ${escapeHtml(forecastUniverseMetricLabel(panelRanker.ranking_metric || "confidence"))} 기준 · ${escapeHtml(_fmtNumber(panelRanker.selected_count || 0))}개 후보 · 단일 Forecast/시각화/포트폴리오 위험예산 재검증 필요
+      </div>
+    ` : ""}
+    <div class="decision-mini-row">
+      <span>profile ${escapeHtml(source.profile_id || "")} · ${escapeHtml((source.profile_hash || "").slice(0, 16))}</span>
+      <span>strategy ${escapeHtml(source.strategy_id || "")} · ${escapeHtml((source.strategy_hash || "").slice(0, 16))}</span>
+    </div>
+    ${(data.warnings || []).length ? `<div class="decision-warning">${escapeHtml(data.warnings.join(", "))}</div>` : ""}
+    ${(data.errors || []).length ? `<div class="decision-warning">${escapeHtml(data.errors.join(", "))}</div>` : ""}
+  `;
+}
+
+function renderQuantModelLabJobResult(data) {
+  if (!els.quantModelProfileSurface) return;
+  const jobs = Array.isArray(data.jobs) ? data.jobs : [];
+  const panelRanker = data.panel_ranker || {};
+  els.quantModelProfileSurface.innerHTML = `
+    <div class="decision-status-row">
+      <span class="decision-badge ${escapeHtml(decisionStatusClass(data.status))}">${escapeHtml(data.job_mode || "model_lab_job")}</span>
+      <span>${escapeHtml(_fmtNumber(jobs.length))}개 Forecast job을 큐에 넣었습니다.</span>
+    </div>
+    ${panelRanker.schema_version ? `<div class="decision-note quant-rank-dry-run">패널 랭커 job 큐 등록 · ${escapeHtml(forecastUniverseMetricLabel(panelRanker.ranking_metric || "confidence"))} 기준 · 모든 종목 job 완료 후 랭킹 산출물을 재집계하세요.</div>` : ""}
+    <div class="decision-table-wrap">
+      <table class="decision-table">
+        <thead><tr><th>Job</th><th>Ticker</th><th>Status</th><th>Model</th><th>Target</th></tr></thead>
+        <tbody>${jobs.map((job) => `<tr><td>${escapeHtml(job.job_id || "")}</td><td>${escapeHtml(job.ticker || "")}</td><td>${escapeHtml(job.job_status || job.status || "")}</td><td>${escapeHtml(job.model_name || "")}</td><td>${escapeHtml(job.target || "")}</td></tr>`).join("")}</tbody>
+      </table>
+    </div>
+    ${(data.warnings || []).length ? `<div class="decision-warning">${escapeHtml(data.warnings.join(", "))}</div>` : ""}
+    ${(data.errors || []).length ? `<div class="decision-warning">${escapeHtml(data.errors.join(", "))}</div>` : ""}
+  `;
+}
+
+function quantRankMetricValue(value, metric = "confidence") {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "N/A";
+  if (["expected_return", "probability_up"].includes(metric)) return fmtPercent(value);
+  return fmtDecimal(value, 3);
+}
+
+function quantRankBarWidth(value, distribution = {}) {
+  const score = Number(value);
+  const best = Number(distribution.best);
+  const worst = Number(distribution.worst);
+  if (!Number.isFinite(score)) return 4;
+  if (!Number.isFinite(best) || !Number.isFinite(worst) || best === worst) return 68;
+  return Math.max(6, Math.min(100, ((score - worst) / (best - worst)) * 88 + 8));
+}
+
+function renderQuantCrossSectionalRank(data) {
+  if (!els.quantRankSurface) return;
+  const ranker = data?.panel_ranker || {};
+  const metric = ranker.ranking_metric || data?.ranking_metric || "confidence";
+  const top = ranker.top_candidate || {};
+  const distribution = ranker.score_distribution || {};
+  const ranked = Array.isArray(ranker.ranked_tickers) ? ranker.ranked_tickers : [];
+  const template = ranker.decision_template || {};
+  if (!ranked.length) {
+    els.quantRankSurface.innerHTML = decisionEmpty((data?.errors || []).join(", ") || "패널 랭킹에 사용할 점수화 후보가 없습니다. 데이터 품질과 Forecast 실패 항목을 먼저 확인하세요.");
+    return;
+  }
+  els.quantRankSurface.innerHTML = `
+    <div class="quant-rank-readout">
+      <div class="quant-rank-leader">
+        <span>${escapeHtml(forecastUniverseMetricLabel(metric))} 1위 후보</span>
+        <strong>${escapeHtml(top.ticker || "-")} · ${escapeHtml(quantRankMetricValue(top.rank_score, metric))}</strong>
+        <small>${escapeHtml(template.headline || "패널 랭킹 결과가 계산되었습니다.")}</small>
+      </div>
+      <div class="decision-practical-grid forecast-metric-grid">
+        ${decisionMetric("Ranked", `${_fmtNumber(ranker.ranked_count || ranked.length)} / ${_fmtNumber(ranker.candidate_count || ranked.length)}`, ranker.blocked_count ? "warn" : "ok")}
+        ${decisionMetric("Spread", quantRankMetricValue(distribution.spread_to_second, metric), Number(distribution.spread_to_second || 0) > 0 ? "ok" : "warn")}
+        ${decisionMetric("Median", quantRankMetricValue(distribution.median, metric), "neutral")}
+        ${decisionMetric("Blocked", _fmtNumber(ranker.blocked_count || 0), ranker.blocked_count ? "warn" : "ok")}
+      </div>
+    </div>
+    <div class="quant-rank-visual">
+      ${ranked.slice(0, 6).map((item) => `
+        <div class="quant-rank-bar-row">
+          <span>#${escapeHtml(item.rank || "")} ${escapeHtml(item.ticker || "")}</span>
+          <b><i style="width:${quantRankBarWidth(item.rank_score, distribution)}%"></i></b>
+          <strong>${escapeHtml(quantRankMetricValue(item.rank_score, metric))}</strong>
+        </div>
+      `).join("")}
+    </div>
+    <div class="quant-rank-explanation">
+      <div>
+        <span>의사결정 사용법</span>
+        <p>${escapeHtml(template.decision_use || "랭킹은 후보 선별 우선순위이며 주문 실행 지시가 아닙니다.")}</p>
+      </div>
+      <div>
+        <span>단순 추정이 아닌 이유</span>
+        <ul>${(Array.isArray(template.why_not_obvious) ? template.why_not_obvious : []).slice(0, 3).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+      </div>
+      <div>
+        <span>검증 필요</span>
+        <ul>${(Array.isArray(template.validation_required) ? template.validation_required : []).slice(0, 3).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+      </div>
+    </div>
+    <div class="decision-table-wrap">
+      <table class="decision-table quant-rank-table">
+        <thead><tr><th>Rank</th><th>Ticker</th><th>Score</th><th>Signal</th><th>Expected</th><th>Prob Up</th><th>Confidence</th><th>Data</th><th>Leakage</th></tr></thead>
+        <tbody>${ranked.slice(0, 10).map((item) => `
+          <tr>
+            <td><span class="forecast-universe-rank">${escapeHtml(item.rank || "")}</span></td>
+            <td><strong>${escapeHtml(item.ticker || "")}</strong></td>
+            <td>${escapeHtml(quantRankMetricValue(item.rank_score, metric))}</td>
+            <td>${escapeHtml(item.signal || "unavailable")}</td>
+            <td>${escapeHtml(fmtPercent(item.expected_return))}</td>
+            <td>${escapeHtml(fmtPercent(item.probability_up))}</td>
+            <td>${escapeHtml(fmtDecimal(item.confidence, 3))}</td>
+            <td>${escapeHtml(item.data_quality_status || "unknown")}</td>
+            <td>${escapeHtml(item.leakage_status || "unknown")}</td>
+          </tr>
+        `).join("")}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function strategyResearchActiveId() {
+  return (els.strategyResearchStrategySelect?.value || state.activeStrategyResearchId || "risk_adjusted_momentum_v1").trim();
+}
+
+function strategyResearchBaseConfig() {
+  const request = quantBacktestRequestFromControls();
+  const autoTradingActive = state.activeDashboardTab === "auto-trading";
+  return {
+    strategy_id: strategyResearchActiveId(),
+    tickers: request.tickers?.length ? request.tickers : ["SPY", "QQQ", "TLT"],
+    benchmark: request.benchmark || "SPY",
+    template: request.template || "risk_adjusted_momentum",
+    timeframe: autoTradingActive ? (els.autoTradingTimeframe?.value || "1d") : "1d",
+    start_date: request.start_date || null,
+    end_date: request.end_date || null,
+    parameters: {
+      lookback: request.lookback || 63,
+      rebalance_every: request.rebalance_every || 21,
+      top_n: request.top_n || 2,
+      transaction_cost_bps: request.transaction_cost_bps || 5,
+      slippage_bps: request.slippage_bps || 2,
+    },
+    evidence_notes: [autoTradingActive ? "UI request from Auto Trading Workbench" : "UI request from Quant Lab controls", "repo-local deterministic evidence"],
+  };
+}
+
+function strategyResearchOptimizationRequest() {
+  return {
+    method: els.strategyResearchMethod?.value || "bayesian",
+    max_trials: numberInputValue(els.strategyResearchMaxTrials, 12, { min: 1, max: 120 }),
+    objective_name: "robust_composite",
+    base_config: strategyResearchBaseConfig(),
+  };
+}
+
+function populateStrategyResearchSelect() {
+  if (!els.strategyResearchStrategySelect) return;
+  const items = Array.isArray(state.strategyResearchStrategies) ? state.strategyResearchStrategies : [];
+  const selected = strategyResearchActiveId();
+  els.strategyResearchStrategySelect.innerHTML = items.length
+    ? items.map((item) => `<option value="${escapeHtml(item.strategy_id || "")}">${escapeHtml(item.name || item.strategy_id || "strategy")} · ${escapeHtml(item.status || "pending")}</option>`).join("")
+    : '<option value="risk_adjusted_momentum_v1">Risk adjusted momentum</option>';
+  if (items.some((item) => item.strategy_id === selected)) {
+    els.strategyResearchStrategySelect.value = selected;
+  }
+}
+
+function renderStrategyResearchOverview() {
+  if (!els.strategyResearchOverviewSurface) return;
+  const strategyId = strategyResearchActiveId();
+  const strategy = state.strategyResearchStrategies.find((item) => item.strategy_id === strategyId) || {};
+  const versions = Array.isArray(state.strategyResearchVersions) ? state.strategyResearchVersions : [];
+  const activeVersion = versions.find((item) => item.status === "accepted") || versions[0] || {};
+  const hypotheses = Array.isArray(state.strategyResearchHypotheses) ? state.strategyResearchHypotheses : [];
+  const backend = state.strategyResearchStatus || {};
+  const protectedDetails = backend.protected_runtime_details || {};
+  const counts = hypotheses.reduce((acc, item) => {
+    const key = item.status || "pending";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  els.strategyResearchOverviewSurface.innerHTML = `
+    <div class="decision-status-row">
+      <span class="decision-badge ${escapeHtml(decisionStatusClass(strategy.status || "pending"))}">${escapeHtml(strategy.status || "pending")}</span>
+      <span>${escapeHtml(strategy.name || strategyId)} · ${escapeHtml(strategy.evidence_class || "repo_local_deterministic")}</span>
+    </div>
+    <div class="decision-practical-grid forecast-metric-grid">
+      ${decisionMetric("Active version", activeVersion.version_id || "-", decisionStatusClass(activeVersion.status || "pending"))}
+      ${decisionMetric("Complexity", fmtDecimal(activeVersion.complexity_score ?? 1, 2), Number(activeVersion.complexity_score || 1) <= 2 ? "ok" : "warn")}
+      ${decisionMetric("Bayesian", backend.bayesian_backend || "unknown", backend.bayesian_backend === "optuna_tpe" ? "ok" : "warn")}
+      ${decisionMetric("Protected", backend.protected_runtime_available ? "available" : "fail-closed", backend.protected_runtime_available ? "ok" : "warn")}
+      ${decisionMetric("Pending", _fmtNumber(counts.pending || 0), counts.pending ? "warn" : "ok")}
+      ${decisionMetric("Accepted", _fmtNumber(counts.accepted || 0), "ok")}
+    </div>
+    <div class="strategy-research-explain">
+      <strong>해석</strong>
+      <p>${escapeHtml(strategy.description || "전략 연구 프리셋입니다.")}</p>
+      <p>Core logic은 자동 변경하지 않고, 필터·리스크·청산·사이징 변경만 pending hypothesis로 제안합니다.</p>
+      <p>Protected runtime: LEAN CLI ${protectedDetails.lean_cli_available ? "available" : "missing"} · broker ${backend.live_broker_available ? "available" : "missing"} · unavailable이면 fail-closed로 표시합니다.</p>
+    </div>
+  `;
+  renderStrategyResearchVersions();
+}
+
+function renderStrategyResearchVersions() {
+  if (!els.strategyResearchVersionsSurface) return;
+  const versions = Array.isArray(state.strategyResearchVersions) ? state.strategyResearchVersions : [];
+  if (!versions.length) {
+    els.strategyResearchVersionsSurface.innerHTML = decisionEmpty("아직 연결된 전략 버전이 없습니다.");
+    return;
+  }
+  els.strategyResearchVersionsSurface.innerHTML = `
+    <div class="decision-status-row">
+      <span class="decision-badge ok">Versions</span>
+      <span>${escapeHtml(_fmtNumber(versions.length))}개 버전 · lineage 추적</span>
+    </div>
+    <div class="decision-table-wrap">
+      <table class="decision-table">
+        <thead><tr><th>Version</th><th>Status</th><th>Complexity</th><th>Parent</th><th>Decision</th></tr></thead>
+        <tbody>${versions.map((item) => `
+          <tr>
+            <td>${escapeHtml(item.version_id || "")}</td>
+            <td><span class="table-status ${escapeHtml(decisionStatusClass(item.status || "pending"))}">${escapeHtml(item.status || "pending")}</span></td>
+            <td>${escapeHtml(fmtDecimal(item.complexity_score ?? 1, 2))}</td>
+            <td>${escapeHtml(item.parent_version_id || "-")}</td>
+            <td>${escapeHtml(item.decision_reason || "검증 대기")}</td>
+          </tr>
+        `).join("")}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderStrategyResearchOptimization(data, trials = []) {
+  if (!els.strategyResearchOptimizationSurface) return;
+  const recommended = data?.recommended_parameters_json || {};
+  const best = data?.best_parameters_json || {};
+  const scoreMax = Math.max(...trials.map((item) => Number(item.score) || 0), 1);
+  els.strategyResearchOptimizationSurface.innerHTML = `
+    <div class="decision-status-row">
+      <span class="decision-badge ${escapeHtml(decisionStatusClass(data?.status || "success"))}">${escapeHtml(data?.method || "optimization")}</span>
+      <span>Best와 Recommended를 분리했습니다 · ${escapeHtml(_fmtNumber(data?.trial_count || trials.length || 0))} trials</span>
+    </div>
+    <div class="decision-practical-grid forecast-metric-grid">
+      ${decisionMetric("Best score", fmtDecimal(data?.best_score, 4), "ok")}
+      ${decisionMetric("Recommended", fmtDecimal(data?.recommended_score, 4), "ok")}
+      ${decisionMetric("Robustness", fmtDecimal(data?.robustness_score, 3), Number(data?.robustness_score || 0) >= 0.5 ? "ok" : "warn")}
+      ${decisionMetric("Overfit gap", fmtDecimal(data?.overfitting_score, 3), Number(data?.overfitting_score || 0) <= 0.25 ? "ok" : "warn")}
+    </div>
+    <div class="strategy-research-param-grid">
+      <div><span>Best parameters</span><code>${escapeHtml(JSON.stringify(best))}</code></div>
+      <div><span>Recommended parameters</span><code>${escapeHtml(JSON.stringify(recommended))}</code></div>
+    </div>
+    <div class="strategy-research-bars">
+      ${trials.slice(0, 12).map((item) => `
+        <div class="strategy-research-bar-row">
+          <span>#${escapeHtml(item.trial_number || "")}</span>
+          <b><i style="width:${Math.max(4, Math.min(100, ((Number(item.score) || 0) / scoreMax) * 100))}%"></i></b>
+          <strong>${escapeHtml(fmtDecimal(item.score, 4))}</strong>
+        </div>
+      `).join("")}
+    </div>
+    <div class="strategy-research-explain">
+      <strong>해석</strong>
+      <p>최고점 파라미터가 아니라 안정성, OOS 여지, 거래 수, 비용 스트레스, 집중도를 함께 본 recommended 파라미터를 별도로 표시합니다.</p>
+    </div>
+  `;
+}
+
+function renderStrategyResearchDiagnostics(data) {
+  if (!els.strategyResearchDiagnosticsSurface) return;
+  const failures = Array.isArray(data?.failure_distribution_json) ? data.failure_distribution_json : [];
+  els.strategyResearchDiagnosticsSurface.innerHTML = `
+    <div class="decision-status-row">
+      <span class="decision-badge ${escapeHtml(decisionStatusClass(data?.status || "success"))}">Diagnostics</span>
+      <span>${escapeHtml(data?.source_backtest_id || "repo-local")} · 실패 원인 태그</span>
+    </div>
+    <div class="strategy-research-explain">
+      <strong>결론</strong>
+      <p>${escapeHtml(data?.summary || "진단 결과가 없습니다.")}</p>
+    </div>
+    <div class="strategy-research-failure-list">
+      ${failures.map((item) => `
+        <div class="strategy-research-failure ${escapeHtml(decisionStatusClass(item.severity === "high" ? "warn" : "ok"))}">
+          <strong>${escapeHtml(item.tag || "")}</strong>
+          <span>${escapeHtml(_fmtNumber(item.count || 0))}회 · ${escapeHtml(fmtDecimal(item.share_pct || 0, 1))}%</span>
+          <small>${escapeHtml(item.decision_use || "")}</small>
+        </div>
+      `).join("") || decisionEmpty("뚜렷한 실패 클러스터가 없습니다.")}
+    </div>
+    <div class="decision-practical-grid forecast-metric-grid">
+      ${decisionMetric("Worst DD", `${fmtDecimal(data?.drawdown_analysis_json?.worst_drawdown_pct, 2)}%`, "warn")}
+      ${decisionMetric("Cost/Expectancy", fmtDecimal(data?.cost_impact_analysis?.cost_to_expectancy_ratio, 3), Number(data?.cost_impact_analysis?.cost_to_expectancy_ratio || 0) < 1 ? "ok" : "warn")}
+      ${decisionMetric("Top cause", data?.top_failure_causes?.[0] || "-", failures.length ? "warn" : "ok")}
+      ${decisionMetric("Regime", data?.regime_analysis_json?.volatility_state || "unknown", "neutral")}
+    </div>
+  `;
+}
+
+function renderStrategyResearchHypotheses(data) {
+  if (!els.strategyResearchHypothesisSurface) return;
+  const items = Array.isArray(data) ? data : (Array.isArray(data?.items) ? data.items : state.strategyResearchHypotheses);
+  state.strategyResearchHypotheses = items;
+  if (!items.length) {
+    els.strategyResearchHypothesisSurface.innerHTML = decisionEmpty("아직 생성된 가설이 없습니다.");
+    return;
+  }
+  els.strategyResearchHypothesisSurface.innerHTML = `
+    <div class="decision-status-row">
+      <span class="decision-badge warn">Hypotheses</span>
+      <span>${escapeHtml(_fmtNumber(items.length))}개 pending/decision 가설 · 검증 전 자동 승인 없음</span>
+    </div>
+    <div class="strategy-research-hypothesis-list">
+      ${items.slice(0, 6).map((item) => `
+        <article class="strategy-research-hypothesis">
+          <div class="decision-status-row">
+            <span class="table-status ${escapeHtml(decisionStatusClass(item.status || "pending"))}">${escapeHtml(item.status || "pending")}</span>
+            <strong>${escapeHtml(item.problem || "")}</strong>
+          </div>
+          <p>${escapeHtml(item.hypothesis || "")}</p>
+          <small>기대효과: ${escapeHtml(item.expected_effect || "")}</small>
+          <small>리스크: ${escapeHtml(item.risk || "")}</small>
+          <div class="decision-chip-row">${(item.validation_required_json || []).map((v) => `<span>${escapeHtml(v)}</span>`).join("")}</div>
+          <div class="decision-mini-row">
+            <button type="button" class="linkish" data-action="strategy-research-accept" data-hypothesis-id="${escapeHtml(item.hypothesis_id || "")}">accept</button>
+            <button type="button" class="linkish" data-action="strategy-research-reject" data-hypothesis-id="${escapeHtml(item.hypothesis_id || "")}">reject</button>
+          </div>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderStrategyResearchValidation(data) {
+  if (!els.strategyResearchValidationSurface) return;
+  const summary = data?.summary || {};
+  const oos = data?.out_of_sample_metrics_json || {};
+  const stability = data?.parameter_stability_json || {};
+  const monteCarlo = data?.monte_carlo_results_json || {};
+  const costStress = Array.isArray(data?.cost_stress_json) ? data.cost_stress_json : [];
+  els.strategyResearchValidationSurface.innerHTML = `
+    <div class="decision-status-row">
+      <span class="decision-badge ${escapeHtml(decisionStatusClass(summary.decision || "pending"))}">${escapeHtml(summary.decision || "pending")}</span>
+      <span>${escapeHtml(summary.decision_reason || "검증 결과를 기다리는 중입니다.")}</span>
+    </div>
+    <div class="decision-practical-grid forecast-metric-grid">
+      ${decisionMetric("OOS return", `${fmtDecimal(oos.total_return_pct, 2)}%`, Number(oos.total_return_pct || 0) >= 0 ? "ok" : "warn")}
+      ${decisionMetric("OOS Sharpe", fmtDecimal(oos.sharpe, 3), Number(oos.sharpe || 0) >= 0 ? "ok" : "warn")}
+      ${decisionMetric("Stability", fmtDecimal(stability.stability_score, 3), stability.single_spike_flag ? "warn" : "ok")}
+      ${decisionMetric("Monte Carlo", monteCarlo.status || "unknown", decisionStatusClass(monteCarlo.status || "unknown"))}
+    </div>
+    <div class="strategy-research-cost-grid">
+      ${costStress.map((row) => `
+        <div class="strategy-research-cost ${row.expectancy_survives ? "ok" : "warn"}">
+          <span>${escapeHtml(String(row.cost_multiple || 1))}x cost</span>
+          <strong>${escapeHtml(fmtDecimal(row.metrics?.expectancy_pct, 4))}%</strong>
+        </div>
+      `).join("")}
+    </div>
+    <div class="strategy-research-explain">
+      <strong>해석</strong>
+      <p>승인 여부는 in-sample 성과가 아니라 OOS 유지, walk-forward, parameter stability, Monte Carlo, cost stress 통과 여부로 결정됩니다.</p>
+    </div>
+  `;
+}
+
+async function loadStrategyResearchLab(force = false) {
+  if (!els.strategyResearchOverviewSurface || (state.strategyResearchLoaded && !force)) return;
+  try {
+    const [status, strategies, hypotheses] = await Promise.all([
+      forecastFetchJson(API.quantStrategyResearchStatus),
+      forecastFetchJson(API.quantStrategyResearchStrategies),
+      forecastFetchJson(API.quantStrategyResearchHypotheses),
+    ]);
+    state.strategyResearchStatus = status;
+    state.strategyResearchStrategies = Array.isArray(strategies.items) ? strategies.items : [];
+    state.strategyResearchHypotheses = Array.isArray(hypotheses.items) ? hypotheses.items : [];
+    populateStrategyResearchSelect();
+    const versions = await forecastFetchJson(API.quantStrategyResearchVersions(strategyResearchActiveId()));
+    state.strategyResearchVersions = Array.isArray(versions.items) ? versions.items : [];
+    state.strategyResearchLoaded = true;
+    renderStrategyResearchOverview();
+    renderStrategyResearchHypotheses(state.strategyResearchHypotheses);
+  } catch (err) {
+    els.strategyResearchOverviewSurface.innerHTML = decisionEmpty(`Strategy Research 로드 실패: ${err.message || err}`);
+  }
+}
+
+async function runStrategyResearchOptimize() {
+  const strategyId = strategyResearchActiveId();
+  const startedAt = Date.now();
+  setButtonBusy(els.strategyResearchOptimize, true, "최적화 중");
+  if (els.strategyResearchOptimizationSurface) {
+    els.strategyResearchOptimizationSurface.innerHTML = decisionEmpty("복합 목적함수로 파라미터 후보를 평가하는 중입니다.");
+  }
+  try {
+    const data = await forecastFetchJson(API.quantStrategyResearchOptimize(strategyId), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(strategyResearchOptimizationRequest()),
+    });
+    const trials = await forecastFetchJson(API.quantStrategyResearchOptimizationTrials(data.optimization_id));
+    state.lastStrategyResearchOptimization = data;
+    state.lastStrategyResearchTrials = Array.isArray(trials.items) ? trials.items : [];
+    renderStrategyResearchOptimization(data, state.lastStrategyResearchTrials);
+    els.strategyResearchOptimizationSurface.insertAdjacentHTML("afterbegin", renderActionCompletion("전략 리서치 최적화 완료", startedAt, data.optimization_id));
+  } catch (err) {
+    els.strategyResearchOptimizationSurface.innerHTML = `${renderActionCompletion("전략 리서치 최적화 실패", startedAt, err.message || String(err), "fail")}${decisionEmpty(err.message || String(err))}`;
+  } finally {
+    setButtonBusy(els.strategyResearchOptimize, false);
+  }
+}
+
+async function runStrategyResearchDiagnostics() {
+  const strategyId = strategyResearchActiveId();
+  setButtonBusy(els.strategyResearchDiagnose, true, "진단 중");
+  try {
+    const data = await forecastFetchJson(API.quantStrategyResearchDiagnose(strategyId), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ base_config: strategyResearchBaseConfig() }),
+    });
+    state.lastStrategyResearchDiagnostics = data;
+    renderStrategyResearchDiagnostics(data);
+  } catch (err) {
+    els.strategyResearchDiagnosticsSurface.innerHTML = decisionEmpty(`진단 실패: ${err.message || err}`);
+  } finally {
+    setButtonBusy(els.strategyResearchDiagnose, false);
+  }
+}
+
+async function generateStrategyResearchHypotheses() {
+  const strategyId = strategyResearchActiveId();
+  setButtonBusy(els.strategyResearchHypotheses, true, "생성 중");
+  try {
+    const data = await forecastFetchJson(API.quantStrategyResearchHypothesesGenerate(strategyId), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ base_config: strategyResearchBaseConfig() }),
+    });
+    state.strategyResearchHypotheses = Array.isArray(data.items) ? data.items : [];
+    renderStrategyResearchHypotheses(state.strategyResearchHypotheses);
+    renderStrategyResearchOverview();
+  } catch (err) {
+    els.strategyResearchHypothesisSurface.innerHTML = decisionEmpty(`가설 생성 실패: ${err.message || err}`);
+  } finally {
+    setButtonBusy(els.strategyResearchHypotheses, false);
+  }
+}
+
+async function runStrategyResearchValidation() {
+  const strategyId = strategyResearchActiveId();
+  setButtonBusy(els.strategyResearchValidate, true, "검증 중");
+  try {
+    const data = await forecastFetchJson(API.quantStrategyResearchValidate(strategyId), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        optimization_id: state.lastStrategyResearchOptimization?.optimization_id || null,
+        parameters: state.lastStrategyResearchOptimization?.recommended_parameters_json || {},
+        base_config: strategyResearchBaseConfig(),
+      }),
+    });
+    state.lastStrategyResearchValidation = data;
+    renderStrategyResearchValidation(data);
+    const versions = await forecastFetchJson(API.quantStrategyResearchVersions(strategyId));
+    state.strategyResearchVersions = Array.isArray(versions.items) ? versions.items : [];
+    renderStrategyResearchVersions();
+  } catch (err) {
+    els.strategyResearchValidationSurface.innerHTML = decisionEmpty(`검증 실패: ${err.message || err}`);
+  } finally {
+    setButtonBusy(els.strategyResearchValidate, false);
+  }
+}
+
+async function decideStrategyResearchHypothesis(hypothesisId, decision) {
+  if (!hypothesisId) return;
+  const url = decision === "accepted"
+    ? API.quantStrategyResearchHypothesisAccept(hypothesisId)
+    : API.quantStrategyResearchHypothesisReject(hypothesisId);
+  try {
+    await forecastFetchJson(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision_reason: `${decision} from Strategy Research Lab UI after evidence review` }),
+    });
+    const data = await forecastFetchJson(API.quantStrategyResearchHypotheses);
+    state.strategyResearchHypotheses = Array.isArray(data.items) ? data.items : [];
+    renderStrategyResearchHypotheses(state.strategyResearchHypotheses);
+    renderStrategyResearchOverview();
+  } catch (err) {
+    els.strategyResearchHypothesisSurface.insertAdjacentHTML("afterbegin", `<div class="decision-warning">가설 결정 실패: ${escapeHtml(err.message || String(err))}</div>`);
+  }
+}
+
+async function loadQuantModelProfiles(force = false) {
+  if (!els.quantModelProfileSurface || (!force && state.quantModelProfilesLoaded)) return;
+  try {
+    const data = await forecastFetchJson(API.quantModelProfiles);
+    state.quantModelProfiles = Array.isArray(data.items) ? data.items : [];
+    state.quantModelProfilesLoaded = true;
+    populateQuantModelProfileSelect();
+    if (state.quantModelProfiles.length && !els.quantModelProfileId?.value) {
+      applyQuantModelProfileToControls(state.quantModelProfiles[0]);
+    }
+    if (!state.lastQuantModelProfileDryRun) {
+      els.quantModelProfileSurface.innerHTML = decisionEmpty("Model Profile을 선택하거나 현재 Forecast 설정으로 프로필을 검증하세요.");
+    }
+  } catch (err) {
+    els.quantModelProfileSurface.innerHTML = decisionEmpty(`Model Profile 로드 실패: ${err.message || err}`);
+  }
+}
+
+async function dryRunQuantModelProfile() {
+  const profile = quantModelProfileFromControls();
+  const strategy = strategyForModelProfilePayload();
+  if (!strategy) return;
+  setButtonBusy(els.quantModelProfileDryRun, true, "검증 중");
+  try {
+    const data = await forecastFetchJson(API.quantModelProfileDryRun, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profile, strategy }),
+    });
+    state.lastQuantModelProfileDryRun = data;
+    renderQuantModelProfileDryRun(data);
+  } catch (err) {
+    showQuantModelProfileMessage(`프로필 검증 실패: ${err.message || err}`, "failed");
+  } finally {
+    setButtonBusy(els.quantModelProfileDryRun, false);
+  }
+}
+
+async function saveQuantModelProfile() {
+  const profile = quantModelProfileFromControls();
+  setButtonBusy(els.quantModelProfileSave, true, "저장 중");
+  try {
+    const data = await forecastFetchJson(API.quantModelProfileSave, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(profile),
+    });
+    state.activeModelProfileId = data.profile?.profile_id || profile.profile_id;
+    showQuantModelProfileMessage(`${state.activeModelProfileId} 저장 완료.`, "success");
+    state.quantModelProfilesLoaded = false;
+    await loadQuantModelProfiles(true);
+  } catch (err) {
+    showQuantModelProfileMessage(`프로필 저장 실패: ${err.message || err}`, "failed");
+  } finally {
+    setButtonBusy(els.quantModelProfileSave, false);
+  }
+}
+
+async function deleteQuantModelProfile() {
+  const profileId = state.activeModelProfileId || els.quantModelProfileId?.value || "";
+  if (!profileId) return showQuantModelProfileMessage("삭제할 프로필을 선택하세요.", "failed");
+  setButtonBusy(els.quantModelProfileDelete, true, "삭제 중");
+  try {
+    const data = await forecastFetchJson(API.quantModelProfile(profileId), { method: "DELETE" });
+    showQuantModelProfileMessage(`${data.profile_id || profileId} 삭제 완료.`, "success");
+    state.activeModelProfileId = "core_universe_forecast_v1";
+    state.quantModelProfilesLoaded = false;
+    await loadQuantModelProfiles(true);
+  } catch (err) {
+    showQuantModelProfileMessage(`프로필 삭제 실패: ${err.message || err}`, "failed");
+  } finally {
+    setButtonBusy(els.quantModelProfileDelete, false);
+  }
+}
+
+async function runQuantModelLab() {
+  const startedAt = Date.now();
+  const profile = quantModelProfileFromControls();
+  const strategy = strategyForModelProfilePayload();
+  if (!strategy) return;
+  setButtonBusy(els.quantModelProfileRun, true, "실행 중");
+  if (els.forecastUniverseSurface && profile.run_mode === "universe_per_asset") {
+    els.forecastUniverseSurface.innerHTML = decisionEmpty("Quant Model Lab이 유니버스 종목별 Forecast와 랭킹을 실행하는 중입니다.");
+  }
+  if (els.quantRankSurface) {
+    els.quantRankSurface.innerHTML = profile.run_mode === "cross_sectional_rank"
+      ? decisionEmpty("Quant Model Lab이 패널 랭킹 Forecast를 실행하고 점수 격차와 검증 템플릿을 계산하는 중입니다.")
+      : decisionEmpty("패널 랭킹 결과는 Run mode를 패널 랭킹 Forecast로 선택한 뒤 표시됩니다.");
+  }
+  try {
+    const data = await forecastFetchJson(API.quantModelLabRun, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profile, strategy }),
+    });
+    state.lastQuantModelLabPayload = data;
+    if (data.items) {
+      state.lastForecastUniversePayload = data;
+      renderForecastUniverseResult(data);
+      if (data.model_lab?.run_mode === "cross_sectional_rank" || data.panel_ranker) {
+        renderQuantCrossSectionalRank(data);
+      }
+    } else {
+      state.lastForecastPayload = data;
+      renderForecastPayload(data, startedAt);
+    }
+    renderQuantModelProfileDryRun({
+      status: data.status,
+      valid: data.status === "success" || data.status === "partial",
+      diagnostics: {
+        run_mode: data.model_lab?.run_mode || profile.run_mode,
+        profile_hash: data.model_lab?.profile_hash || "",
+        strategy_hash: data.model_lab?.strategy_hash || "",
+        source_context: {
+          profile_id: data.model_lab?.profile_id || profile.profile_id,
+          strategy_id: data.model_lab?.strategy_id || profile.strategy_id,
+          profile_hash: data.model_lab?.profile_hash || "",
+          strategy_hash: data.model_lab?.strategy_hash || "",
+        },
+        universe: data.universe || {},
+        selected_model: profile.model_candidates?.[0] || {},
+        target: profile.target_config || {},
+        execution_delay_bars: profile.backtest_config?.execution_delay_bars,
+      },
+      warnings: data.warnings || [],
+      errors: data.errors || [],
+    });
+    await Promise.allSettled([loadForecastHistory(true), loadForecastRegistry(true), loadForecastModelComparison(true)]);
+  } catch (err) {
+    showQuantModelProfileMessage(`Model Lab 실행 실패: ${err.message || err}`, "failed");
+  } finally {
+    setButtonBusy(els.quantModelProfileRun, false);
+  }
+}
+
+async function queueQuantModelLabJob() {
+  const profile = quantModelProfileFromControls();
+  const strategy = strategyForModelProfilePayload();
+  if (!strategy) return;
+  setButtonBusy(els.quantModelProfileQueue, true, "큐 등록 중");
+  try {
+    const request = forecastRunRequestFromControls();
+    const data = await forecastFetchJson(API.quantModelLabJob, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profile, strategy, runtime_budget_s: forecastRuntimeBudgetSeconds(request) }),
+    });
+    renderQuantModelLabJobResult(data);
+    await loadForecastJobs(true);
+  } catch (err) {
+    showQuantModelProfileMessage(`Model Lab job 등록 실패: ${err.message || err}`, "failed");
+  } finally {
+    setButtonBusy(els.quantModelProfileQueue, false);
+  }
 }
 
 async function runHomeBacktest() {
@@ -14714,7 +17087,6 @@ function loadMarketDashboard(force = false) {
   loadDashboardMarketOverview(force);
   Promise.allSettled([
     loadDashboardEquityHeatmap(force),
-    loadDashboardMarket(force),
     loadDataHealth(force),
     loadDashboardNews(force),
     loadCrossAssetAnalysis(force),
@@ -15003,6 +17375,169 @@ async function runForecastQueuedJob() {
   }
 }
 
+const FORECAST_UNIVERSE_LABELS = {
+  custom: "직접 입력",
+  sp500_top_200: "S&P 500 Top 200",
+  us_equity_core: "US Equity Core",
+  etf_core_120: "ETF Core 120",
+  global_equity_core: "Global Equity Core",
+  crypto_core: "Crypto Core",
+  all_supported: "All Supported",
+};
+
+function forecastUniverseLabel(value) {
+  return FORECAST_UNIVERSE_LABELS[String(value || "custom")] || String(value || "custom");
+}
+
+function syncForecastUniverseMode() {
+  const preset = els.forecastUniversePreset?.value || "custom";
+  const custom = preset === "custom";
+  if (els.forecastUniverseTickers) els.forecastUniverseTickers.disabled = !custom;
+  if (els.forecastUniverseOpen) els.forecastUniverseOpen.disabled = !custom;
+  if (els.forecastUniverseChips) {
+    els.forecastUniverseChips.hidden = !custom;
+    if (custom) renderSymbolTargetChips("forecastUniverse");
+  }
+  if (els.forecastUniverseStatus) {
+    const maxAssets = numberInputValue(els.forecastUniverseMaxAssets, 6, { min: 1, max: 25 });
+    els.forecastUniverseStatus.textContent = custom
+      ? `직접 입력 ${parseTickerInput(els.forecastUniverseTickers?.value || "").length}개 중 최대 ${maxAssets}개에 ML Forecast를 적용합니다.`
+      : `${forecastUniverseLabel(preset)} 프리셋에서 최대 ${maxAssets}개를 선택해 같은 Forecast 설정으로 평가합니다.`;
+  }
+}
+
+function forecastUniverseRequestFromControls() {
+  const universeId = els.forecastUniversePreset?.value || "custom";
+  const request = forecastRunRequestFromControls();
+  request.dataset_config = {
+    ...(request.dataset_config || {}),
+    universe_id: universeId,
+  };
+  request.source_context = {
+    ...(request.source_context || {}),
+    source: request.source_context?.source || "forecast_universe",
+  };
+  return {
+    universe_id: universeId,
+    tickers: universeId === "custom" ? parseTickerInput(els.forecastUniverseTickers?.value || "") : [],
+    request,
+    max_assets: numberInputValue(els.forecastUniverseMaxAssets, 6, { min: 1, max: 25 }),
+    ranking_metric: els.forecastUniverseRankMetric?.value || "confidence",
+    notes: "ui_forecast_universe",
+  };
+}
+
+function forecastUniverseMetricLabel(metric) {
+  return {
+    confidence: "신뢰도",
+    expected_return: "예상 수익률",
+    probability_up: "상승 확률",
+    signal_score: "신호 점수",
+    risk_adjusted: "위험조정",
+  }[metric] || metric;
+}
+
+function forecastUniverseMetricValue(row) {
+  const metric = row?.ranking_metric || "confidence";
+  const value = row?.rank_score;
+  if (value === null || value === undefined) return "N/A";
+  if (["expected_return", "probability_up"].includes(metric)) return fmtPercent(value);
+  return fmtDecimal(value, 3);
+}
+
+function forecastUniverseBucketClass(bucket) {
+  if (bucket === "bullish") return "ok";
+  if (bucket === "bearish" || bucket === "unavailable") return "warn";
+  return "neutral";
+}
+
+function forecastUniverseInterpretation(data) {
+  const items = Array.isArray(data.items) ? data.items : [];
+  const summary = data.summary || {};
+  const top = items.find((item) => item.status === "success");
+  if (!top) return "성공한 유니버스 예측이 없습니다. 데이터 품질, leakage 상태, 가격 이력 보강 여부를 먼저 확인하세요.";
+  const score = forecastUniverseMetricValue(top);
+  const failed = Number(summary.failed_count || 0);
+  const caution = failed ? ` 실패 ${_fmtNumber(failed)}개는 유니버스 점수에서 제외하고 데이터 상태를 재점검해야 합니다.` : "";
+  return `${escapeHtml(top.ticker)}가 ${escapeHtml(forecastUniverseMetricLabel(top.ranking_metric))} 기준 1위입니다. 신호는 ${escapeHtml(top.signal || "unavailable")}, 예상 수익률은 ${escapeHtml(fmtPercent(top.expected_return))}, 랭킹 점수는 ${escapeHtml(score)}입니다.${escapeHtml(caution)} 이 결과는 후보 선별용이며 상위 종목은 단일 Forecast와 시각화 패널로 재검증해야 합니다.`;
+}
+
+function renderForecastUniverseResult(data) {
+  if (!els.forecastUniverseSurface) return;
+  const items = Array.isArray(data.items) ? data.items : [];
+  const summary = data.summary || {};
+  const universe = data.universe || {};
+  const metric = data.ranking_metric || "confidence";
+  if (!items.length) {
+    els.forecastUniverseSurface.innerHTML = decisionEmpty((data.errors || []).join(", ") || "유니버스 실행 결과가 없습니다.");
+    return;
+  }
+  els.forecastUniverseSurface.innerHTML = `
+    <div class="forecast-universe-summary">
+      ${decisionMetric("Universe", universe.label || forecastUniverseLabel(universe.universe_id), data.status === "success" ? "ok" : decisionStatusClass(data.status))}
+      ${decisionMetric("Selected", `${_fmtNumber(universe.selected_count || items.length)} / ${_fmtNumber(universe.resolved_count || items.length)}`, "ok")}
+      ${decisionMetric("Success", _fmtNumber(summary.success_count || 0), summary.success_count ? "ok" : "warn")}
+      ${decisionMetric("Avg confidence", fmtDecimal(summary.average_confidence, 3), summary.average_confidence >= 0.55 ? "ok" : "warn")}
+      ${decisionMetric("Avg return", fmtPercent(summary.average_expected_return), (summary.average_expected_return || 0) >= 0 ? "ok" : "warn")}
+      ${decisionMetric("Bull / Neutral / Bear", `${_fmtNumber(summary.bullish_count || 0)} / ${_fmtNumber(summary.neutral_count || 0)} / ${_fmtNumber(summary.bearish_count || 0)}`, "ok")}
+    </div>
+    <div class="forecast-universe-readout">
+      <strong>${escapeHtml(forecastUniverseMetricLabel(metric))} 랭킹</strong>
+      <span>${forecastUniverseInterpretation(data)}</span>
+    </div>
+    <div class="decision-table-wrap forecast-universe-table-wrap">
+      <table class="decision-table forecast-universe-table">
+        <thead><tr><th>Rank</th><th>Ticker</th><th>Signal</th><th>Expected</th><th>Prob Up</th><th>Confidence</th><th>Vol</th><th>Data</th><th>Leakage</th><th>Experiment</th></tr></thead>
+        <tbody>
+          ${items.map((item) => {
+            const experimentId = String(item.experiment_id || "");
+            return `<tr>
+              <td>${item.rank ? `<span class="forecast-universe-rank">${escapeHtml(String(item.rank))}</span>` : "-"}</td>
+              <td><strong>${escapeHtml(item.ticker || "")}</strong></td>
+              <td><span class="decision-badge ${escapeHtml(forecastUniverseBucketClass(item.decision_bucket))}">${escapeHtml(item.signal || item.decision_bucket || "unavailable")}</span></td>
+              <td>${escapeHtml(fmtPercent(item.expected_return))}</td>
+              <td>${escapeHtml(fmtPercent(item.probability_up))}</td>
+              <td>${escapeHtml(fmtDecimal(item.confidence, 3))} ${escapeHtml(item.confidence_level || "")}</td>
+              <td>${escapeHtml(fmtPercent(item.forecast_volatility))}</td>
+              <td>${escapeHtml(item.data_quality_status || "unknown")}</td>
+              <td>${escapeHtml(item.leakage_status || "unknown")}</td>
+              <td>${experimentId ? `<button type="button" class="linkish compact-id-button" data-action="forecast-universe-detail" data-experiment-id="${escapeHtml(experimentId)}">${compactIdentifierCell(experimentId)}</button>` : "-"}</td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>
+    ${(data.warnings || []).length ? `<div class="decision-warning">${escapeHtml(data.warnings.join(", "))}</div>` : ""}
+    ${(data.errors || []).length ? `<div class="decision-warning">${escapeHtml(data.errors.slice(0, 5).join(", "))}</div>` : ""}
+  `;
+}
+
+async function runForecastUniverse() {
+  if (!els.forecastUniverseSurface) return;
+  syncForecastUniverseMode();
+  const payload = forecastUniverseRequestFromControls();
+  if (payload.universe_id === "custom" && !payload.tickers.length) {
+    els.forecastUniverseSurface.innerHTML = decisionEmpty("직접 입력 유니버스에는 최소 1개 이상의 심볼이 필요합니다.");
+    return;
+  }
+  setButtonBusy(els.forecastRunUniverse, true, "유니버스 실행 중");
+  els.forecastUniverseSurface.innerHTML = decisionEmpty("유니버스 종목별 ML Forecast를 실행하고 랭킹을 계산하는 중입니다.");
+  try {
+    const data = await forecastFetchJson(API.forecastUniverseRun, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    state.lastForecastUniversePayload = data;
+    renderForecastUniverseResult(data);
+    await Promise.allSettled([loadForecastHistory(true), loadForecastModelComparison(true), loadForecastRegistry(true)]);
+  } catch (err) {
+    els.forecastUniverseSurface.innerHTML = decisionEmpty(`유니버스 Forecast 실행 실패: ${err.message || err}`);
+  } finally {
+    setButtonBusy(els.forecastRunUniverse, false);
+  }
+}
+
 function forecastRuntimeBudgetSeconds(request) {
   const model = String(request?.model_config?.model_name || "");
   if (["lstm", "gru", "temporal_cnn", "transformer", "temporal_fusion_transformer"].includes(model)) return 1800;
@@ -15175,29 +17710,42 @@ function renderForecastSignalQuality(quality) {
 
 function renderForecastVisualization(viz) {
   if (!els.forecastVizSurface) return;
+  const metadata = viz.metadata || {};
+  const oosCount = (viz.actual_vs_predicted || []).filter((row) => Number.isFinite(Number(row?.predicted_return)) && Number.isFinite(Number(row?.actual_forward_return))).length;
+  const priceCount = (viz.price_series || []).filter((row) => Number.isFinite(Number(row?.price))).length;
+  const generatedLabel = metadata.as_of || viz.as_of || "unknown";
   els.forecastVizSurface.innerHTML = `
-    <div class="forecast-chart-grid">
-      ${renderForecastLineChart("Price & Signal", viz.price_series || [], "price")}
-      ${renderForecastIntervalChart(viz.prediction_intervals || [])}
-      ${renderForecastActualPredicted(viz.actual_vs_predicted || [])}
-      ${renderForecastResidualChart(viz.residuals || [])}
-      ${renderForecastDistribution(viz.prediction_distribution || [])}
-      ${renderForecastLineChart("Equity Curve", viz.equity_curve || [], "equity", viz.benchmark_curve || [])}
-      ${renderForecastLineChart("Drawdown", viz.drawdown_series || [], "drawdown")}
-      ${renderForecastLineChart("Rolling Sharpe", viz.rolling_sharpe || [], "rolling_sharpe")}
-      ${renderForecastLineChart("Position Exposure", viz.position_exposure || [], "position")}
-      ${renderForecastLineChart("Turnover", viz.turnover || [], "turnover")}
-      ${renderForecastMonthlyHeatmap(viz.monthly_return_heatmap || [])}
-      ${renderForecastConfusionMatrix(viz.confusion_matrix || {})}
-      ${renderForecastRegimePerformance(viz.regime_performance || [])}
-      ${renderForecastFeatureImportance(viz.feature_importance || [])}
-      ${renderForecastFeatureImportance(viz.permutation_importance || [], "Permutation Importance", "normalized_importance")}
-      ${renderForecastFeatureImportance(viz.shap_importance || [], "SHAP Importance", "importance")}
-      ${renderForecastFoldChart(viz.fold_metrics || [])}
-      ${renderForecastModelComparison(viz.model_comparison || [])}
-      ${renderForecastDataQuality(viz.data_quality_summary || {})}
-      ${renderForecastSignalTimeline(viz.signal_history || [])}
+    <div class="forecast-viz-overview">
+      <div><strong>${escapeHtml(viz.ticker || "Forecast")}</strong><span>기준일 ${escapeHtml(generatedLabel)} · OOS ${escapeHtml(_fmtNumber(oosCount))}개 · 가격 ${escapeHtml(_fmtNumber(priceCount))}개</span></div>
+      <div><strong>축 기준</strong><span>X축은 관측일 또는 예측 수익률입니다. 수익률/낙폭/포지션 축은 모두 %로 표기하고, 가격/자본 축은 원 단위 값 또는 누적 배수입니다.</span></div>
+      <div><strong>해석 기준</strong><span>이 화면은 투자 추천이 아니라 모델 품질, 전략 변환, 데이터 상태를 분리해서 점검하는 진단 화면입니다.</span></div>
     </div>
+    ${renderForecastVizSection("예측 품질", "예측값이 실제 OOS forward return과 얼마나 맞는지 확인합니다.", [
+      renderForecastIntervalChart(viz.prediction_intervals || []),
+      renderForecastActualPredicted(viz.actual_vs_predicted || []),
+      renderForecastResidualChart(viz.residuals || []),
+      renderForecastDistribution(viz.prediction_distribution || []),
+    ])}
+    ${renderForecastVizSection("전략 성과", "예측을 advisory signal과 포지션으로 바꿨을 때의 누적 성과와 위험입니다.", [
+      renderForecastLineChart("Price Context", viz.price_series || [], "price", [], { subtitle: "input price path", primaryLabel: "Price" }),
+      renderForecastLineChart("Equity Curve", viz.equity_curve || [], "equity", viz.benchmark_curve || [], { subtitle: "strategy vs benchmark", primaryLabel: "Strategy", comparisonLabel: "Benchmark" }),
+      renderForecastLineChart("Drawdown", viz.drawdown_series || [], "drawdown", [], { subtitle: "peak-to-trough risk" }),
+      renderForecastLineChart("Rolling Sharpe", viz.rolling_sharpe || [], "rolling_sharpe", [], { subtitle: "rolling risk-adjusted return" }),
+      renderForecastLineChart("Position Exposure", viz.position_exposure || [], "position", [], { subtitle: "target allocation" }),
+      renderForecastLineChart("Turnover", viz.turnover || [], "turnover", [], { subtitle: "trade intensity" }),
+      renderForecastMonthlyHeatmap(viz.monthly_return_heatmap || []),
+      renderForecastSignalTimeline(viz.signal_history || []),
+    ])}
+    ${renderForecastVizSection("모델/데이터 진단", "fold 안정성, feature 의존도, 데이터 결측을 함께 봅니다.", [
+      renderForecastConfusionMatrix(viz.confusion_matrix || {}),
+      renderForecastRegimePerformance(viz.regime_performance || []),
+      renderForecastFeatureImportance(viz.feature_importance || []),
+      renderForecastFeatureImportance(viz.permutation_importance || [], "Permutation Importance", "normalized_importance"),
+      renderForecastFeatureImportance(viz.shap_importance || [], "SHAP Importance", "importance"),
+      renderForecastFoldChart(viz.fold_metrics || []),
+      renderForecastModelComparison(viz.model_comparison || []),
+      renderForecastDataQuality(viz.data_quality_summary || {}),
+    ])}
   `;
 }
 
@@ -15663,208 +18211,583 @@ function fmtPercent(value) {
   return `${(num * 100).toFixed(2)}%`;
 }
 
-function renderForecastLineChart(title, rows, valueKey, comparisonRows = []) {
-  if (!rows.length) return `<div class="forecast-chart-card"><strong>${escapeHtml(title)}</strong>${decisionEmpty("표시할 OOS 데이터가 없습니다.")}</div>`;
-  const values = rows.map((row) => Number(row[valueKey])).filter(Number.isFinite);
-  if (!values.length) return `<div class="forecast-chart-card"><strong>${escapeHtml(title)}</strong>${decisionEmpty("차트 값이 없습니다.")}</div>`;
-  const width = 360;
-  const height = 150;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const span = max - min || 1;
-  const points = rows.map((row, idx) => {
-    const value = Number(row[valueKey]);
-    const x = rows.length === 1 ? 0 : (idx / (rows.length - 1)) * width;
-    const y = height - ((value - min) / span) * height;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(" ");
-  const comparisonValues = comparisonRows.map((row) => Number(row[valueKey])).filter(Number.isFinite);
-  const comparisonPoints = comparisonValues.length ? comparisonRows.map((row, idx) => {
-    const value = Number(row[valueKey]);
-    const x = comparisonRows.length === 1 ? 0 : (idx / (comparisonRows.length - 1)) * width;
-    const y = height - ((value - min) / span) * height;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(" ") : "";
+function forecastSafeNumber(value) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function forecastDateValue(row) {
+  return row?.date || row?.execution_date || row?.month || row?.timestamp || row?.as_of || "";
+}
+
+function forecastCleanRows(rows, valueKey, limit = 240) {
+  return (rows || [])
+    .map((row) => ({ row, value: forecastSafeNumber(row?.[valueKey]), date: forecastDateValue(row) }))
+    .filter((item) => item.value !== null)
+    .slice(-limit);
+}
+
+function forecastScale(values, includeZero = false) {
+  const finite = (values || []).map(Number).filter(Number.isFinite);
+  if (!finite.length) return { min: 0, max: 1, span: 1 };
+  let min = Math.min(...finite);
+  let max = Math.max(...finite);
+  if (includeZero) {
+    min = Math.min(min, 0);
+    max = Math.max(max, 0);
+  }
+  let span = max - min;
+  if (!span) {
+    const pad = Math.max(Math.abs(max) * 0.08, 0.01);
+    min -= pad;
+    max += pad;
+    span = max - min;
+  } else {
+    const pad = span * 0.08;
+    min -= pad;
+    max += pad;
+    span = max - min;
+  }
+  return { min, max, span };
+}
+
+function forecastAxisTicks(min, max, count = 4) {
+  if (count <= 1) return [min];
+  const step = (max - min) / (count - 1 || 1);
+  return Array.from({ length: count }, (_, idx) => min + step * idx);
+}
+
+function forecastFormatValue(value, mode = "decimal") {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return "N/A";
+  if (mode === "percent") return fmtPercent(num);
+  if (mode === "price") return fmtDecimal(num, Math.abs(num) >= 100 ? 2 : 4);
+  if (mode === "integer") return _fmtNumber(Math.round(num));
+  return fmtDecimal(num, Math.abs(num) >= 10 ? 2 : 4);
+}
+
+function forecastChartMeta(valueKey, overrides = {}) {
+  const meta = {
+    price: {
+      yLabel: "가격",
+      valueMode: "price",
+      includeZero: false,
+      axisNote: "X축은 가격 관측일, Y축은 종가 또는 가격 지수입니다.",
+      interpretation: "가격 경로는 모델 품질 점수가 아니라 예측이 만들어진 시장 국면의 배경입니다.",
+    },
+    equity: {
+      yLabel: "누적 자본 배수",
+      valueMode: "decimal",
+      includeZero: false,
+      axisNote: "X축은 OOS 거래일, Y축은 시작 자본 1.00 기준 누적 자본 배수입니다.",
+      interpretation: "전략선이 벤치마크보다 높고 완만하면 예측 신호가 비용 반영 후에도 성과로 연결된 것입니다.",
+    },
+    drawdown: {
+      yLabel: "고점 대비 낙폭",
+      valueMode: "percent",
+      includeZero: true,
+      axisNote: "X축은 OOS 거래일, Y축은 직전 고점 대비 하락률입니다. 0%에 가까울수록 손실 회복 상태입니다.",
+      interpretation: "낙폭이 깊고 오래 지속되면 방향성은 맞아도 포지션 sizing 또는 stop rule이 약하다는 신호입니다.",
+    },
+    rolling_sharpe: {
+      yLabel: "Rolling Sharpe",
+      valueMode: "decimal",
+      includeZero: true,
+      axisNote: "X축은 OOS 거래일, Y축은 rolling window 기준 위험조정 수익률입니다.",
+      interpretation: "0 위에서 안정적으로 유지될수록 수익이 변동성 대비 일관적입니다.",
+    },
+    position: {
+      yLabel: "목표 포지션 비중",
+      valueMode: "percent",
+      includeZero: true,
+      axisNote: "X축은 신호 발생일, Y축은 모델 신호가 제안한 목표 노출 비중입니다.",
+      interpretation: "노출이 자주 급변하면 예측은 있어도 실거래에서는 회전율과 비용 부담이 커질 수 있습니다.",
+    },
+    turnover: {
+      yLabel: "거래 회전율",
+      valueMode: "percent",
+      includeZero: true,
+      axisNote: "X축은 체결/리밸런싱일, Y축은 해당 시점의 포지션 변경 비중입니다.",
+      interpretation: "회전율이 높을수록 transaction cost와 슬리피지 민감도가 커집니다.",
+    },
+    residual: {
+      yLabel: "잔차",
+      valueMode: "percent",
+      includeZero: true,
+      axisNote: "X축은 OOS 예측일, Y축은 실제 forward return - 예측 forward return입니다.",
+      interpretation: "0선 주변에 무작위로 분포하면 편향이 작고, 한쪽으로 치우치면 과대/과소 예측 가능성이 큽니다.",
+    },
+  };
+  return { ...(meta[valueKey] || {
+    yLabel: valueKey,
+    valueMode: "decimal",
+    includeZero: true,
+    axisNote: "X축은 관측일, Y축은 선택한 진단 값입니다.",
+    interpretation: "값의 방향과 변동성을 다른 모델 품질 지표와 함께 해석하세요.",
+  }), ...overrides };
+}
+
+function forecastDateRangeLabel(points) {
+  const start = points.find((item) => item.date)?.date || "";
+  const end = [...points].reverse().find((item) => item.date)?.date || "";
+  if (!start && !end) return "";
+  return start === end ? String(start) : `${start || "unknown"} ~ ${end || "unknown"}`;
+}
+
+function forecastLineInterpretation(meta, points) {
+  if (!points.length) return meta.interpretation || "";
+  const first = points[0].value;
+  const last = points[points.length - 1].value;
+  const change = last - first;
+  const direction = change > 0 ? "상승" : change < 0 ? "하락" : "보합";
+  return `${meta.interpretation || ""} 최근 표시 구간은 ${escapeHtml(forecastFormatValue(first, meta.valueMode))}에서 ${escapeHtml(forecastFormatValue(last, meta.valueMode))}로 ${direction}했습니다.`;
+}
+
+function forecastLegend(items) {
+  return (items || [])
+    .filter((item) => item?.label)
+    .map((item) => `<span class="${escapeHtml(item.className || "")}"><i></i>${escapeHtml(item.label)}</span>`)
+    .join("");
+}
+
+function renderForecastChartCard({ title, subtitle = "", body = "", meta = "", axisNote = "", interpretation = "", legend = "" }) {
   return `
-    <div class="forecast-chart-card">
-      <strong>${escapeHtml(title)}</strong>
-      <svg class="forecast-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(title)}">
-        <polyline points="${points}" fill="none" stroke="currentColor" stroke-width="2" />
-        ${comparisonPoints ? `<polyline points="${comparisonPoints}" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4 3" />` : ""}
-      </svg>
-      <span>${escapeHtml(rows[0]?.date || "")} ~ ${escapeHtml(rows[rows.length - 1]?.date || "")}</span>
-    </div>
+    <article class="forecast-chart-card">
+      <div class="forecast-chart-card-head">
+        <strong>${escapeHtml(title)}</strong>
+        ${subtitle ? `<span>${escapeHtml(subtitle)}</span>` : ""}
+      </div>
+      ${body}
+      ${legend ? `<div class="forecast-chart-legend">${legend}</div>` : ""}
+      ${meta ? `<div class="forecast-chart-meta">${escapeHtml(meta)}</div>` : ""}
+      ${axisNote ? `<p class="forecast-axis-note">${escapeHtml(axisNote)}</p>` : ""}
+      ${interpretation ? `<p class="forecast-chart-interpretation">${interpretation}</p>` : ""}
+    </article>
   `;
+}
+
+function renderForecastEmptyChart(title, message, options = {}) {
+  return renderForecastChartCard({
+    title,
+    subtitle: options.subtitle || "no chart data",
+    body: decisionEmpty(message),
+    axisNote: options.axisNote || "데이터가 없어 축을 계산하지 않았습니다.",
+    interpretation: escapeHtml(options.interpretation || "먼저 Train / Forecast를 실행하거나 데이터 커버리지를 확인하세요."),
+  });
+}
+
+function renderForecastVizSection(title, subtitle, cards) {
+  const content = (cards || []).filter(Boolean).join("");
+  return `
+    <section class="forecast-chart-section">
+      <div class="forecast-chart-section-head">
+        <h4>${escapeHtml(title)}</h4>
+        <span>${escapeHtml(subtitle)}</span>
+      </div>
+      <div class="forecast-chart-grid">${content}</div>
+    </section>
+  `;
+}
+
+function renderForecastLineChart(title, rows, valueKey, comparisonRows = [], overrides = {}) {
+  const meta = forecastChartMeta(valueKey, overrides);
+  const points = forecastCleanRows(rows, valueKey, meta.limit || 240);
+  if (!points.length) return renderForecastEmptyChart(title, "표시할 유효한 OOS 차트 값이 없습니다.", meta);
+  const comparisonPoints = forecastCleanRows(comparisonRows, valueKey, meta.limit || 240);
+  const scale = forecastScale([...points.map((item) => item.value), ...comparisonPoints.map((item) => item.value)], meta.includeZero);
+  const width = 420;
+  const height = 210;
+  const pad = { left: 62, right: 18, top: 24, bottom: 44 };
+  const plotWidth = width - pad.left - pad.right;
+  const plotHeight = height - pad.top - pad.bottom;
+  const xFor = (idx, total) => pad.left + (total <= 1 ? 0 : (idx / (total - 1)) * plotWidth);
+  const yFor = (value) => pad.top + (1 - ((value - scale.min) / scale.span)) * plotHeight;
+  const primaryLine = points.map((item, idx) => `${xFor(idx, points.length).toFixed(1)},${yFor(item.value).toFixed(1)}`).join(" ");
+  const comparisonLine = comparisonPoints.length
+    ? comparisonPoints.map((item, idx) => `${xFor(idx, comparisonPoints.length).toFixed(1)},${yFor(item.value).toFixed(1)}`).join(" ")
+    : "";
+  const ticks = forecastAxisTicks(scale.min, scale.max, 4);
+  const zeroY = scale.min < 0 && scale.max > 0 ? yFor(0) : null;
+  const body = `
+    <svg class="forecast-svg forecast-line-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(`${title} chart with explicit X and Y axis labels`)}">
+      <rect class="forecast-plot-bg" x="${pad.left}" y="${pad.top}" width="${plotWidth}" height="${plotHeight}" />
+      ${ticks.map((tick) => {
+        const y = yFor(tick);
+        return `<g><line class="forecast-gridline" x1="${pad.left}" x2="${width - pad.right}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" /><text class="forecast-axis-tick" x="${pad.left - 8}" y="${(y + 4).toFixed(1)}" text-anchor="end">${escapeHtml(forecastFormatValue(tick, meta.valueMode))}</text></g>`;
+      }).join("")}
+      ${zeroY !== null ? `<line class="forecast-zero-line" x1="${pad.left}" x2="${width - pad.right}" y1="${zeroY.toFixed(1)}" y2="${zeroY.toFixed(1)}" />` : ""}
+      <line class="forecast-axis-line" x1="${pad.left}" x2="${width - pad.right}" y1="${height - pad.bottom}" y2="${height - pad.bottom}" />
+      <line class="forecast-axis-line" x1="${pad.left}" x2="${pad.left}" y1="${pad.top}" y2="${height - pad.bottom}" />
+      <polyline class="forecast-primary-line" points="${primaryLine}" fill="none" />
+      ${comparisonLine ? `<polyline class="forecast-comparison-line" points="${comparisonLine}" fill="none" />` : ""}
+      <text class="forecast-axis-title" x="${pad.left}" y="14">Y: ${escapeHtml(meta.yLabel)}</text>
+      <text class="forecast-axis-title" x="${pad.left + plotWidth / 2}" y="${height - 8}" text-anchor="middle">X: 관측일</text>
+      <text class="forecast-axis-tick" x="${pad.left}" y="${height - 24}" text-anchor="start">${escapeHtml(points[0]?.date || "")}</text>
+      <text class="forecast-axis-tick" x="${width - pad.right}" y="${height - 24}" text-anchor="end">${escapeHtml(points[points.length - 1]?.date || "")}</text>
+    </svg>
+  `;
+  return renderForecastChartCard({
+    title,
+    subtitle: meta.subtitle || `${points.length} observations`,
+    body,
+    legend: forecastLegend([
+      { label: meta.primaryLabel || title, className: "primary" },
+      comparisonLine ? { label: meta.comparisonLabel || "Comparison", className: "comparison" } : null,
+    ]),
+    meta: forecastDateRangeLabel(points),
+    axisNote: meta.axisNote,
+    interpretation: escapeHtml(forecastLineInterpretation(meta, points)),
+  });
 }
 
 function renderForecastActualPredicted(rows) {
-  if (!rows.length) return `<div class="forecast-chart-card"><strong>Actual vs Predicted</strong>${decisionEmpty("OOS 예측이 없습니다.")}</div>`;
-  const points = rows.slice(-160);
-  return `
-    <div class="forecast-chart-card">
-      <strong>Actual vs Predicted</strong>
-      <div class="forecast-scatter">
-        ${points.map((row) => {
-          const pred = Math.max(-0.2, Math.min(0.2, Number(row.predicted_return || 0)));
-          const actual = Math.max(-0.2, Math.min(0.2, Number(row.actual_forward_return || 0)));
-          const left = ((pred + 0.2) / 0.4) * 100;
-          const top = 100 - ((actual + 0.2) / 0.4) * 100;
-          return `<span style="left:${left}%;top:${top}%"></span>`;
-        }).join("")}
-      </div>
-    </div>
+  const points = (rows || [])
+    .map((row) => ({
+      pred: forecastSafeNumber(row?.predicted_return),
+      actual: forecastSafeNumber(row?.actual_forward_return),
+      date: forecastDateValue(row),
+    }))
+    .filter((row) => row.pred !== null && row.actual !== null)
+    .slice(-180);
+  if (!points.length) {
+    return renderForecastEmptyChart("Actual vs Predicted", "OOS 예측과 실제값이 없습니다.", {
+      axisNote: "X축은 예측 forward return, Y축은 실제 OOS forward return입니다.",
+      interpretation: "Train / Forecast 결과에 OOS 예측값과 실제 forward return이 있어야 산점도를 계산합니다.",
+    });
+  }
+  const scale = forecastScale([...points.map((item) => item.pred), ...points.map((item) => item.actual)], true);
+  const width = 420;
+  const height = 210;
+  const pad = { left: 62, right: 18, top: 22, bottom: 48 };
+  const plotWidth = width - pad.left - pad.right;
+  const plotHeight = height - pad.top - pad.bottom;
+  const xFor = (value) => pad.left + ((value - scale.min) / scale.span) * plotWidth;
+  const yFor = (value) => pad.top + (1 - ((value - scale.min) / scale.span)) * plotHeight;
+  const ticks = forecastAxisTicks(scale.min, scale.max, 4);
+  const mae = points.reduce((sum, item) => sum + Math.abs(item.actual - item.pred), 0) / points.length;
+  const body = `
+    <svg class="forecast-svg forecast-scatter-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Actual return versus predicted return scatter chart">
+      <rect class="forecast-plot-bg" x="${pad.left}" y="${pad.top}" width="${plotWidth}" height="${plotHeight}" />
+      ${ticks.map((tick) => {
+        const x = xFor(tick);
+        const y = yFor(tick);
+        return `<g><line class="forecast-gridline" x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${pad.top}" y2="${height - pad.bottom}" /><line class="forecast-gridline" x1="${pad.left}" x2="${width - pad.right}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" /><text class="forecast-axis-tick" x="${pad.left - 8}" y="${(y + 4).toFixed(1)}" text-anchor="end">${escapeHtml(forecastFormatValue(tick, "percent"))}</text><text class="forecast-axis-tick" x="${x.toFixed(1)}" y="${height - 28}" text-anchor="middle">${escapeHtml(forecastFormatValue(tick, "percent"))}</text></g>`;
+      }).join("")}
+      <line class="forecast-diagonal-line" x1="${xFor(scale.min).toFixed(1)}" x2="${xFor(scale.max).toFixed(1)}" y1="${yFor(scale.min).toFixed(1)}" y2="${yFor(scale.max).toFixed(1)}" />
+      ${points.map((item) => `<circle class="forecast-scatter-point" cx="${xFor(item.pred).toFixed(1)}" cy="${yFor(item.actual).toFixed(1)}" r="3"><title>${escapeHtml(item.date || "")} · pred ${escapeHtml(fmtPercent(item.pred))} · actual ${escapeHtml(fmtPercent(item.actual))}</title></circle>`).join("")}
+      <text class="forecast-axis-title" x="${pad.left}" y="14">Y: 실제 forward return</text>
+      <text class="forecast-axis-title" x="${pad.left + plotWidth / 2}" y="${height - 8}" text-anchor="middle">X: 예측 forward return</text>
+    </svg>
   `;
+  return renderForecastChartCard({
+    title: "Actual vs Predicted",
+    subtitle: `${points.length} OOS points`,
+    body,
+    legend: forecastLegend([{ label: "OOS point", className: "primary" }, { label: "perfect calibration", className: "comparison" }]),
+    meta: `MAE ${fmtPercent(mae)}`,
+    axisNote: "X축은 모델이 예측한 forward return, Y축은 이후 실제로 발생한 OOS forward return입니다.",
+    interpretation: `점이 대각선에 가까우면 보정이 잘 된 것입니다. 대각선 위는 실제 수익률이 예측보다 컸고, 아래는 과대예측입니다. 평균 절대 오차는 ${escapeHtml(fmtPercent(mae))}입니다.`,
+  });
 }
 
 function renderForecastResidualChart(rows) {
-  if (!rows.length) return `<div class="forecast-chart-card"><strong>Residuals</strong>${decisionEmpty("잔차 데이터가 없습니다.")}</div>`;
-  return renderForecastLineChart("Residuals", rows, "residual");
+  return renderForecastLineChart("Residuals", rows || [], "residual", [], { subtitle: "actual - predicted" });
 }
 
 function renderForecastIntervalChart(items) {
-  if (!items.length) return `<div class="forecast-chart-card"><strong>Forecast Interval</strong>${decisionEmpty("prediction interval이 없습니다.")}</div>`;
-  const item = items[0] || {};
-  return `
-    <div class="forecast-chart-card">
-      <strong>Forecast Interval</strong>
-      <div class="decision-practical-grid forecast-metric-grid">
-        ${decisionMetric("P10", fmtPercent(item.p10), "ok")}
-        ${decisionMetric("P50", fmtPercent(item.p50), "ok")}
-        ${decisionMetric("P90", fmtPercent(item.p90), "ok")}
-      </div>
-      <span>${escapeHtml(item.note || "Return interval; not a guaranteed price path.")}</span>
+  const item = (items || [])[0] || {};
+  const p10 = forecastSafeNumber(item.p10);
+  const p50 = forecastSafeNumber(item.p50);
+  const p90 = forecastSafeNumber(item.p90);
+  if (p10 === null || p50 === null || p90 === null) {
+    return renderForecastEmptyChart("Forecast Interval", "prediction interval이 없습니다.", {
+      axisNote: "X축은 다음 horizon의 예측 forward return 분포입니다.",
+      interpretation: "P10/P50/P90 값이 모두 있어야 불확실성 구간을 표시합니다.",
+    });
+  }
+  const scale = forecastScale([p10, p50, p90], true);
+  const width = 420;
+  const height = 154;
+  const pad = { left: 52, right: 26, top: 36, bottom: 42 };
+  const plotWidth = width - pad.left - pad.right;
+  const xFor = (value) => pad.left + ((value - scale.min) / scale.span) * plotWidth;
+  const ticks = forecastAxisTicks(scale.min, scale.max, 5);
+  const body = `
+    <div class="forecast-interval-metrics">
+      ${decisionMetric("P10", fmtPercent(p10), "ok")}
+      ${decisionMetric("P50", fmtPercent(p50), "ok")}
+      ${decisionMetric("P90", fmtPercent(p90), "ok")}
     </div>
+    <svg class="forecast-svg forecast-interval-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Forecast interval chart with P10 P50 P90 axis">
+      <line class="forecast-axis-line" x1="${pad.left}" x2="${width - pad.right}" y1="${pad.top + 42}" y2="${pad.top + 42}" />
+      ${ticks.map((tick) => {
+        const x = xFor(tick);
+        return `<g><line class="forecast-gridline" x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${pad.top + 20}" y2="${pad.top + 60}" /><text class="forecast-axis-tick" x="${x.toFixed(1)}" y="${height - 20}" text-anchor="middle">${escapeHtml(forecastFormatValue(tick, "percent"))}</text></g>`;
+      }).join("")}
+      <line class="forecast-interval-range" x1="${xFor(p10).toFixed(1)}" x2="${xFor(p90).toFixed(1)}" y1="${pad.top + 42}" y2="${pad.top + 42}" />
+      <circle class="forecast-interval-point low" cx="${xFor(p10).toFixed(1)}" cy="${pad.top + 42}" r="5"><title>P10 ${escapeHtml(fmtPercent(p10))}</title></circle>
+      <circle class="forecast-interval-point mid" cx="${xFor(p50).toFixed(1)}" cy="${pad.top + 42}" r="6"><title>P50 ${escapeHtml(fmtPercent(p50))}</title></circle>
+      <circle class="forecast-interval-point high" cx="${xFor(p90).toFixed(1)}" cy="${pad.top + 42}" r="5"><title>P90 ${escapeHtml(fmtPercent(p90))}</title></circle>
+      <text class="forecast-axis-title" x="${pad.left}" y="16">X: 다음 horizon forward return</text>
+    </svg>
   `;
+  const widthLabel = fmtPercent(p90 - p10);
+  const direction = p50 > 0.001 ? "상방" : p50 < -0.001 ? "하방" : "중립";
+  return renderForecastChartCard({
+    title: "Forecast Interval",
+    subtitle: `horizon ${escapeHtml(String(item.horizon_step || 1))}`,
+    body,
+    meta: item.note || "Return interval, not guaranteed price path.",
+    axisNote: "X축은 다음 horizon의 예측 forward return입니다. P10~P90은 불확실성 범위, P50은 중앙 예측입니다.",
+    interpretation: `중앙값은 ${escapeHtml(fmtPercent(p50))}로 ${direction} 기울기입니다. P10~P90 폭은 ${escapeHtml(widthLabel)}이며, 폭이 넓을수록 신뢰구간이 넓어 포지션을 보수적으로 봐야 합니다.`,
+  });
 }
 
 function renderForecastDistribution(values) {
-  const nums = (values || []).map(Number).filter(Number.isFinite);
-  if (!nums.length) return `<div class="forecast-chart-card"><strong>Prediction Distribution</strong>${decisionEmpty("예측 분포 데이터가 없습니다.")}</div>`;
-  const bins = Array.from({ length: 8 }, () => 0);
-  const min = Math.min(...nums);
-  const max = Math.max(...nums);
-  const span = max - min || 1;
+  const nums = (values || []).map(Number).filter(Number.isFinite).slice(-400);
+  if (!nums.length) {
+    return renderForecastEmptyChart("Prediction Distribution", "예측 분포 데이터가 없습니다.", {
+      axisNote: "X축은 예측 forward return 구간, Y축은 해당 구간에 들어간 OOS 예측 개수입니다.",
+      interpretation: "분포는 OOS 예측값이 한쪽으로 과도하게 몰렸는지 확인하는 용도입니다.",
+    });
+  }
+  const binCount = 8;
+  const rawMin = Math.min(...nums);
+  const rawMax = Math.max(...nums);
+  const span = rawMax - rawMin || 1;
+  const bins = Array.from({ length: binCount }, (_, idx) => ({
+    start: rawMin + (span / binCount) * idx,
+    end: rawMin + (span / binCount) * (idx + 1),
+    count: 0,
+  }));
   nums.forEach((value) => {
-    const idx = Math.min(bins.length - 1, Math.max(0, Math.floor(((value - min) / span) * bins.length)));
-    bins[idx] += 1;
+    const idx = Math.min(binCount - 1, Math.max(0, Math.floor(((value - rawMin) / span) * binCount)));
+    bins[idx].count += 1;
   });
-  const peak = Math.max(...bins, 1);
-  return `
-    <div class="forecast-chart-card">
-      <strong>Prediction Distribution</strong>
-      <div class="forecast-bars">${bins.map((count, idx) => `<div><span>Bin ${idx + 1}</span><b style="width:${Math.max(2, (count / peak) * 100)}%"></b></div>`).join("")}</div>
-      <span>${escapeHtml(fmtPercent(min))} ~ ${escapeHtml(fmtPercent(max))}</span>
-    </div>
+  const width = 420;
+  const height = 210;
+  const pad = { left: 54, right: 18, top: 22, bottom: 48 };
+  const plotWidth = width - pad.left - pad.right;
+  const plotHeight = height - pad.top - pad.bottom;
+  const peak = Math.max(...bins.map((bin) => bin.count), 1);
+  const barGap = 5;
+  const barWidth = (plotWidth - barGap * (binCount - 1)) / binCount;
+  const positiveShare = nums.filter((value) => value > 0).length / nums.length;
+  const body = `
+    <svg class="forecast-svg forecast-histogram-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Prediction return distribution histogram">
+      <rect class="forecast-plot-bg" x="${pad.left}" y="${pad.top}" width="${plotWidth}" height="${plotHeight}" />
+      ${forecastAxisTicks(0, peak, 4).map((tick) => {
+        const y = pad.top + (1 - tick / peak) * plotHeight;
+        return `<g><line class="forecast-gridline" x1="${pad.left}" x2="${width - pad.right}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" /><text class="forecast-axis-tick" x="${pad.left - 8}" y="${(y + 4).toFixed(1)}" text-anchor="end">${escapeHtml(_fmtNumber(Math.round(tick)))}</text></g>`;
+      }).join("")}
+      ${bins.map((bin, idx) => {
+        const x = pad.left + idx * (barWidth + barGap);
+        const h = (bin.count / peak) * plotHeight;
+        const y = pad.top + plotHeight - h;
+        return `<rect class="forecast-histogram-bar" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${Math.max(1, h).toFixed(1)}"><title>${escapeHtml(fmtPercent(bin.start))} ~ ${escapeHtml(fmtPercent(bin.end))}: ${escapeHtml(String(bin.count))}</title></rect>`;
+      }).join("")}
+      <line class="forecast-axis-line" x1="${pad.left}" x2="${width - pad.right}" y1="${height - pad.bottom}" y2="${height - pad.bottom}" />
+      <line class="forecast-axis-line" x1="${pad.left}" x2="${pad.left}" y1="${pad.top}" y2="${height - pad.bottom}" />
+      <text class="forecast-axis-title" x="${pad.left}" y="14">Y: 예측 개수</text>
+      <text class="forecast-axis-title" x="${pad.left + plotWidth / 2}" y="${height - 8}" text-anchor="middle">X: 예측 forward return 구간</text>
+      <text class="forecast-axis-tick" x="${pad.left}" y="${height - 26}" text-anchor="start">${escapeHtml(fmtPercent(rawMin))}</text>
+      <text class="forecast-axis-tick" x="${width - pad.right}" y="${height - 26}" text-anchor="end">${escapeHtml(fmtPercent(rawMax))}</text>
+    </svg>
   `;
+  return renderForecastChartCard({
+    title: "Prediction Distribution",
+    subtitle: `${nums.length} OOS predictions`,
+    body,
+    meta: `positive share ${fmtPercent(positiveShare)}`,
+    axisNote: "X축은 예측 forward return 구간, Y축은 그 구간에 속한 예측 개수입니다.",
+    interpretation: `양수 예측 비중은 ${escapeHtml(fmtPercent(positiveShare))}입니다. 한쪽 꼬리나 특정 구간에 과도하게 몰리면 threshold와 calibration을 다시 확인해야 합니다.`,
+  });
 }
 
 function renderForecastFeatureImportance(items, title = "Feature Importance", valueKey = "importance") {
-  if (!items.length) return `<div class="forecast-chart-card"><strong>${escapeHtml(title)}</strong>${decisionEmpty(`${title}가 없습니다.`)}</div>`;
-  const max = Math.max(...items.map((item) => Number(item[valueKey] || item.importance || 0)), 1e-9);
-  return `
-    <div class="forecast-chart-card">
-      <strong>${escapeHtml(title)}</strong>
-      <div class="forecast-bars">${items.slice(0, 10).map((item) => {
-        const value = Number(item[valueKey] || item.importance || 0);
-        return `<div><span>${escapeHtml(item.feature || "")}</span><b style="width:${Math.max(2, (value / max) * 100)}%"></b></div>`;
-      }).join("")}</div>
-    </div>
-  `;
+  const scored = (items || [])
+    .map((item) => ({ ...item, value: forecastSafeNumber(item?.[valueKey] ?? item?.importance) || 0 }))
+    .filter((item) => item.feature || item.value)
+    .sort((a, b) => Math.abs(b.value) - Math.abs(a.value))
+    .slice(0, 10);
+  if (!scored.length) {
+    return renderForecastEmptyChart(title, `${title}가 없습니다.`, {
+      axisNote: "X축은 최대 feature 대비 상대 중요도, Y축은 feature 이름입니다.",
+      interpretation: "학습 결과에 feature importance가 포함되면 상위 입력 의존도를 표시합니다.",
+    });
+  }
+  const max = Math.max(...scored.map((item) => Math.abs(item.value)), 1e-9);
+  const body = `<div class="forecast-bars forecast-importance-bars">${scored.map((item) => `<div><span title="${escapeHtml(item.feature || "")}">${escapeHtml(item.feature || "")}</span><b style="width:${Math.max(2, (Math.abs(item.value) / max) * 100)}%"></b><em>${escapeHtml(forecastFormatValue(item.value, "decimal"))}</em></div>`).join("")}</div>`;
+  return renderForecastChartCard({
+    title,
+    subtitle: "top feature weights",
+    body,
+    axisNote: "가로 길이는 이 목록에서 가장 큰 절대 중요도를 100%로 둔 상대값입니다.",
+    interpretation: `${escapeHtml(scored[0]?.feature || "상위 feature")} 의존도가 가장 큽니다. 특정 feature에 과하게 집중되면 regime 변화에 취약할 수 있습니다.`,
+  });
 }
 
 function renderForecastFoldChart(folds) {
-  if (!folds.length) return `<div class="forecast-chart-card"><strong>Walk-forward Folds</strong>${decisionEmpty("fold 성능이 없습니다.")}</div>`;
-  return `
-    <div class="forecast-chart-card">
-      <strong>Walk-forward Folds</strong>
-      <div class="forecast-bars">${folds.map((fold) => {
-        const value = Number(fold.metrics?.directional_accuracy || fold.metrics?.accuracy || 0);
-        return `<div><span>Fold ${escapeHtml(String(fold.fold_id))}</span><b style="width:${Math.max(2, value * 100)}%"></b></div>`;
-      }).join("")}</div>
-    </div>
-  `;
+  const scored = (folds || [])
+    .map((fold) => ({ fold, value: forecastSafeNumber(fold?.metrics?.directional_accuracy ?? fold?.metrics?.accuracy) }))
+    .filter((item) => item.value !== null);
+  if (!scored.length) {
+    return renderForecastEmptyChart("Walk-forward Folds", "fold 성능이 없습니다.", {
+      axisNote: "X축은 directional accuracy, Y축은 walk-forward fold입니다.",
+      interpretation: "fold별 성능이 있어야 시간 구간별 안정성을 볼 수 있습니다.",
+    });
+  }
+  const avg = scored.reduce((sum, item) => sum + item.value, 0) / scored.length;
+  const body = `<div class="forecast-bars forecast-fold-bars">${scored.map(({ fold, value }) => `<div><span>Fold ${escapeHtml(String(fold.fold_id ?? ""))}</span><b style="width:${Math.max(2, value * 100)}%"></b><em>${escapeHtml(fmtPercent(value))}</em></div>`).join("")}</div>`;
+  return renderForecastChartCard({
+    title: "Walk-forward Folds",
+    subtitle: `${scored.length} validation folds`,
+    body,
+    meta: `average ${fmtPercent(avg)}`,
+    axisNote: "X축은 각 fold의 directional accuracy, Y축은 시간 순서의 검증 fold입니다.",
+    interpretation: `평균 directional accuracy는 ${escapeHtml(fmtPercent(avg))}입니다. fold 간 편차가 크면 특정 기간에만 맞는 모델일 수 있습니다.`,
+  });
 }
 
 function renderForecastSignalTimeline(items) {
-  if (!items.length) return `<div class="forecast-chart-card"><strong>Signal History</strong>${decisionEmpty("신호 이력이 없습니다.")}</div>`;
-  return `
-    <div class="forecast-chart-card">
-      <strong>Signal History</strong>
-      <div class="forecast-signal-timeline">${items.slice(-80).map((item) => `<span class="${escapeHtml(String(item.signal || "neutral").replace("_", "-"))}" title="${escapeHtml(item.date || "")} ${escapeHtml(item.signal || "")}"></span>`).join("")}</div>
-    </div>
-  `;
+  const signals = (items || []).filter((item) => item?.signal).slice(-80);
+  if (!signals.length) {
+    return renderForecastEmptyChart("Signal History", "신호 이력이 없습니다.", {
+      axisNote: "X축은 최근 신호 발생 순서, 색은 bullish/bearish/neutral 방향입니다.",
+      interpretation: "신호 이력이 있어야 예측이 실제 포지션 제안으로 어떻게 변했는지 확인합니다.",
+    });
+  }
+  const bullish = signals.filter((item) => String(item.signal || "").includes("bullish")).length;
+  const bearish = signals.filter((item) => String(item.signal || "").includes("bearish")).length;
+  const body = `<div class="forecast-signal-timeline">${signals.map((item) => `<span class="${escapeHtml(String(item.signal || "neutral").replace("_", "-"))}" title="${escapeHtml(forecastDateValue(item))} ${escapeHtml(item.signal || "")}"></span>`).join("")}</div>`;
+  return renderForecastChartCard({
+    title: "Signal History",
+    subtitle: "recent advisory signals",
+    body,
+    meta: `bullish ${bullish} · bearish ${bearish}`,
+    axisNote: "X축은 최근 신호 발생 순서입니다. 초록은 bullish, 빨강은 bearish, 회색은 neutral 계열입니다.",
+    interpretation: "신호가 지나치게 촘촘하게 바뀌면 예측 신뢰도보다 거래 비용 문제가 먼저 커질 수 있습니다.",
+  });
 }
 
 function renderForecastModelComparison(items) {
-  if (!items.length) return `<div class="forecast-chart-card"><strong>Model Comparison</strong>${decisionEmpty("모델 비교 데이터가 없습니다.")}</div>`;
-  const scored = items.map((item) => ({ ...item, score: Number(item.directional_accuracy || item.accuracy || item.ic || 0) }));
+  const scored = (items || [])
+    .map((item) => ({ ...item, score: forecastSafeNumber(item?.directional_accuracy ?? item?.accuracy ?? item?.ic) || 0 }))
+    .filter((item) => item.model || item.score);
+  if (!scored.length) {
+    return renderForecastEmptyChart("Model Comparison", "모델 비교 데이터가 없습니다.", {
+      axisNote: "X축은 비교 점수의 상대 크기, Y축은 모델명입니다.",
+      interpretation: "학습 모델과 baseline이 함께 있어야 비교할 수 있습니다.",
+    });
+  }
   const max = Math.max(...scored.map((item) => Math.abs(item.score)), 1e-9);
-  return `
-    <div class="forecast-chart-card">
-      <strong>Model Comparison</strong>
-      <div class="forecast-bars">${scored.map((item) => `<div><span>${escapeHtml(item.model || "model")}</span><b style="width:${Math.max(2, (Math.abs(item.score) / max) * 100)}%"></b></div>`).join("")}</div>
-    </div>
-  `;
+  const body = `<div class="forecast-bars forecast-model-bars">${scored.map((item) => `<div><span title="${escapeHtml(item.model || "model")}">${escapeHtml(item.model || "model")}</span><b style="width:${Math.max(2, (Math.abs(item.score) / max) * 100)}%"></b><em>${escapeHtml(forecastFormatValue(item.score, Math.abs(item.score) <= 1 ? "percent" : "decimal"))}</em></div>`).join("")}</div>`;
+  return renderForecastChartCard({
+    title: "Model Comparison",
+    subtitle: "model vs baseline",
+    body,
+    axisNote: "가로 길이는 비교 지표의 절대 상대값입니다. 값 라벨은 원 지표 단위를 유지합니다.",
+    interpretation: "학습 모델이 단순 baseline보다 꾸준히 높아야 추가 복잡도를 정당화할 수 있습니다.",
+  });
 }
 
 function renderForecastDataQuality(summary) {
   const missing = summary.missing_by_feature || {};
   const items = Object.entries(missing).slice(0, 10);
-  if (!items.length) return `<div class="forecast-chart-card"><strong>Data Quality</strong>${decisionEmpty("missing value summary가 없습니다.")}</div>`;
+  if (!items.length) {
+    return renderForecastEmptyChart("Data Quality", "missing value summary가 없습니다.", {
+      axisNote: "X축은 feature별 결측률, Y축은 feature 이름입니다.",
+      interpretation: "결측 summary가 없으면 feature payload나 데이터 품질 계산 상태를 확인하세요.",
+    });
+  }
   const max = Math.max(...items.map(([, value]) => Number(value || 0)), 1e-9);
-  return `
-    <div class="forecast-chart-card">
-      <strong>Data Quality</strong>
-      <div class="forecast-bars">${items.map(([name, value]) => `<div><span>${escapeHtml(name)}</span><b style="width:${Math.max(2, (Number(value || 0) / max) * 100)}%"></b></div>`).join("")}</div>
-      <span>Missing ratio ${escapeHtml(fmtPercent(summary.missing_ratio))}</span>
-    </div>
-  `;
+  const body = `<div class="forecast-bars forecast-quality-bars">${items.map(([name, value]) => `<div><span title="${escapeHtml(name)}">${escapeHtml(name)}</span><b style="width:${Math.max(2, (Number(value || 0) / max) * 100)}%"></b><em>${escapeHtml(fmtPercent(value))}</em></div>`).join("")}</div>`;
+  return renderForecastChartCard({
+    title: "Data Quality",
+    subtitle: "feature missingness",
+    body,
+    meta: `overall missing ${fmtPercent(summary.missing_ratio)}`,
+    axisNote: "X축은 결측률, Y축은 feature 이름입니다. 긴 막대일수록 해당 feature 결측이 많습니다.",
+    interpretation: "상위 결측 feature가 모델 중요 feature와 겹치면 예측 품질을 과신하지 않아야 합니다.",
+  });
 }
 
 function renderForecastMonthlyHeatmap(items) {
-  if (!items.length) return `<div class="forecast-chart-card"><strong>Monthly Return Heatmap</strong>${decisionEmpty("월별 수익률 데이터가 없습니다.")}</div>`;
+  if (!items.length) {
+    return renderForecastEmptyChart("Monthly Return Heatmap", "월별 수익률 데이터가 없습니다.", {
+      axisNote: "각 셀은 월, 색은 월간 전략 수익률입니다.",
+      interpretation: "equity curve가 충분히 길어야 월별 수익률을 계산합니다.",
+    });
+  }
   const maxAbs = Math.max(...items.map((item) => Math.abs(Number(item.return || 0))), 1e-9);
-  return `
-    <div class="forecast-chart-card">
-      <strong>Monthly Return Heatmap</strong>
-      <div class="forecast-heatmap">${items.map((item) => {
-        const value = Number(item.return || 0);
-        const alpha = Math.max(0.12, Math.min(0.9, Math.abs(value) / maxAbs));
-        const color = value >= 0 ? `rgba(22, 163, 74, ${alpha})` : `rgba(220, 38, 38, ${alpha})`;
-        return `<span style="background:${color}" title="${escapeHtml(item.month || "")} ${escapeHtml(fmtPercent(value))}">${escapeHtml(item.month || "")}<b>${escapeHtml(fmtPercent(value))}</b></span>`;
-      }).join("")}</div>
-    </div>
+  const body = `
+    <div class="forecast-heatmap">${items.map((item) => {
+      const value = Number(item.return || 0);
+      const alpha = Math.max(0.12, Math.min(0.9, Math.abs(value) / maxAbs));
+      const color = value >= 0 ? `rgba(22, 163, 74, ${alpha})` : `rgba(220, 38, 38, ${alpha})`;
+      return `<span style="background:${color}" title="${escapeHtml(item.month || "")} ${escapeHtml(fmtPercent(value))}">${escapeHtml(item.month || "")}<b>${escapeHtml(fmtPercent(value))}</b></span>`;
+    }).join("")}</div>
   `;
+  return renderForecastChartCard({
+    title: "Monthly Return Heatmap",
+    subtitle: `${items.length} months`,
+    body,
+    axisNote: "각 셀은 월별 전략 수익률입니다. 초록은 플러스, 빨강은 마이너스이며 진할수록 절대값이 큽니다.",
+    interpretation: "수익이 일부 월에만 집중되면 전략이 특정 시장 국면에 의존할 수 있습니다.",
+  });
 }
 
 function renderForecastConfusionMatrix(matrix) {
   const total = Object.values(matrix || {}).map(Number).filter(Number.isFinite).reduce((sum, value) => sum + value, 0);
-  if (!total) return `<div class="forecast-chart-card"><strong>Confusion Matrix</strong>${decisionEmpty("방향성 혼동행렬 데이터가 없습니다.")}</div>`;
-  return `
-    <div class="forecast-chart-card">
-      <strong>Confusion Matrix</strong>
-      <div class="forecast-confusion">
-        <span>TP<b>${escapeHtml(String(matrix.true_positive || 0))}</b></span>
-        <span>FP<b>${escapeHtml(String(matrix.false_positive || 0))}</b></span>
-        <span>FN<b>${escapeHtml(String(matrix.false_negative || 0))}</b></span>
-        <span>TN<b>${escapeHtml(String(matrix.true_negative || 0))}</b></span>
-      </div>
+  if (!total) {
+    return renderForecastEmptyChart("Confusion Matrix", "방향성 혼동행렬 데이터가 없습니다.", {
+      axisNote: "행/열은 예측 방향과 실제 방향의 조합입니다.",
+      interpretation: "예측/실제 방향값이 있어야 방향성 hit/miss를 계산합니다.",
+    });
+  }
+  const tp = Number(matrix.true_positive || 0);
+  const tn = Number(matrix.true_negative || 0);
+  const fp = Number(matrix.false_positive || 0);
+  const fn = Number(matrix.false_negative || 0);
+  const accuracy = (tp + tn) / total;
+  const body = `
+    <div class="forecast-confusion">
+      <span>TP<b>${escapeHtml(String(tp))}</b></span>
+      <span>FP<b>${escapeHtml(String(fp))}</b></span>
+      <span>FN<b>${escapeHtml(String(fn))}</b></span>
+      <span>TN<b>${escapeHtml(String(tn))}</b></span>
     </div>
   `;
+  return renderForecastChartCard({
+    title: "Confusion Matrix",
+    subtitle: "directional hit map",
+    body,
+    meta: `directional accuracy ${fmtPercent(accuracy)}`,
+    axisNote: "TP/TN은 방향 적중, FP/FN은 방향 실패입니다. 수익률 크기가 아니라 방향성만 봅니다.",
+    interpretation: `방향성 적중률은 ${escapeHtml(fmtPercent(accuracy))}입니다. FP가 크면 상승 신호의 과대예측, FN이 크면 상승 누락을 의심합니다.`,
+  });
 }
 
 function renderForecastRegimePerformance(items) {
-  if (!items.length) return `<div class="forecast-chart-card"><strong>Regime Performance</strong>${decisionEmpty("레짐별 성능 데이터가 없습니다.")}</div>`;
-  return `
-    <div class="forecast-chart-card">
-      <strong>Regime Performance</strong>
-      <div class="forecast-bars">${items.map((item) => {
-        const value = Number(item.directional_score || 0);
-        return `<div><span>${escapeHtml(item.regime || "")} (${escapeHtml(String(item.observations || 0))})</span><b style="width:${Math.max(2, value * 100)}%"></b></div>`;
-      }).join("")}</div>
-      <span>source: realized_forward_return_proxy</span>
-    </div>
-  `;
+  const rows = (items || []).filter((item) => item?.regime);
+  if (!rows.length) {
+    return renderForecastEmptyChart("Regime Performance", "레짐별 성능 데이터가 없습니다.", {
+      axisNote: "X축은 레짐별 directional score, Y축은 realized forward return 기반 레짐입니다.",
+      interpretation: "레짐별 샘플이 있어야 상승/하락/횡보 구간의 모델 안정성을 봅니다.",
+    });
+  }
+  const body = `<div class="forecast-bars forecast-regime-bars">${rows.map((item) => {
+    const value = Number(item.directional_score || 0);
+    return `<div><span>${escapeHtml(item.regime || "")} (${escapeHtml(String(item.observations || 0))})</span><b style="width:${Math.max(2, value * 100)}%"></b><em>${escapeHtml(fmtPercent(value))}</em></div>`;
+  }).join("")}</div>`;
+  return renderForecastChartCard({
+    title: "Regime Performance",
+    subtitle: "realized-return buckets",
+    body,
+    meta: "source: realized_forward_return_proxy",
+    axisNote: "X축은 레짐별 directional score, Y축은 realized forward return으로 나눈 시장 레짐입니다.",
+    interpretation: "상승/하락/횡보 중 특정 레짐에서만 점수가 낮으면 해당 국면에서는 신호를 낮은 신뢰도로 봐야 합니다.",
+  });
 }
 
 function quantamentalUi() {
@@ -16479,6 +19402,11 @@ function loadActiveDashboardResources(force = false) {
   if (state.activeDashboardTab === "quant") {
     loadQuantRunHistory(force);
     loadQuantStrategies(force);
+    return;
+  }
+  if (state.activeDashboardTab === "auto-trading") {
+    loadQuantStrategies(force);
+    loadStrategyResearchLab(force);
     return;
   }
   if (state.activeDashboardTab === "quantamental") {
@@ -19605,6 +22533,79 @@ function bindInputs() {
   if (els.quantStrategyDryRun) els.quantStrategyDryRun.addEventListener("click", () => runQuantStrategyDryRun());
   if (els.quantStrategySave) els.quantStrategySave.addEventListener("click", saveQuantStrategy);
   if (els.quantStrategyDelete) els.quantStrategyDelete.addEventListener("click", () => deleteQuantStrategy());
+  if (els.autoTradingTickerOpen) els.autoTradingTickerOpen.addEventListener("click", () => openSymbolPicker("autoTrading"));
+  if (els.autoTradingTicker) {
+    els.autoTradingTicker.addEventListener("input", () => {
+      renderSymbolTargetChips("autoTrading");
+      syncAutoTradingPrimaryTickerOptions();
+    });
+    els.autoTradingTicker.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        runAutoTradingBacktest();
+      }
+    });
+  }
+  [els.autoTradingPrimaryTicker, els.autoTradingTemplate, els.autoTradingTimeframe, els.autoTradingLookbackDays, els.autoTradingSignalLookback, els.autoTradingTopN, els.autoTradingRebalanceEvery, els.autoTradingCostBps, els.autoTradingSlippageBps].forEach((control) => {
+    if (!control) return;
+    control.addEventListener("change", syncAutoTradingToSharedControls);
+  });
+  if (els.autoTradingStrategySelect) {
+    els.autoTradingStrategySelect.addEventListener("change", () => {
+      const strategyId = els.autoTradingStrategySelect.value || "";
+      if (!strategyId) {
+        state.activeStrategyId = "";
+        return;
+      }
+      loadQuantStrategyDetail(strategyId);
+    });
+  }
+  if (els.autoTradingDraft) els.autoTradingDraft.addEventListener("click", runAutoTradingDraft);
+  if (els.autoTradingGenerate) els.autoTradingGenerate.addEventListener("click", runAutoTradingGenerate);
+  if (els.autoTradingDryRun) els.autoTradingDryRun.addEventListener("click", runAutoTradingDryRun);
+  if (els.autoTradingSave) els.autoTradingSave.addEventListener("click", saveAutoTradingStrategy);
+  if (els.autoTradingBacktest) els.autoTradingBacktest.addEventListener("click", runAutoTradingBacktest);
+  if (els.autoTradingOptimize) els.autoTradingOptimize.addEventListener("click", runAutoTradingOptimize);
+  if (els.quantModelProfileRefresh) els.quantModelProfileRefresh.addEventListener("click", () => loadQuantModelProfiles(true));
+  if (els.quantModelProfileSelect) {
+    els.quantModelProfileSelect.addEventListener("change", () => {
+      const profile = state.quantModelProfiles.find((item) => item.profile_id === els.quantModelProfileSelect.value);
+      if (profile) {
+        applyQuantModelProfileToControls(profile);
+        showQuantModelProfileMessage(`${profile.profile_id || "profile"}을 작업 영역에 불러왔습니다.`, "success");
+      }
+    });
+  }
+  if (els.quantModelProfileDryRun) els.quantModelProfileDryRun.addEventListener("click", dryRunQuantModelProfile);
+  if (els.quantModelProfileSave) els.quantModelProfileSave.addEventListener("click", saveQuantModelProfile);
+  if (els.quantModelProfileRun) els.quantModelProfileRun.addEventListener("click", runQuantModelLab);
+  if (els.quantModelProfileQueue) els.quantModelProfileQueue.addEventListener("click", queueQuantModelLabJob);
+  if (els.quantModelProfileDelete) els.quantModelProfileDelete.addEventListener("click", deleteQuantModelProfile);
+  if (els.strategyResearchRefresh) els.strategyResearchRefresh.addEventListener("click", () => loadStrategyResearchLab(true));
+  if (els.strategyResearchStrategySelect) {
+    els.strategyResearchStrategySelect.addEventListener("change", async () => {
+      state.activeStrategyResearchId = strategyResearchActiveId();
+      state.strategyResearchLoaded = false;
+      await loadStrategyResearchLab(true);
+    });
+  }
+  if (els.strategyResearchOptimize) els.strategyResearchOptimize.addEventListener("click", runStrategyResearchOptimize);
+  if (els.strategyResearchDiagnose) els.strategyResearchDiagnose.addEventListener("click", runStrategyResearchDiagnostics);
+  if (els.strategyResearchHypotheses) els.strategyResearchHypotheses.addEventListener("click", generateStrategyResearchHypotheses);
+  if (els.strategyResearchValidate) els.strategyResearchValidate.addEventListener("click", runStrategyResearchValidation);
+  if (els.strategyResearchHypothesisSurface) {
+    els.strategyResearchHypothesisSurface.addEventListener("click", (event) => {
+      const rawTarget = event.target;
+      const target = rawTarget?.closest ? rawTarget.closest("[data-action]") : rawTarget;
+      if (!target?.dataset?.hypothesisId) return;
+      if (target.dataset.action === "strategy-research-accept") {
+        decideStrategyResearchHypothesis(target.dataset.hypothesisId, "accepted");
+      }
+      if (target.dataset.action === "strategy-research-reject") {
+        decideStrategyResearchHypothesis(target.dataset.hypothesisId, "rejected");
+      }
+    });
+  }
   if (els.quantRunHistoryRefresh) els.quantRunHistoryRefresh.addEventListener("click", () => loadQuantRunHistory(true));
   if (els.quantExportStorageReport) els.quantExportStorageReport.addEventListener("click", loadQuantExportStorageReport);
   if (els.quantCrossRunCleanupPreview) els.quantCrossRunCleanupPreview.addEventListener("click", () => previewCrossRunExportCleanup(1, 0));
@@ -19639,6 +22640,18 @@ function bindInputs() {
   if (els.forecastHydrateDataset) els.forecastHydrateDataset.addEventListener("click", runForecastDatasetHydrate);
   if (els.forecastBuildFeatures) els.forecastBuildFeatures.addEventListener("click", runForecastFeatureAndLeakagePreview);
   if (els.forecastRunTrain) els.forecastRunTrain.addEventListener("click", runForecastExperiment);
+  if (els.forecastUniversePreset) els.forecastUniversePreset.addEventListener("change", syncForecastUniverseMode);
+  if (els.forecastUniverseTickers) els.forecastUniverseTickers.addEventListener("input", syncForecastUniverseMode);
+  if (els.forecastUniverseMaxAssets) els.forecastUniverseMaxAssets.addEventListener("input", syncForecastUniverseMode);
+  if (els.forecastUniverseRankMetric) els.forecastUniverseRankMetric.addEventListener("change", syncForecastUniverseMode);
+  if (els.forecastUniverseOpen) {
+    els.forecastUniverseOpen.addEventListener("click", () => {
+      if (els.forecastUniversePreset) els.forecastUniversePreset.value = "custom";
+      syncForecastUniverseMode();
+      openSymbolPicker("forecastUniverse");
+    });
+  }
+  if (els.forecastRunUniverse) els.forecastRunUniverse.addEventListener("click", runForecastUniverse);
   if (els.forecastQueueJob) els.forecastQueueJob.addEventListener("click", runForecastQueuedJob);
   if (els.forecastGenerateAi) els.forecastGenerateAi.addEventListener("click", renderForecastAiFromLastPayload);
   if (els.forecastGenerateProviderAi) els.forecastGenerateProviderAi.addEventListener("click", renderForecastProviderAiFromLastPayload);
@@ -19669,6 +22682,15 @@ function bindInputs() {
       const rawTarget = event.target;
       const target = rawTarget?.closest ? rawTarget.closest("[data-action]") : rawTarget;
       if (target?.dataset?.action === "forecast-experiment-detail") {
+        await openForecastExperimentDetail(target.dataset.experimentId);
+      }
+    });
+  }
+  if (els.forecastUniverseSurface) {
+    els.forecastUniverseSurface.addEventListener("click", async (event) => {
+      const rawTarget = event.target;
+      const target = rawTarget?.closest ? rawTarget.closest("[data-action]") : rawTarget;
+      if (target?.dataset?.action === "forecast-universe-detail") {
         await openForecastExperimentDetail(target.dataset.experimentId);
       }
     });
@@ -20001,6 +23023,7 @@ function bindInputs() {
   }
   if (els.qualityClose) els.qualityClose.addEventListener("click", closeQualityPanel);
   if (els.qualityRefresh) els.qualityRefresh.addEventListener("click", loadQualityDashboard);
+  if (els.dataAutoRefreshRun) els.dataAutoRefreshRun.addEventListener("click", refreshAllDataNow);
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && els.qualityPanel && !els.qualityPanel.classList.contains("hidden")) {
       closeQualityPanel();
@@ -20019,6 +23042,7 @@ function bindInputs() {
   bindThemeToggle();
   bindLanguageToggle();
   normalizeStaticLabels();
+  moveOperationalQualityCardsToQualityPanel();
   bindTabs();
   bindDownloads();
   bindInputs();
@@ -20032,6 +23056,7 @@ function bindInputs() {
   applyGlobalRangeToControls();
   renderGlobalQualitySummary();
   syncAiPortfolioUniverseMode();
+  syncForecastUniverseMode();
   renderBacktestUniverseChips();
   renderSymbolTargetChips("portfolio");
   renderSymbolTargetChips("aiPortfolioCustomUniverse");

@@ -442,7 +442,6 @@ def run_ui_contract_gate() -> dict[str, Any]:
         "result view": 'id="resultView"',
         "home dashboard": 'id="emptyState"',
         "run history": 'id="historyList"',
-        "market snapshot": 'id="homeMarketList"',
         "home news": 'id="homeNewsList"',
         "tradingview chart": 'id="tvOverviewWidget"',
         "intraday heatmap": 'id="homeHeatmap"',

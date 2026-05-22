@@ -118,7 +118,7 @@ _DECISION_CARD_CONTRACTS: list[dict[str, Any]] = [
         "tab": "quant",
         "title": "Quant Lab",
         "decision_question": "Did the strategy survive reproducible backtest and portfolio checks?",
-        "primary_output": "Backtest artifacts, portfolio optimizer output, replay, exports, and strategy governance.",
+        "primary_output": "Backtest artifacts, portfolio optimizer output, replay, exports, and model lab evidence.",
         "next_action": "Run or inspect backtest artifacts before using portfolio allocation output.",
         "source_endpoints": [
             "/api/v1/quant/backtest",
@@ -131,6 +131,26 @@ _DECISION_CARD_CONTRACTS: list[dict[str, Any]] = [
             {"label": "Evidence", "value": "artifacts", "status": "ok", "detail": "Manifest, metrics, trades, exports"},
             {"label": "Guard", "value": "no-lookahead", "status": "warn", "detail": "Feature/signal diagnostics stay visible"},
             {"label": "Action", "value": "run/replay", "status": "ok", "detail": "Use replay before comparing runs"},
+        ],
+    },
+    {
+        "tab": "auto-trading",
+        "title": "Auto Trading",
+        "decision_question": "Which strategy version is ready to move from research evidence toward the paper/live seam?",
+        "primary_output": "Strategy governance, local LLM drafts, optimization, diagnostics, hypotheses, validation, and version decisions.",
+        "next_action": "Edit or generate a strategy, run dry-run validation, then use Strategy Research evidence before any promotion.",
+        "source_endpoints": [
+            "/api/v1/quant/strategies",
+            "/api/v1/quant/strategy-research/backend-status",
+            "/api/v1/quant/strategy-research/strategies",
+            "/api/v1/quant/strategy-research/protected-runtime/status",
+        ],
+        "guardrails": ["validation_gated", "core_logic_protected", "paper_live_seam_fail_closed", "no_financial_advice"],
+        "chips": [
+            {"label": "Decision", "value": "version readiness", "status": "ok", "detail": "Strategy definition and validation evidence"},
+            {"label": "Evidence", "value": "research artifacts", "status": "ok", "detail": "Optimization, diagnostics, validation"},
+            {"label": "Guard", "value": "protected seam", "status": "warn", "detail": "No live execution claim without protected runtime"},
+            {"label": "Action", "value": "draft/validate", "status": "ok", "detail": "Keep AI hypotheses pending until validated"},
         ],
     },
     {
@@ -784,7 +804,6 @@ def _pair_decision_memo(
     topic: str,
 ) -> dict[str, Any]:
     metrics = engineering.get("metrics") if isinstance(engineering.get("metrics"), dict) else {}
-    status = str(engineering.get("status") or "insufficient_history")
     sample_count = int(engineering.get("sample_count") or 0)
     confidence = str(engineering.get("diagnostic_confidence") or "low")
     corr = _finite_float(metrics.get("correlation"))
