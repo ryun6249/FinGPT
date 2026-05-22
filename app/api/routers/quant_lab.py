@@ -99,6 +99,7 @@ class QuantStrategyGenerateRequest(BaseModel):
     context: dict[str, Any] = Field(default_factory=dict)
     use_local_llm: bool = True
     timeout_s: float = Field(default=45.0, ge=4.0, le=45.0)
+    parameter_tuning: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("prompt", mode="before")
     @classmethod
@@ -512,6 +513,7 @@ async def post_strategy_generate(request: QuantStrategyGenerateRequest) -> dict[
         context=request.context,
         use_local_llm=request.use_local_llm,
         timeout_s=request.timeout_s,
+        parameter_tuning=request.parameter_tuning,
     )
 
 

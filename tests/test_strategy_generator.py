@@ -31,6 +31,39 @@ def test_deterministic_strategy_generation_returns_korean_review_text() -> None:
     _assert_korean_narrative(result["disadvantages"])
 
 
+def test_strategy_generation_parameter_tuning_applies_auditable_values() -> None:
+    result = generator.generate_strategy_from_prompt(
+        "Keep drawdown controlled and reduce turnover for a momentum strategy.",
+        context={"top_n": 4, "asset_count": 3, "transaction_cost_bps": 5, "slippage_bps": 2},
+        use_local_llm=False,
+        parameter_tuning={
+            "enabled": True,
+            "objective": "drawdown_control",
+            "search_space": {
+                "lookback": [21, 63, 126],
+                "vol_lookback": [14, 21, 42],
+                "top_n": [1, 2, 4],
+                "rebalance_every": [5, 21, 42],
+                "portfolio_method": ["equal_weight", "risk_parity"],
+            },
+        },
+    )
+
+    tuning = result["parameter_tuning"]
+    strategy = result["strategy"]
+    assert result["model_status"] == "deterministic_fallback"
+    assert result["llm_diagnostics"]["fallback_used"] is True
+    assert result["progress"]["percent"] == 100
+    assert tuning["enabled"] is True
+    assert tuning["status"] == "applied"
+    assert tuning["applied_values"]["lookback"] == 126
+    assert tuning["applied_values"]["top_n"] == 3
+    assert tuning["applied_values"]["portfolio_method"] == "risk_parity"
+    assert strategy["features"]["momentum_63d"]["lookback"] == 126
+    assert strategy["signal"]["top_n"] == 3
+    assert strategy["diagnostics"]["parameter_tuning"]["source"] == "deterministic_rules"
+
+
 def test_local_llm_chinese_review_text_is_repaired_to_korean(monkeypatch) -> None:
     def fake_call_local_llm(**_: object) -> str:
         return json.dumps(

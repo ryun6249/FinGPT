@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FinGPT Local Research Assistant</title>
-  <link rel="stylesheet" href="styles.css?v=20260522-risk-visual-v6" />
+  <link rel="stylesheet" href="styles.css?v=20260522-llm-strategy-v1" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='48' font-size='48'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E" />
 </head>
 <body>
@@ -955,6 +955,21 @@
                   <span>LLM strategy prompt</span>
                   <textarea id="autoTradingPrompt" class="strategy-prompt-input" spellcheck="false" aria-label="Auto Trading LLM strategy prompt">Create a risk-adjusted momentum strategy for the selected assets. Use next-bar execution, include transaction costs, and explain failure conditions before any promotion.</textarea>
                 </label>
+                <div class="auto-trading-param-panel" data-testid="auto-trading-llm-parameter-tuning">
+                  <div class="auto-trading-param-head">
+                    <label class="inline-check"><input id="autoTradingParamTuningEnabled" type="checkbox" checked aria-label="Enable LLM parameter tuning" /> LLM parameter tuning</label>
+                    <select id="autoTradingParamObjective" aria-label="LLM parameter tuning objective">
+                      <option value="risk_adjusted_return" selected>Risk-adjusted return</option>
+                      <option value="drawdown_control">Drawdown control</option>
+                      <option value="turnover_control">Turnover control</option>
+                      <option value="balanced">Balanced</option>
+                    </select>
+                  </div>
+                  <textarea id="autoTradingParamSearchSpace" class="auto-trading-param-search" spellcheck="false" aria-label="LLM parameter search space">{"lookback":[21,42,63,126],"vol_lookback":[14,21,42],"top_n":[1,2,3,5],"rebalance_every":[5,10,21,42],"transaction_cost_bps":[2,5,10],"slippage_bps":[1,2,5],"portfolio_method":["equal_weight","inverse_volatility","risk_parity","minimum_volatility","max_sharpe"]}</textarea>
+                  <div id="autoTradingParamSurface" class="decision-surface compact-surface auto-trading-param-surface" data-testid="auto-trading-parameter-surface">
+                    <div class="home-news-empty">LLM parameter tuning will show selected ranges, adjusted values, and model status here.</div>
+                  </div>
+                </div>
                 <label class="auto-trading-code-panel">
                   <span>Strategy script</span>
                   <textarea id="autoTradingCode" class="strategy-json-editor auto-trading-code-editor" spellcheck="false" aria-label="Auto Trading strategy JSON code"></textarea>
@@ -1976,6 +1991,6 @@
   <script src="modules/quant-ui.js?v=20260521-market-signals-v1"></script>
   <script src="modules/ai-portfolio-ui.js?v=20260520-ai-portfolio-ops-v1"></script>
   <script src="modules/quantamental-ui.js?v=20260521-quantamental-decision-v23"></script>
-  <script src="app.js?v=20260522-risk-visual-v6"></script>
+  <script src="app.js?v=20260522-llm-strategy-v1"></script>
 </body>
 </html>

@@ -13591,7 +13591,8 @@ html[data-theme="light"] .quality-context-item {
 }
 
 .auto-trading-prompt-panel,
-.auto-trading-code-panel {
+.auto-trading-code-panel,
+.auto-trading-param-panel {
   display: grid;
   gap: 8px;
 }
@@ -13602,6 +13603,89 @@ html[data-theme="light"] .quality-context-item {
   font-size: 0.82rem;
   font-weight: 700;
   letter-spacing: 0;
+}
+
+.auto-trading-param-panel {
+  border: 1px solid color-mix(in srgb, var(--accent), transparent 72%);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface), transparent 22%);
+  padding: 10px;
+}
+
+.auto-trading-param-head {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(160px, 0.9fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.auto-trading-param-head select {
+  min-width: 0;
+}
+
+.auto-trading-param-search {
+  min-height: 88px;
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.auto-trading-param-surface {
+  margin-bottom: 0;
+}
+
+.strategy-generation-progress {
+  display: grid;
+  gap: 9px;
+}
+
+.strategy-generation-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.strategy-generation-progress-head strong {
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.strategy-generation-progress-head span {
+  color: var(--accent);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.strategy-progress-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border), transparent 35%);
+}
+
+.strategy-progress-bar {
+  height: 100%;
+  min-width: 4px;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 360ms ease;
+}
+
+.strategy-progress-bar.ok {
+  background: var(--bull);
+}
+
+.strategy-progress-bar.warn {
+  background: var(--warn);
+}
+
+.strategy-tuning-applied-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
+  gap: 7px;
 }
 
 .auto-trading-code-editor {
@@ -13712,6 +13796,10 @@ html[data-theme="light"] .quality-context-item {
 
 @media (max-width: 720px) {
   .auto-trading-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .auto-trading-param-head {
     grid-template-columns: 1fr;
   }
 

@@ -649,6 +649,10 @@ const els = {
   autoTradingCostBps: document.getElementById("autoTradingCostBps"),
   autoTradingSlippageBps: document.getElementById("autoTradingSlippageBps"),
   autoTradingPrompt: document.getElementById("autoTradingPrompt"),
+  autoTradingParamTuningEnabled: document.getElementById("autoTradingParamTuningEnabled"),
+  autoTradingParamObjective: document.getElementById("autoTradingParamObjective"),
+  autoTradingParamSearchSpace: document.getElementById("autoTradingParamSearchSpace"),
+  autoTradingParamSurface: document.getElementById("autoTradingParamSurface"),
   autoTradingCode: document.getElementById("autoTradingCode"),
   autoTradingDraft: document.getElementById("autoTradingDraft"),
   autoTradingGenerate: document.getElementById("autoTradingGenerate"),
@@ -984,6 +988,7 @@ const state = {
   lastSignalResult: null,
   lastUniverseResolution: null,
   lastStrategyGeneration: null,
+  strategyGenerationProgressTimer: null,
   quantStrategiesLoaded: false,
   quantStrategyItems: [],
   activeStrategyId: "",
@@ -14000,7 +14005,10 @@ function setStrategyEditor(strategy) {
 
 function strategyGenerationContextFromControls() {
   const request = quantBacktestRequestFromControls();
+  const tickers = Array.isArray(request.tickers) && request.tickers.length ? request.tickers : autoTradingTickers();
   return {
+    tickers,
+    asset_count: tickers.length,
     template: request.template,
     top_n: request.top_n,
     lookback: request.lookback,
@@ -14016,15 +14024,163 @@ function strategyGenerationContextFromControls() {
   };
 }
 
+function strategyGenerationParameterTuningFromControls() {
+  let searchSpace = {};
+  let notes = "";
+  const raw = String(els.autoTradingParamSearchSpace?.value || "").trim();
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      searchSpace = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch (err) {
+      notes = `invalid_search_space_json:${err.message || err}`;
+    }
+  }
+  return {
+    enabled: !!els.autoTradingParamTuningEnabled?.checked,
+    objective: els.autoTradingParamObjective?.value || "risk_adjusted_return",
+    risk_profile: "balanced",
+    search_space: searchSpace,
+    notes,
+  };
+}
+
+function clearStrategyGenerationProgressTimer() {
+  if (state.strategyGenerationProgressTimer) {
+    clearInterval(state.strategyGenerationProgressTimer);
+    state.strategyGenerationProgressTimer = null;
+  }
+}
+
+function llmStatusLabel(status) {
+  const value = String(status || "").toLowerCase();
+  if (value === "success") return "LLM 응답 확인";
+  if (value === "failed_fallback_used") return "LLM 실패 후 폴백";
+  if (value === "not_requested") return "LLM 미사용";
+  if (value === "running") return "LLM 호출 중";
+  return value || "상태 확인 중";
+}
+
+function strategyTuningObjectiveLabel(objective) {
+  const value = String(objective || "").toLowerCase();
+  if (value === "drawdown_control") return "Drawdown";
+  if (value === "turnover_control") return "Turnover";
+  if (value === "balanced") return "Balanced";
+  return "Risk adjusted";
+}
+
+function renderStrategyGenerationProgress(progress = {}, llm = {}, tuning = {}) {
+  const percent = Math.max(0, Math.min(100, Number(progress.percent ?? 0)));
+  const status = String(llm.status || progress.stage || "running");
+  const statusClass = status === "success" || percent >= 100 ? "ok" : (status.includes("failed") ? "warn" : "neutral");
+  const applied = tuning?.applied_values || {};
+  const tuningEnabled = !!tuning?.enabled;
+  return `
+    <div class="strategy-generation-progress" data-testid="strategy-generation-progress" role="status" aria-live="polite">
+      <div class="strategy-generation-progress-head">
+        <strong>${escapeHtml(llmStatusLabel(status))}</strong>
+        <span>${escapeHtml(fmtDecimal(percent, 0))}%</span>
+      </div>
+      <div class="strategy-progress-track" aria-label="LLM strategy generation progress">
+        <div class="strategy-progress-bar ${escapeHtml(decisionStatusClass(statusClass))}" style="width:${escapeHtml(String(percent))}%"></div>
+      </div>
+      <div class="decision-chip-row compact">
+        <span>mode ${escapeHtml(progress.mode || "synchronous_estimate")}</span>
+        <span>stage ${escapeHtml(progress.stage || "queued")}</span>
+        <span>model ${escapeHtml(llm.model || "pending")}</span>
+        <span>${llm.fallback_used ? "fallback used" : "fallback no"}</span>
+      </div>
+      <p class="form-notice subtle">${escapeHtml(progress.message || "전략 생성 요청을 준비 중입니다.")}</p>
+      ${tuningEnabled ? `
+        <div class="strategy-tuning-applied-grid" data-testid="strategy-generation-parameter-values">
+          ${decisionMetric("Objective", strategyTuningObjectiveLabel(tuning.objective), "neutral")}
+          ${decisionMetric("Lookback", applied.lookback ?? "-", "neutral")}
+          ${decisionMetric("Top N", applied.top_n ?? "-", "neutral")}
+          ${decisionMetric("Rebalance", applied.rebalance_every ?? "-", "neutral")}
+          ${decisionMetric("Portfolio", applied.portfolio_method ? portfolioMethodLabel(applied.portfolio_method) : "-", "neutral")}
+          ${decisionMetric("Cost/Slip", `${applied.transaction_cost_bps ?? "-"} / ${applied.slippage_bps ?? "-"}`, "neutral")}
+        </div>
+      ` : `<div class="decision-assumption">Parameter tuning is disabled; generated values keep the manual controls.</div>`}
+    </div>
+  `;
+}
+
+function startStrategyGenerationProgress(parameterTuning = {}) {
+  clearStrategyGenerationProgressTimer();
+  const stages = [
+    ["queued", 8, "전략 프롬프트와 파라미터 탐색 범위를 묶는 중입니다."],
+    ["provider_check", 22, "로컬 LLM 런타임에 요청을 보낼 준비를 확인 중입니다."],
+    ["llm_request", 46, "LLM 전략 JSON 생성을 요청했습니다."],
+    ["llm_wait", 72, "LLM 응답을 기다리며 동기 API 진행률을 추정 중입니다."],
+    ["validation", 88, "응답을 전략 JSON 계약과 다음 봉 체결 정책으로 검증 중입니다."],
+  ];
+  let index = 0;
+  const render = () => {
+    const [stage, percent, message] = stages[Math.min(index, stages.length - 1)];
+    const html = renderStrategyGenerationProgress(
+      { mode: "synchronous_estimate", stage, percent, message },
+      { status: "running", model: "local_llm", fallback_used: false },
+      { ...parameterTuning, status: parameterTuning.enabled ? "pending" : "disabled", applied_values: {} },
+    );
+    if (els.quantStrategyResultSurface) els.quantStrategyResultSurface.innerHTML = html;
+    if (els.autoTradingParamSurface) els.autoTradingParamSurface.innerHTML = html;
+    index += 1;
+  };
+  render();
+  state.strategyGenerationProgressTimer = setInterval(render, 2200);
+  return clearStrategyGenerationProgressTimer;
+}
+
+function renderStrategyGenerationFinal(data = {}) {
+  const html = renderStrategyGenerationProgress(
+    data.progress || { mode: "synchronous_estimate", stage: "completed", percent: 100, message: "전략 생성이 완료되었습니다." },
+    data.llm_diagnostics || { status: data.model_status || "unknown", model: data.model || "unknown" },
+    data.parameter_tuning || {},
+  );
+  if (els.autoTradingParamSurface) els.autoTradingParamSurface.innerHTML = html;
+}
+
+function applyGeneratedParameterTuning(tuning = {}) {
+  const values = tuning?.applied_values || {};
+  const setNumber = (el, value) => {
+    if (el && value !== undefined && value !== null && value !== "") el.value = String(value);
+  };
+  setNumber(els.autoTradingSignalLookback, values.lookback);
+  setNumber(els.backtestShortWindow, values.lookback);
+  setNumber(els.autoTradingTopN, values.top_n);
+  setNumber(els.backtestTopN, values.top_n);
+  setNumber(els.autoTradingRebalanceEvery, values.rebalance_every);
+  setNumber(els.backtestRebalanceEvery, values.rebalance_every);
+  setNumber(els.autoTradingCostBps, values.transaction_cost_bps);
+  setNumber(els.backtestCostBps, values.transaction_cost_bps);
+  setNumber(els.autoTradingSlippageBps, values.slippage_bps);
+  setNumber(els.backtestSlippageBps, values.slippage_bps);
+  if (values.portfolio_method && els.portfolioMethod) {
+    setSelectValueIfPresent(els.portfolioMethod, values.portfolio_method);
+  }
+}
+
 function renderStrategyPromptReview(data) {
   if (!els.strategyPromptReviewSurface) return;
   const advantages = Array.isArray(data?.advantages) ? data.advantages : [];
   const disadvantages = Array.isArray(data?.disadvantages) ? data.disadvantages : [];
   const warnings = Array.isArray(data?.warnings) ? data.warnings : [];
+  const llm = data?.llm_diagnostics || {};
+  const tuning = data?.parameter_tuning || {};
   const listHtml = (items, empty) => items.length
     ? `<ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`
     : `<p>${escapeHtml(empty)}</p>`;
   els.strategyPromptReviewSurface.innerHTML = `
+    <div class="strategy-review-card status">
+      <strong>LLM 상태</strong>
+      <p>${escapeHtml(llmStatusLabel(llm.status || data?.model_status))} · ${escapeHtml(llm.model || data?.model || "-")}</p>
+      <p class="muted small">${escapeHtml(llm.fallback_used ? "결정론적 폴백이 사용되었습니다." : "LLM 응답이 전략 계약 검증까지 통과했습니다.")}</p>
+    </div>
+    <div class="strategy-review-card tune">
+      <strong>파라미터 조정</strong>
+      <p>${escapeHtml(tuning.enabled ? `${tuning.objective || "risk_adjusted_return"} · ${tuning.status || "pending"}` : "manual only")}</p>
+      <p class="muted small">${escapeHtml((tuning.adjusted_fields || []).slice(0, 4).join(", ") || "조정된 필드 없음")}</p>
+    </div>
     <div class="strategy-review-card">
       <strong>장점</strong>
       ${listHtml(advantages, "생성된 전략의 장점이 없습니다. 프롬프트를 더 구체화하세요.")}
@@ -14049,7 +14205,8 @@ async function runQuantStrategyGenerate() {
     button.disabled = true;
     button.textContent = "생성 중";
   }
-  showQuantStrategyMessage("로컬 LLM이 전략 정의(JSON)를 생성하는 중입니다.", "partial");
+  const parameterTuning = strategyGenerationParameterTuningFromControls();
+  const stopProgress = startStrategyGenerationProgress(parameterTuning);
   try {
     const res = await fetch(API.quantStrategyGenerate, {
       method: "POST",
@@ -14059,18 +14216,31 @@ async function runQuantStrategyGenerate() {
         context: strategyGenerationContextFromControls(),
         use_local_llm: true,
         timeout_s: 45,
+        parameter_tuning: parameterTuning,
       }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
     if (!data.strategy) throw new Error("생성된 전략 코드가 없습니다.");
     state.lastStrategyGeneration = data;
+    stopProgress();
     setStrategyEditor(data.strategy);
+    applyGeneratedParameterTuning(data.parameter_tuning || {});
     renderStrategyPromptReview(data);
+    renderStrategyGenerationFinal(data);
     await runQuantStrategyDryRun(data.strategy);
   } catch (err) {
+    stopProgress();
     showQuantStrategyMessage(`전략 생성 실패: ${err.message || err}`, "failed");
+    if (els.autoTradingParamSurface) {
+      els.autoTradingParamSurface.innerHTML = renderStrategyGenerationProgress(
+        { mode: "synchronous_estimate", stage: "failed", percent: 100, message: `전략 생성 실패: ${err.message || err}` },
+        { status: "failed", model: "local_llm", fallback_used: false },
+        parameterTuning,
+      );
+    }
   } finally {
+    stopProgress();
     if (button) {
       button.disabled = false;
       button.textContent = "로컬 LLM 생성";

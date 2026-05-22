@@ -1,5 +1,16 @@
 # Continuous Enhancement Log
 
+## 2026-05-22 LLM Strategy Progress and Tuning
+
+- Runtime: `2026-05-22 20:56 KST`.
+- Current status: continued the Auto Trading/Strategy Governance surface after the Risk visual slices. This slice keeps strategy output code-only, next-bar execution guarded, and advisory-only trading boundaries unchanged while making LLM activity and parameter adjustment visible.
+- Backend contract: `/api/v1/quant/strategy/generate` now accepts `parameter_tuning` and returns `llm_diagnostics`, `progress`, and `parameter_tuning` for both local-LLM and deterministic fallback paths. Responses explicitly say whether the local model was attempted, whether fallback was used, which model was involved, the final progress percent, and which parameters were applied.
+- Parameter tuning: the strategy generator normalizes a bounded search space for lookback, volatility lookback, top-N, rebalance cadence, costs, slippage, and portfolio method, then records applied values under strategy diagnostics for auditability.
+- UI/UX: `/ui/#auto-trading` now has an LLM parameter-tuning panel with objective and search-space inputs, a live synchronous progress bar, final LLM/fallback status, and applied parameter metrics. Applied values are reflected back into the Auto Trading controls and generated strategy JSON before dry-run validation.
+- Cache safety: static assets were bumped to `app.js?v=20260522-llm-strategy-v1` and `styles.css?v=20260522-llm-strategy-v1`; the AI Portfolio smoke bundle guard was synchronized to the same app bundle.
+- Verification: `node --check app\web\app.js`, `python scripts\check_ui_contract.py`, `python -m pytest tests\test_strategy_generator.py tests\test_quant_lab_api.py tests\test_ui_routing_contract.py -q` (`65 passed, 4 subtests passed`), and `git diff --check` passed with only existing LF/CRLF warnings.
+- Browser verification: fresh server `http://127.0.0.1:8823/ui/#auto-trading`; Browser/IAB confirmed the new v1 app/style bundles, parameter panel, progress percent, no console errors, and desktop overflow `0`. The LLM Strategy interaction showed an in-flight progress state and completed with `LLM 응답 확인`, `100%`, model `qwen2.5:7b`, fallback `no`, lookback `126`, top-N `2`, rebalance `42`, and dry-run validation passing. Mobile `390x900` verified parameter-panel presence with body/panel overflow `0` and no console errors.
+
 ## 2026-05-22 Risk Workbench Pressure Stack
 
 - Runtime: `2026-05-22 20:24 KST`.

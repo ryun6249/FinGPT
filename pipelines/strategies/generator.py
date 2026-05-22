@@ -35,6 +35,23 @@ STRATEGY_GENERATION_SCHEMA: dict[str, Any] = {
     "required": ["strategy", "advantages", "disadvantages"],
 }
 
+DEFAULT_PARAMETER_SEARCH_SPACE: dict[str, list[Any]] = {
+    "lookback": [21, 42, 63, 126],
+    "vol_lookback": [14, 21, 42],
+    "top_n": [1, 2, 3, 5],
+    "rebalance_every": [5, 10, 21, 42],
+    "transaction_cost_bps": [2, 5, 10],
+    "slippage_bps": [1, 2, 5],
+    "portfolio_method": ["equal_weight", "inverse_volatility", "risk_parity", "minimum_volatility", "max_sharpe"],
+}
+
+PARAMETER_OBJECTIVES = {
+    "risk_adjusted_return",
+    "drawdown_control",
+    "turnover_control",
+    "balanced",
+}
+
 SYSTEM_PROMPT = """
 You generate deterministic FinGPT Quant Lab strategy JSON.
 Return exactly one JSON object matching the provided schema.
@@ -57,13 +74,16 @@ def generate_strategy_from_prompt(
     context: dict[str, Any] | None = None,
     use_local_llm: bool = True,
     timeout_s: float = 24.0,
+    parameter_tuning: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     clean_prompt = str(prompt or "").strip()
     context = dict(context or {})
-    fallback = _fallback_generation(clean_prompt, context)
+    tuning = _normalize_parameter_tuning(parameter_tuning)
+    fallback = _fallback_generation(clean_prompt, context, tuning)
     if not clean_prompt:
         fallback["status"] = "failed"
         fallback["warnings"] = ["strategy_prompt_required"]
+        fallback["progress"] = _generation_progress("failed", "프롬프트가 없어 LLM 호출을 시작하지 않았습니다.", 100)
         return fallback
 
     if not use_local_llm:
@@ -76,12 +96,19 @@ def generate_strategy_from_prompt(
         raw = _call_local_llm(
             base_url=base_url,
             model=model,
-            prompt=_strategy_prompt(clean_prompt, context, fallback["strategy"]),
+            prompt=_strategy_prompt(clean_prompt, context, fallback["strategy"], tuning),
             timeout_s=max(4.0, min(float(timeout_s or 24.0), 45.0)),
         )
         parsed = _extract_json_object(raw)
         strategy = _code_only_strategy(parsed.get("strategy") if isinstance(parsed.get("strategy"), dict) else parsed)
         strategy = _repair_required_strategy_fields(strategy, clean_prompt, context)
+        strategy, tuning_report = _apply_parameter_tuning(
+            strategy,
+            clean_prompt,
+            context,
+            tuning,
+            source="local_llm_guided_with_guardrails",
+        )
         validate_strategy(strategy)
         advantages, advantages_repaired = _clean_korean_review_list(parsed.get("advantages"), fallback["advantages"])
         disadvantages, disadvantages_repaired = _clean_korean_review_list(
@@ -99,11 +126,31 @@ def generate_strategy_from_prompt(
             "advantages": advantages,
             "disadvantages": disadvantages,
             "warnings": warnings,
+            "llm_diagnostics": _llm_diagnostics(
+                requested=True,
+                attempted=True,
+                status="success",
+                model=model,
+                fallback_used=False,
+                base_url=base_url,
+            ),
+            "progress": _generation_progress("completed", "로컬 LLM 응답과 전략 JSON 검증이 완료되었습니다.", 100),
+            "parameter_tuning": tuning_report,
         }
     except Exception as exc:  # noqa: BLE001
         fallback["model_status"] = "fallback_after_llm_error"
         fallback["model"] = model
         fallback["warnings"] = [f"local_llm_generation_failed:{type(exc).__name__}"]
+        fallback["llm_diagnostics"] = _llm_diagnostics(
+            requested=True,
+            attempted=True,
+            status="failed_fallback_used",
+            model=model,
+            fallback_used=True,
+            base_url=base_url,
+            error_type=type(exc).__name__,
+        )
+        fallback["progress"] = _generation_progress("fallback_completed", "LLM 호출 실패 후 결정론적 전략 초안으로 전환했습니다.", 100)
         return fallback
 
 
@@ -129,7 +176,20 @@ def _call_local_llm(*, base_url: str, model: str, prompt: str, timeout_s: float)
     return text
 
 
-def _strategy_prompt(prompt: str, context: dict[str, Any], fallback_strategy: dict[str, Any]) -> str:
+def _strategy_prompt(
+    prompt: str,
+    context: dict[str, Any],
+    fallback_strategy: dict[str, Any],
+    parameter_tuning: dict[str, Any],
+) -> str:
+    tuning_note = ""
+    if parameter_tuning.get("enabled"):
+        tuning_note = (
+            "Parameter tuning request: choose strategy parameters inside this search space, "
+            "keep execution.trade_at as next_bar_close, and keep the strategy code-only. "
+            f"{json.dumps(parameter_tuning, ensure_ascii=False, sort_keys=True)}"
+        )
+        context = {**context, "parameter_tuning_request": parameter_tuning, "parameter_tuning_instruction": tuning_note}
     return "\n".join(
         [
             "사용자가 원하는 전략을 FinGPT Quant Lab 전략 JSON으로 변환하세요.",
@@ -164,8 +224,15 @@ def _extract_json_object(raw: str) -> dict[str, Any]:
     return parsed
 
 
-def _fallback_generation(prompt: str, context: dict[str, Any]) -> dict[str, Any]:
+def _fallback_generation(prompt: str, context: dict[str, Any], parameter_tuning: dict[str, Any]) -> dict[str, Any]:
     strategy = _repair_required_strategy_fields({}, prompt, context)
+    strategy, tuning_report = _apply_parameter_tuning(
+        strategy,
+        prompt,
+        context,
+        parameter_tuning,
+        source="deterministic_rules",
+    )
     return {
         "status": "success",
         "model_status": "deterministic_fallback",
@@ -182,6 +249,237 @@ def _fallback_generation(prompt: str, context: dict[str, Any]) -> dict[str, Any]
             "로컬 데이터 마트에 가격 이력이 없는 종목은 실행 유니버스에서 제외됩니다.",
         ],
         "warnings": [] if prompt else ["strategy_prompt_required"],
+        "llm_diagnostics": _llm_diagnostics(
+            requested=False,
+            attempted=False,
+            status="not_requested",
+            model="deterministic_rules",
+            fallback_used=True,
+        ),
+        "progress": _generation_progress("deterministic_completed", "결정론적 전략 초안 생성이 완료되었습니다.", 100),
+        "parameter_tuning": tuning_report,
+    }
+
+
+def _normalize_parameter_tuning(value: dict[str, Any] | None) -> dict[str, Any]:
+    raw = value if isinstance(value, dict) else {}
+    objective = str(raw.get("objective") or "risk_adjusted_return").strip().lower()
+    if objective not in PARAMETER_OBJECTIVES:
+        objective = "risk_adjusted_return"
+    search_space = _normalize_search_space(raw.get("search_space"))
+    return {
+        "enabled": bool(raw.get("enabled", False)),
+        "objective": objective,
+        "risk_profile": str(raw.get("risk_profile") or "balanced").strip().lower()[:40] or "balanced",
+        "search_space": search_space,
+        "notes": str(raw.get("notes") or "").strip()[:600],
+    }
+
+
+def _normalize_search_space(value: Any) -> dict[str, list[Any]]:
+    source = value if isinstance(value, dict) else {}
+    normalized: dict[str, list[Any]] = {}
+    for key, defaults in DEFAULT_PARAMETER_SEARCH_SPACE.items():
+        raw_values = source.get(key) if key in source else defaults
+        if not isinstance(raw_values, list):
+            raw_values = defaults
+        values: list[Any] = []
+        for item in raw_values:
+            if key == "portfolio_method":
+                method = str(item or "").strip().lower()
+                if method in DEFAULT_PARAMETER_SEARCH_SPACE["portfolio_method"] and method not in values:
+                    values.append(method)
+                continue
+            try:
+                number = float(item)
+            except (TypeError, ValueError):
+                continue
+            if not number.is_integer() and key in {"lookback", "vol_lookback", "top_n", "rebalance_every"}:
+                continue
+            clean_number: int | float = int(number) if number.is_integer() else round(number, 4)
+            if clean_number not in values:
+                values.append(clean_number)
+        normalized[key] = values or list(defaults)
+    return normalized
+
+
+def _apply_parameter_tuning(
+    strategy: dict[str, Any],
+    prompt: str,
+    context: dict[str, Any],
+    parameter_tuning: dict[str, Any],
+    *,
+    source: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    if not parameter_tuning.get("enabled"):
+        return strategy, {
+            "enabled": False,
+            "status": "disabled",
+            "objective": parameter_tuning.get("objective") or "risk_adjusted_return",
+            "source": source,
+            "search_space": parameter_tuning.get("search_space") or DEFAULT_PARAMETER_SEARCH_SPACE,
+            "applied_values": {},
+            "adjusted_fields": [],
+            "recommendations": ["파라미터 자동 조정이 꺼져 있어 기존 전략 값을 유지했습니다."],
+        }
+
+    search_space = parameter_tuning.get("search_space") or DEFAULT_PARAMETER_SEARCH_SPACE
+    prompt_lower = str(prompt or "").lower()
+    objective = str(parameter_tuning.get("objective") or "risk_adjusted_return")
+    asset_count = int(context.get("asset_count") or len(context.get("tickers") or []) or 0)
+    requested_top_n = int(context.get("top_n") or 2)
+
+    if objective == "drawdown_control" or any(token in prompt_lower for token in ["drawdown", "mdd", "risk control"]):
+        lookback = _choose_from_space(search_space, "lookback", 63, preference="high")
+        vol_lookback = _choose_from_space(search_space, "vol_lookback", 21, preference="high")
+        portfolio_method = _choose_method(search_space, ["risk_parity", "inverse_volatility", "minimum_volatility"])
+        rebalance_every = _choose_from_space(search_space, "rebalance_every", 21, preference="high")
+    elif objective == "turnover_control" or any(token in prompt_lower for token in ["turnover", "cost", "low trade"]):
+        lookback = _choose_from_space(search_space, "lookback", 63, preference="high")
+        vol_lookback = _choose_from_space(search_space, "vol_lookback", 21, preference="middle")
+        portfolio_method = _choose_method(search_space, ["inverse_volatility", "equal_weight", "risk_parity"])
+        rebalance_every = _choose_from_space(search_space, "rebalance_every", 21, preference="high")
+    elif any(token in prompt_lower for token in ["short", "fast", "단기", "빠른"]):
+        lookback = _choose_from_space(search_space, "lookback", 42, preference="low")
+        vol_lookback = _choose_from_space(search_space, "vol_lookback", 14, preference="low")
+        portfolio_method = _choose_method(search_space, ["equal_weight", "momentum_tilt", "max_sharpe"])
+        rebalance_every = _choose_from_space(search_space, "rebalance_every", 10, preference="low")
+    else:
+        lookback = _choose_from_space(search_space, "lookback", int(context.get("lookback") or 63), preference="middle")
+        vol_lookback = _choose_from_space(search_space, "vol_lookback", int(context.get("vol_lookback") or 21), preference="middle")
+        portfolio_method = _choose_method(search_space, ["max_sharpe", "inverse_volatility", "equal_weight"])
+        rebalance_every = _choose_from_space(search_space, "rebalance_every", int(context.get("rebalance_every") or 21), preference="middle")
+
+    top_n_cap = asset_count if asset_count > 0 else 50
+    top_n = int(_choose_from_space(search_space, "top_n", requested_top_n, preference="middle"))
+    top_n = max(1, min(top_n, top_n_cap))
+    transaction_cost_bps = float(_choose_from_space(search_space, "transaction_cost_bps", float(context.get("transaction_cost_bps") or 5), preference="middle"))
+    slippage_bps = float(_choose_from_space(search_space, "slippage_bps", float(context.get("slippage_bps") or 2), preference="middle"))
+
+    tuned = _code_only_strategy(strategy)
+    features = tuned.get("features") if isinstance(tuned.get("features"), dict) else {}
+    for feature_id in ("momentum_63d", "risk_adjusted_momentum_63d"):
+        if feature_id in features and isinstance(features[feature_id], dict):
+            features[feature_id]["lookback"] = int(lookback)
+    if "momentum_63d" not in features:
+        features["momentum_63d"] = {"id": "momentum_63d", "lookback": int(lookback)}
+    if "realized_vol_21d" in features and isinstance(features["realized_vol_21d"], dict):
+        features["realized_vol_21d"]["lookback"] = int(vol_lookback)
+    else:
+        features["realized_vol_21d"] = {"id": "realized_vol_21d", "lookback": int(vol_lookback)}
+    tuned["features"] = features
+
+    signal = tuned.get("signal") if isinstance(tuned.get("signal"), dict) else {"type": "rank_top_n"}
+    signal["top_n"] = top_n
+    tuned["signal"] = signal
+
+    portfolio = tuned.get("portfolio") if isinstance(tuned.get("portfolio"), dict) else {}
+    portfolio["method"] = portfolio_method
+    portfolio.setdefault("max_weight", float(context.get("max_weight") or 0.5))
+    tuned["portfolio"] = portfolio
+
+    execution = tuned.get("execution") if isinstance(tuned.get("execution"), dict) else {}
+    execution["trade_at"] = "next_bar_close"
+    execution["transaction_cost_bps"] = transaction_cost_bps
+    execution["slippage_bps"] = slippage_bps
+    tuned["execution"] = execution
+
+    applied_values = {
+        "lookback": int(lookback),
+        "vol_lookback": int(vol_lookback),
+        "top_n": top_n,
+        "rebalance_every": int(rebalance_every),
+        "transaction_cost_bps": transaction_cost_bps,
+        "slippage_bps": slippage_bps,
+        "portfolio_method": portfolio_method,
+    }
+    adjusted_fields = [
+        "features.momentum_63d.lookback",
+        "features.realized_vol_21d.lookback",
+        "signal.top_n",
+        "portfolio.method",
+        "execution.transaction_cost_bps",
+        "execution.slippage_bps",
+        "diagnostics.rebalance_every",
+    ]
+    diagnostics = tuned.get("diagnostics") if isinstance(tuned.get("diagnostics"), dict) else {}
+    diagnostics["rebalance_every"] = int(rebalance_every)
+    diagnostics["parameter_tuning"] = {
+        "enabled": True,
+        "objective": objective,
+        "source": source,
+        "applied_values": applied_values,
+        "adjusted_fields": adjusted_fields,
+    }
+    tuned["diagnostics"] = diagnostics
+
+    return tuned, {
+        "enabled": True,
+        "status": "applied",
+        "objective": objective,
+        "source": source,
+        "search_space": search_space,
+        "applied_values": applied_values,
+        "adjusted_fields": adjusted_fields,
+        "recommendations": [
+            f"{lookback}일 신호 룩백과 {vol_lookback}일 변동성 룩백을 사용합니다.",
+            f"상위 {top_n}개 자산과 {portfolio_method} 배분을 적용합니다.",
+            f"리밸런싱 {rebalance_every}일, 비용 {transaction_cost_bps:g}bps, 슬리피지 {slippage_bps:g}bps를 검증 기준으로 둡니다.",
+        ],
+    }
+
+
+def _choose_from_space(search_space: dict[str, list[Any]], key: str, fallback: int | float, *, preference: str) -> int | float:
+    values = sorted(float(item) for item in search_space.get(key, []) if isinstance(item, (int, float)))
+    if not values:
+        return fallback
+    if preference == "low":
+        return int(values[0]) if values[0].is_integer() else values[0]
+    if preference == "high":
+        return int(values[-1]) if values[-1].is_integer() else values[-1]
+    target = float(fallback)
+    chosen = min(values, key=lambda item: abs(item - target))
+    return int(chosen) if chosen.is_integer() else chosen
+
+
+def _choose_method(search_space: dict[str, list[Any]], preferences: list[str]) -> str:
+    methods = [str(item) for item in search_space.get("portfolio_method", [])]
+    for method in preferences:
+        if method in methods:
+            return method
+    return methods[0] if methods else "equal_weight"
+
+
+def _llm_diagnostics(
+    *,
+    requested: bool,
+    attempted: bool,
+    status: str,
+    model: str,
+    fallback_used: bool,
+    base_url: str | None = None,
+    error_type: str | None = None,
+) -> dict[str, Any]:
+    diagnostics: dict[str, Any] = {
+        "requested": requested,
+        "attempted": attempted,
+        "status": status,
+        "model": model,
+        "fallback_used": fallback_used,
+    }
+    if base_url:
+        diagnostics["base_url"] = base_url
+    if error_type:
+        diagnostics["error_type"] = error_type
+    return diagnostics
+
+
+def _generation_progress(stage: str, message: str, percent: int) -> dict[str, Any]:
+    return {
+        "mode": "synchronous_estimate",
+        "stage": stage,
+        "message": message,
+        "percent": max(0, min(100, int(percent))),
     }
 
 

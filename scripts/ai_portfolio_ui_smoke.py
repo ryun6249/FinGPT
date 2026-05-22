@@ -19,7 +19,7 @@ REPORTS_DIR = PROJECT_ROOT / "reports"
 DOMAIN_BUNDLE_VERSION = "20260521-market-signals-v1"
 AI_PORTFOLIO_BUNDLE_VERSION = "20260520-ai-portfolio-ops-v1"
 QUANTAMENTAL_BUNDLE_VERSION = "20260521-quantamental-decision-v23"
-APP_BUNDLE_VERSION = "20260522-risk-visual-v6"
+APP_BUNDLE_VERSION = "20260522-llm-strategy-v1"
 VERSIONED_SCRIPT_SELECTORS = [
     f'script[src="modules/market-ui.js?v={DOMAIN_BUNDLE_VERSION}"]',
     f'script[src="modules/macro-ui.js?v={DOMAIN_BUNDLE_VERSION}"]',

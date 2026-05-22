@@ -473,6 +473,7 @@ def test_strategy_generate_endpoint_returns_code_only_strategy_without_llm() -> 
             "prompt": "63일 모멘텀 상위 2개, 21일 변동성 확인, 다음 봉 체결",
             "context": {"top_n": 2, "lookback": 63, "transaction_cost_bps": 5, "slippage_bps": 2},
             "use_local_llm": False,
+            "parameter_tuning": {"enabled": True, "objective": "turnover_control"},
         },
     )
 
@@ -480,6 +481,10 @@ def test_strategy_generate_endpoint_returns_code_only_strategy_without_llm() -> 
     body = response.json()
     assert body["status"] == "success"
     assert body["model_status"] == "deterministic_fallback"
+    assert body["llm_diagnostics"]["status"] == "not_requested"
+    assert body["progress"]["percent"] == 100
+    assert body["parameter_tuning"]["enabled"] is True
+    assert body["parameter_tuning"]["applied_values"]["rebalance_every"] >= 21
     assert "universe" not in body["strategy"]
     assert "benchmark" not in body["strategy"]
     assert body["strategy"]["execution"]["trade_at"] == "next_bar_close"
