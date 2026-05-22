@@ -13546,9 +13546,29 @@ html[data-theme="light"] .quality-context-item {
 
 .auto-trading-shell {
   display: grid;
-  grid-template-columns: minmax(280px, 0.9fr) minmax(340px, 1.1fr) minmax(420px, 1.4fr);
+  grid-template-columns: minmax(280px, 0.72fr) minmax(640px, 1.9fr);
+  grid-template-areas:
+    "controls editor"
+    "results results";
   gap: 16px;
   align-items: start;
+}
+
+.auto-trading-left {
+  grid-area: controls;
+}
+
+.auto-trading-editor-stack {
+  grid-area: editor;
+  grid-template-columns: minmax(320px, 0.95fr) minmax(420px, 1.05fr);
+  grid-template-areas:
+    "prompt code"
+    "params python";
+}
+
+.auto-trading-output-stack {
+  grid-area: results;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .auto-trading-left,
@@ -13557,6 +13577,27 @@ html[data-theme="light"] .quality-context-item {
   display: grid;
   gap: 12px;
   min-width: 0;
+}
+
+.auto-trading-editor-stack > .auto-trading-prompt-panel {
+  grid-area: prompt;
+}
+
+.auto-trading-editor-stack > .auto-trading-param-panel:not(.python-strategy-panel) {
+  grid-area: params;
+}
+
+.auto-trading-editor-stack > .auto-trading-code-panel {
+  grid-area: code;
+}
+
+.auto-trading-editor-stack > .python-strategy-panel {
+  grid-area: python;
+}
+
+.auto-trading-output-stack > #pythonStrategyResultSurface,
+.auto-trading-output-stack > #autoTradingChartSurface {
+  grid-column: 1 / -1;
 }
 
 .auto-trading-controls {
@@ -14203,6 +14244,23 @@ html[data-theme="light"] .quality-context-item {
 @media (max-width: 1180px) {
   .auto-trading-shell {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "controls"
+      "editor"
+      "results";
+  }
+
+  .auto-trading-editor-stack,
+  .auto-trading-output-stack {
+    grid-template-columns: 1fr;
+  }
+
+  .auto-trading-editor-stack {
+    grid-template-areas:
+      "prompt"
+      "params"
+      "code"
+      "python";
   }
 
   .auto-trading-code-editor {

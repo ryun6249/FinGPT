@@ -1,5 +1,15 @@
 # Continuous Enhancement Log
 
+## 2026-05-23 Auto Trading LLM Layout Expansion
+
+- Runtime: `2026-05-23 04:45 KST`.
+- Current status: adjusted the `/ui/#auto-trading` workbench layout so the strategy intent/code/Python Strategy Lab area expands horizontally instead of being squeezed between controls and result panels.
+- UI/UX: the Auto Trading workbench now uses a two-column top row for controls plus the expanded editor/LLM strategy area, while Python/backtest/optimization result panels move into a full-width results row below. The chart result keeps full-row width for readability.
+- Cache safety: static assets were bumped to `app.js?v=20260523-python-strategy-v7` and `styles.css?v=20260523-python-strategy-v7`; UI routing expectations and bundle guards were synchronized.
+- Verification: `node --check app\web\app.js`; `python scripts\check_ui_contract.py`; `python -m pytest tests\test_ui_routing_contract.py -q` (`43 passed, 4 subtests passed`); `python -m pytest tests\test_python_strategy_generator.py tests\test_strategy_generator.py tests\test_quant_lab_api.py tests\test_ui_routing_contract.py -q` (`72 passed, 4 subtests passed`); and `git diff --check` all passed. `git diff --check` reported only LF/CRLF working-copy warnings.
+- Browser verification: `http://127.0.0.1:8828/ui/#auto-trading` was refreshed to v7 in the in-app Playwright page. Local Playwright confirmed desktop grid areas `"controls editor" "results results"`, editor width `925px`, full-width output row `1292px` below the editor/controls, full-width Python result and chart panels, v7 app/style bundles, duplicate generator count `0`, console errors `0`, and desktop/mobile body overflow `0`.
+- Screenshots: `F:\LLM\auto-trading-layout-v7-desktop-8828.png`, `F:\LLM\auto-trading-layout-v7-results-8828.png`, `F:\LLM\auto-trading-layout-v7-mobile-8828.png`.
+
 ## 2026-05-23 Auto Trading Duplicate Generator Cleanup
 
 - Runtime: `2026-05-23 04:25 KST`.
