@@ -13435,9 +13435,17 @@ html[data-theme="light"] .quality-context-item {
 .strategy-research-explain {
   display: grid;
   gap: 6px;
+  min-width: 0;
   margin-top: 10px;
   color: var(--muted);
   line-height: 1.55;
+}
+
+.strategy-research-explain p,
+.strategy-research-explain strong {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .strategy-research-explain strong {
@@ -13643,6 +13651,122 @@ html[data-theme="light"] .quality-context-item {
   min-height: 260px;
 }
 
+.python-strategy-explanation,
+.python-optimization-visual {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface), transparent 14%);
+}
+
+.python-strategy-explanation p {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.python-explanation-list {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.python-check-grid,
+.python-parameter-insight-grid,
+.python-sensitivity-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.python-check-item,
+.python-parameter-insight,
+.python-sensitivity-item {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel), transparent 18%);
+}
+
+.python-check-item strong,
+.python-parameter-insight strong,
+.python-sensitivity-item strong {
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.python-check-item span,
+.python-parameter-insight span,
+.python-sensitivity-item span,
+.python-parameter-insight small,
+.python-sensitivity-item small {
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+.python-check-item.pass {
+  border-color: color-mix(in srgb, var(--bull), transparent 55%);
+}
+
+.python-check-item.warn,
+.python-parameter-insight.changed,
+.python-parameter-insight.increase,
+.python-parameter-insight.decrease {
+  border-color: color-mix(in srgb, var(--warn), transparent 52%);
+}
+
+.python-check-item.fail {
+  border-color: color-mix(in srgb, var(--bear), transparent 48%);
+}
+
+.python-trial-score-strip {
+  display: grid;
+  gap: 6px;
+}
+
+.python-trial-score {
+  display: grid;
+  grid-template-columns: 34px minmax(120px, 1fr) 78px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.python-trial-score b {
+  display: block;
+  width: var(--score-width, 20%);
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.python-trial-score.ok b {
+  background: var(--bull);
+}
+
+.python-trial-score.warn b {
+  background: var(--warn);
+}
+
+.python-trial-score em {
+  color: var(--text);
+  font-style: normal;
+  text-align: right;
+}
+
 .strategy-generation-progress {
   display: grid;
   gap: 9px;
@@ -13738,12 +13862,33 @@ html[data-theme="light"] .quality-context-item {
 .auto-trading-chart {
   display: grid;
   gap: 10px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.auto-trading-chart > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .auto-trading-metric-strip {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 8px;
+}
+
+.auto-trading-chart-surface,
+.auto-trading-output-stack,
+.python-strategy-chart,
+.python-strategy-chart .internal-chart-head,
+.python-strategy-chart .auto-trading-metric-strip,
+.python-strategy-chart .auto-trading-legend,
+.python-strategy-chart .internal-chart-scroll {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .auto-trading-svg .auto-trading-signal-marker path {

@@ -58,6 +58,16 @@ def test_python_strategy_lab_generates_valid_code_backtest_and_optimization(monk
     assert result["optimization"]["status"] == "success"
     assert result["optimization"]["trial_count"] <= 8
     assert result["optimization"]["recommended_parameters"]
+    assert result["explanation"]["source"] == "verified_backtest_and_optimizer"
+    assert result["explanation"]["summary"]
+    assert result["explanation"]["parameter_insights"]
+    assert {item["name"] for item in result["explanation"]["robustness_checks"]} >= {
+        "Python interface validation",
+        "Freshness gate",
+        "Trade sample",
+        "Drawdown guard",
+        "Bayesian search",
+    }
 
 
 def test_python_strategy_lab_generates_moving_average_strategy(monkeypatch) -> None:
@@ -85,6 +95,8 @@ def test_python_strategy_lab_generates_moving_average_strategy(monkeypatch) -> N
     assert any("fast_ma" in row and "slow_ma" in row for row in result["backtest"]["chart"]["rows"])
     assert result["optimization"]["status"] == "success"
     assert set(result["optimization"]["recommended_parameters"]) <= manifest_names
+    assert result["optimization"]["parameter_sensitivity"]
+    assert any(item["name"] in {"fast_window", "slow_window"} for item in result["explanation"]["parameter_insights"])
 
 
 def test_python_strategy_lab_generates_rsi_reversion_strategy(monkeypatch) -> None:
@@ -112,6 +124,8 @@ def test_python_strategy_lab_generates_rsi_reversion_strategy(monkeypatch) -> No
     assert any("rsi" in row for row in result["backtest"]["chart"]["rows"])
     assert result["optimization"]["status"] == "success"
     assert set(result["optimization"]["recommended_parameters"]) <= manifest_names
+    assert result["optimization"]["parameter_sensitivity"]
+    assert any(item["name"] == "rsi_period" for item in result["explanation"]["parameter_insights"])
 
 
 def test_python_strategy_validation_rejects_missing_interface() -> None:

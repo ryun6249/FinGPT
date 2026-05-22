@@ -424,6 +424,8 @@ REQUIRED_APP_JS_MARKERS: dict[str, str] = {
     "python strategy runner": "async function runPythonStrategyLab",
     "python strategy chart": "function renderPythonStrategyChart",
     "python strategy indicator panel": "function renderPythonStrategyIndicatorPanel",
+    "python strategy explanation": "function renderPythonStrategyExplanation",
+    "python strategy optimization visual": "function renderPythonStrategyOptimizationVisual",
     "python strategy manifest": "function renderPythonStrategyParameterManifest",
     "quant factor diagnostic panel": "function renderQuantFeatureDiagnosticPanel",
     "quant backtest signal matrix panel": "function renderBacktestSignalMatrixPanel",

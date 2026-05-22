@@ -105,6 +105,14 @@ def run_python_strategy_lab(request: PythonStrategyRunRequest) -> dict[str, Any]
             max_trials=int(request.max_trials or 16),
             random_seed=int(request.random_seed or 42),
         )
+    explanation = explain_python_strategy_result(
+        plan,
+        manifest,
+        validation=validation,
+        freshness=freshness,
+        backtest=backtest,
+        optimization=optimization,
+    )
     return {
         "status": "success" if backtest.get("status") == "success" and validation.get("valid") else "partial",
         "language": "python",
@@ -130,6 +138,7 @@ def run_python_strategy_lab(request: PythonStrategyRunRequest) -> dict[str, Any]
         },
         "backtest": backtest,
         "optimization": optimization,
+        "explanation": explanation,
         "warnings": _unique_strings(warnings + list(backtest.get("warnings") or []) + list(optimization.get("warnings") or [])),
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
     }
@@ -795,6 +804,7 @@ def optimize_python_strategy(
         return {"status": "failed", "warnings": ["optimization_produced_no_trials"], "trials": []}
     best = max(trials, key=lambda item: item["score"])
     recommended = _recommended_trial(trials)
+    sensitivity = _parameter_sensitivity(trials, manifest)
     return {
         "status": "success",
         "method": "bayesian",
@@ -806,8 +816,222 @@ def optimize_python_strategy(
         "best_score": best["score"],
         "recommended_score": recommended["score"],
         "trials": trials[: min(len(trials), 40)],
+        "parameter_sensitivity": sensitivity,
         "warnings": [],
     }
+
+
+def explain_python_strategy_result(
+    plan: dict[str, Any],
+    manifest: list[dict[str, Any]],
+    *,
+    validation: dict[str, Any],
+    freshness: dict[str, Any],
+    backtest: dict[str, Any],
+    optimization: dict[str, Any],
+) -> dict[str, Any]:
+    metrics = dict(backtest.get("metrics") or {})
+    family = str(plan.get("family") or "strategy")
+    recommended = dict(optimization.get("recommended_parameters") or {})
+    best = dict(optimization.get("best_parameters") or {})
+    trial_count = int(optimization.get("trial_count") or 0)
+    trade_count = int(_float_or(metrics.get("trade_count"), 0.0))
+    max_drawdown = _float_or(metrics.get("max_drawdown"), 0.0)
+    sharpe = _float_or(metrics.get("sharpe"), 0.0)
+    total_return = _float_or(metrics.get("total_return"), 0.0)
+    validation_ok = bool(validation.get("valid"))
+    freshness_ok = not bool(freshness.get("strict_freshness_violation"))
+    optimization_ok = optimization.get("status") == "success"
+    verdict = _strategy_verdict(
+        validation_ok=validation_ok,
+        freshness_ok=freshness_ok,
+        optimization_ok=optimization_ok,
+        trade_count=trade_count,
+        max_drawdown=max_drawdown,
+        sharpe=sharpe,
+    )
+    robustness_checks = [
+        {
+            "name": "Python interface validation",
+            "status": "pass" if validation_ok else "fail",
+            "detail": "strategy_parameters/generate_signals interface is valid" if validation_ok else "generated code requires review before use",
+        },
+        {
+            "name": "Freshness gate",
+            "status": "pass" if freshness_ok else "fail",
+            "detail": "price data satisfied the configured freshness policy" if freshness_ok else "strict freshness policy blocked research evidence",
+        },
+        {
+            "name": "Trade sample",
+            "status": "pass" if trade_count >= 5 else ("warn" if trade_count >= 2 else "fail"),
+            "detail": f"{trade_count} closed trades; low samples need OOS/walk-forward confirmation",
+        },
+        {
+            "name": "Drawdown guard",
+            "status": "pass" if max_drawdown >= -0.20 else ("warn" if max_drawdown >= -0.35 else "fail"),
+            "detail": f"max drawdown {max_drawdown:.2%}",
+        },
+        {
+            "name": "Bayesian search",
+            "status": "pass" if optimization_ok and trial_count >= 4 else ("warn" if optimization_ok else "fail"),
+            "detail": f"{trial_count} trials using {optimization.get('bayesian_backend') or 'not_run'}",
+        },
+    ]
+    parameter_insights = _parameter_insights(manifest, plan.get("parameters") or {}, recommended, best)
+    reasons = [
+        f"Backtest return {total_return:.2%}, Sharpe {sharpe:.2f}, max drawdown {max_drawdown:.2%}, trades {trade_count}.",
+        f"Optimizer objective {optimization.get('objective') or 'not_run'} selected recommended parameters from {trial_count} trial(s).",
+    ]
+    if parameter_insights:
+        changed = [item for item in parameter_insights if item.get("direction") != "unchanged"]
+        reasons.append(f"{len(changed)} optimized parameter(s) moved away from the generated default.")
+    if trade_count < 5:
+        reasons.append("Trade count is thin; treat this as a research candidate until walk-forward and OOS checks pass.")
+    elif max_drawdown < -0.35:
+        reasons.append("Drawdown is severe enough to require rejection or stricter risk controls before promotion.")
+    else:
+        reasons.append("The result can be reviewed as a research candidate, not as an execution recommendation.")
+    summary = (
+        f"{_family_label(family)} 전략은 검증된 Python 템플릿으로 생성됐고, "
+        f"백테스트/최적화 결과는 {verdict['label']} 상태입니다. "
+        f"추천 파라미터는 검증 통과와 비용/손실/거래수 조건을 함께 보고 해석해야 합니다."
+    )
+    return {
+        "source": "verified_backtest_and_optimizer",
+        "language": "ko",
+        "verdict": verdict,
+        "summary": summary,
+        "reasons": reasons,
+        "parameter_insights": parameter_insights,
+        "parameter_sensitivity": list(optimization.get("parameter_sensitivity") or []),
+        "robustness_checks": robustness_checks,
+        "next_steps": [
+            "Run walk-forward and out-of-sample validation before accepting the strategy.",
+            "Stress test commission/slippage above the current cost assumptions.",
+            "Reject parameter spikes that only work in a narrow trial neighborhood.",
+        ],
+    }
+
+
+def _strategy_verdict(
+    *,
+    validation_ok: bool,
+    freshness_ok: bool,
+    optimization_ok: bool,
+    trade_count: int,
+    max_drawdown: float,
+    sharpe: float,
+) -> dict[str, str]:
+    if not validation_ok or not freshness_ok:
+        return {"status": "blocked", "label": "검증 차단", "tone": "fail"}
+    if not optimization_ok:
+        return {"status": "needs_optimization", "label": "최적화 미완료", "tone": "warn"}
+    if trade_count < 2:
+        return {"status": "insufficient_sample", "label": "표본 부족", "tone": "warn"}
+    if max_drawdown < -0.35:
+        return {"status": "risk_reject", "label": "위험 과다", "tone": "fail"}
+    if sharpe > 0.8 and trade_count >= 5 and max_drawdown >= -0.25:
+        return {"status": "research_candidate", "label": "리서치 후보", "tone": "ok"}
+    return {"status": "review_required", "label": "추가 검증 필요", "tone": "warn"}
+
+
+def _parameter_insights(
+    manifest: list[dict[str, Any]],
+    defaults: dict[str, Any],
+    recommended: dict[str, Any],
+    best: dict[str, Any],
+) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    manifest_by_name = {str(item.get("name") or ""): item for item in manifest}
+    for name, value in recommended.items():
+        item = manifest_by_name.get(str(name), {})
+        default = defaults.get(name, item.get("default"))
+        direction = _parameter_direction(default, value)
+        out.append(
+            {
+                "name": name,
+                "label": item.get("label") or name,
+                "default": default,
+                "recommended": value,
+                "best": best.get(name),
+                "direction": direction,
+                "detail": _parameter_change_detail(item.get("label") or name, default, value, direction),
+            }
+        )
+    return out
+
+
+def _parameter_sensitivity(trials: list[dict[str, Any]], manifest: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    manifest_by_name = {str(item.get("name") or ""): item for item in manifest}
+    out: list[dict[str, Any]] = []
+    for name in manifest_by_name:
+        buckets: dict[str, dict[str, Any]] = {}
+        for trial in trials:
+            params = trial.get("parameters") or {}
+            if name not in params:
+                continue
+            key = json.dumps(params[name], sort_keys=True, default=str)
+            bucket = buckets.setdefault(key, {"value": params[name], "scores": [], "trials": 0})
+            bucket["scores"].append(_float_or(trial.get("score"), 0.0))
+            bucket["trials"] += 1
+        if len(buckets) < 2:
+            continue
+        values = []
+        for bucket in buckets.values():
+            scores = bucket["scores"]
+            values.append(
+                {
+                    "value": bucket["value"],
+                    "avg_score": round(sum(scores) / max(len(scores), 1), 8),
+                    "best_score": round(max(scores), 8),
+                    "trials": int(bucket["trials"]),
+                }
+            )
+        values.sort(key=lambda item: (item["avg_score"], item["best_score"]), reverse=True)
+        spread = values[0]["avg_score"] - values[-1]["avg_score"]
+        out.append(
+            {
+                "name": name,
+                "label": manifest_by_name[name].get("label") or name,
+                "best_value": values[0]["value"],
+                "worst_value": values[-1]["value"],
+                "score_spread": round(spread, 8),
+                "values": values[:8],
+            }
+        )
+    out.sort(key=lambda item: abs(_float_or(item.get("score_spread"), 0.0)), reverse=True)
+    return out[:8]
+
+
+def _parameter_direction(default: Any, recommended: Any) -> str:
+    if isinstance(default, bool) or isinstance(recommended, bool):
+        return "changed" if bool(default) != bool(recommended) else "unchanged"
+    default_num = _maybe_float(default)
+    recommended_num = _maybe_float(recommended)
+    if default_num is not None and recommended_num is not None:
+        if abs(default_num - recommended_num) <= 1e-9:
+            return "unchanged"
+        return "increase" if recommended_num > default_num else "decrease"
+    return "changed" if str(default) != str(recommended) else "unchanged"
+
+
+def _parameter_change_detail(label: str, default: Any, recommended: Any, direction: str) -> str:
+    if direction == "unchanged":
+        return f"{label} kept the generated default ({default})."
+    if direction == "increase":
+        return f"{label} moved higher from {default} to {recommended}."
+    if direction == "decrease":
+        return f"{label} moved lower from {default} to {recommended}."
+    return f"{label} changed from {default} to {recommended}."
+
+
+def _family_label(family: str) -> str:
+    labels = {
+        "supertrend": "Supertrend",
+        "moving_average_crossover": "Moving-average crossover",
+        "rsi_reversion": "RSI reversion",
+    }
+    return labels.get(family, family)
 
 
 def _strategy_plan_from_prompt(
@@ -1470,6 +1694,14 @@ def _float_or(value: Any, default: float) -> float:
     except (TypeError, ValueError):
         return default
     return parsed if math.isfinite(parsed) else default
+
+
+def _maybe_float(value: Any) -> float | None:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if math.isfinite(parsed) else None
 
 
 def _bool_value(value: Any, default: bool) -> bool:

@@ -540,6 +540,8 @@ def test_python_strategy_run_endpoint_returns_code_backtest_and_optimization(mon
     assert body["backtest"]["chart"]["markers"]
     assert body["optimization"]["status"] == "success"
     assert body["optimization"]["trial_count"] <= 6
+    assert body["explanation"]["source"] == "verified_backtest_and_optimizer"
+    assert body["explanation"]["robustness_checks"]
 
 
 def test_python_strategy_run_endpoint_supports_moving_average_family(monkeypatch) -> None:
@@ -584,6 +586,8 @@ def test_python_strategy_run_endpoint_supports_moving_average_family(monkeypatch
     assert body["backtest"]["chart"]["indicators"]["overlays"][0]["key"] == "fast_ma"
     assert body["optimization"]["status"] == "success"
     assert set(body["optimization"]["recommended_parameters"]) <= {item["name"] for item in body["parameter_manifest"]}
+    assert body["optimization"]["parameter_sensitivity"]
+    assert any(item["name"] == "fast_window" for item in body["explanation"]["parameter_insights"])
 
 
 def test_model_profile_api_roundtrip_and_dry_run(tmp_path, monkeypatch) -> None:

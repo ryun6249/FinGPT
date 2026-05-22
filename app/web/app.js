@@ -14966,6 +14966,95 @@ function renderPythonStrategyChart(data = {}) {
   `;
 }
 
+function renderPythonStrategyExplanation(data = {}) {
+  const explanation = data.explanation || {};
+  const verdict = explanation.verdict || {};
+  const checks = Array.isArray(explanation.robustness_checks) ? explanation.robustness_checks : [];
+  const insights = Array.isArray(explanation.parameter_insights) ? explanation.parameter_insights : [];
+  const reasons = Array.isArray(explanation.reasons) ? explanation.reasons : [];
+  if (!explanation.summary && !checks.length && !insights.length) return "";
+  return `
+    <div class="python-strategy-explanation" data-testid="python-strategy-explanation">
+      <div class="decision-status-row">
+        <span class="decision-badge ${escapeHtml(decisionStatusClass(verdict.tone || verdict.status || "partial"))}">${escapeHtml(verdict.label || "review")}</span>
+        <span>${escapeHtml(explanation.source || "verified_backtest_and_optimizer")}</span>
+      </div>
+      <p>${escapeHtml(explanation.summary || "Verified metrics are available for review.")}</p>
+      ${reasons.length ? `<ul class="python-explanation-list">${reasons.slice(0, 5).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}
+      ${checks.length ? `
+        <div class="python-check-grid" data-testid="python-strategy-robustness-checks">
+          ${checks.map((check) => `
+            <div class="python-check-item ${escapeHtml(check.status || "warn")}">
+              <strong>${escapeHtml(check.name || "check")}</strong>
+              <span>${escapeHtml(check.detail || "-")}</span>
+            </div>
+          `).join("")}
+        </div>
+      ` : ""}
+      ${insights.length ? `
+        <div class="python-parameter-insight-grid" data-testid="python-strategy-parameter-insights">
+          ${insights.slice(0, 10).map((item) => `
+            <div class="python-parameter-insight ${escapeHtml(item.direction || "unchanged")}">
+              <strong>${escapeHtml(item.label || item.name)}</strong>
+              <span>${escapeHtml(String(item.default ?? "-"))} -> ${escapeHtml(String(item.recommended ?? "-"))}</span>
+              <small>${escapeHtml(item.detail || "")}</small>
+            </div>
+          `).join("")}
+        </div>
+      ` : ""}
+    </div>
+  `;
+}
+
+function renderPythonStrategyOptimizationVisual(data = {}) {
+  const optimization = data.optimization || {};
+  const trials = Array.isArray(optimization.trials) ? optimization.trials : [];
+  const sensitivity = Array.isArray(optimization.parameter_sensitivity) ? optimization.parameter_sensitivity : [];
+  if (!trials.length && !sensitivity.length) return decisionEmpty("Python strategy optimization did not return trial details.");
+  const scores = trials.map((trial) => Number(trial.score)).filter(Number.isFinite);
+  const minScore = scores.length ? Math.min(...scores) : 0;
+  const maxScore = scores.length ? Math.max(...scores) : 1;
+  const scoreSpan = maxScore - minScore || 1;
+  const displayTrials = trials.slice(0, 24);
+  return `
+    <div class="python-optimization-visual" data-testid="python-strategy-optimization-visual">
+      <div class="decision-section-title">Python Bayesian optimization surface</div>
+      <div class="decision-status-row">
+        <span class="decision-badge ${escapeHtml(decisionStatusClass(optimization.status || "partial"))}">${escapeHtml(optimization.method || "optimization")}</span>
+        <span>${escapeHtml(optimization.bayesian_backend || "backend")} · ${escapeHtml(_fmtNumber(optimization.trial_count || trials.length))} trials · objective ${escapeHtml(optimization.objective || "-")}</span>
+      </div>
+      ${displayTrials.length ? `
+        <div class="python-trial-score-strip" data-testid="python-strategy-trial-scores">
+          ${displayTrials.map((trial) => {
+            const score = Number(trial.score);
+            const width = Number.isFinite(score) ? 16 + ((score - minScore) / scoreSpan) * 84 : 16;
+            const tone = trial.status === "success" ? "ok" : "warn";
+            const tooltip = `Trial ${trial.trial_number || "-"} · score ${formatQuantValue(score)} · return ${formatQuantValue(trial.metrics?.total_return)} · drawdown ${formatQuantValue(trial.metrics?.max_drawdown)}`;
+            return `
+              <div class="python-trial-score ${tone}" data-chart-tooltip="${escapeHtml(tooltip)}">
+                <span>${escapeHtml(String(trial.trial_number || "-"))}</span>
+                <b style="--score-width:${width.toFixed(1)}%"></b>
+                <em>${escapeHtml(formatQuantValue(score))}</em>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      ` : ""}
+      ${sensitivity.length ? `
+        <div class="python-sensitivity-grid" data-testid="python-strategy-sensitivity">
+          ${sensitivity.slice(0, 8).map((item) => `
+            <div class="python-sensitivity-item">
+              <strong>${escapeHtml(item.label || item.name)}</strong>
+              <span>best ${escapeHtml(String(item.best_value ?? "-"))} · worst ${escapeHtml(String(item.worst_value ?? "-"))}</span>
+              <small>spread ${escapeHtml(formatQuantValue(item.score_spread))}</small>
+            </div>
+          `).join("")}
+        </div>
+      ` : ""}
+    </div>
+  `;
+}
+
 function renderPythonStrategyResult(data = {}, startedAt = Date.now()) {
   const backtest = data.backtest || {};
   const metrics = backtest.metrics || {};
@@ -14987,6 +15076,7 @@ function renderPythonStrategyResult(data = {}, startedAt = Date.now()) {
       ${decisionMetric("Bayesian", optimization.status || "skipped", optimization.status === "success" ? "ok" : "warn")}
       ${decisionMetric("Trials", _fmtNumber(optimization.trial_count || 0), Number(optimization.trial_count || 0) ? "ok" : "warn")}
     </div>
+    ${renderPythonStrategyExplanation(data)}
     <div class="strategy-research-explain">
       <strong>Recommended parameters</strong>
       <p>${escapeHtml(JSON.stringify(recommended || {}, null, 0) || "-")}</p>
@@ -14994,6 +15084,7 @@ function renderPythonStrategyResult(data = {}, startedAt = Date.now()) {
       <p>${escapeHtml(JSON.stringify(best || {}, null, 0) || "-")}</p>
       <p>${escapeHtml(data.rationale || "Python strategy code, backtest, and optimization were generated from the validated manifest.")}</p>
     </div>
+    ${renderPythonStrategyOptimizationVisual(data)}
     ${warnings.length ? `<div class="decision-warning">${escapeHtml(formatQuantWarnings(warnings))}</div>` : ""}
   `;
 }
@@ -15021,6 +15112,7 @@ async function runPythonStrategyLab() {
     if (els.pythonStrategyCode) els.pythonStrategyCode.value = data.code || "";
     if (els.pythonStrategyParamSurface) els.pythonStrategyParamSurface.innerHTML = renderPythonStrategyParameterManifest(data);
     if (els.pythonStrategyResultSurface) els.pythonStrategyResultSurface.innerHTML = renderPythonStrategyResult(data, startedAt);
+    if (els.autoTradingOptimizationSurface) els.autoTradingOptimizationSurface.innerHTML = renderPythonStrategyOptimizationVisual(data);
     if (els.autoTradingChartSurface) els.autoTradingChartSurface.innerHTML = renderPythonStrategyChart(data);
     const scroller = els.autoTradingChartSurface?.querySelector?.(".internal-chart-scroll");
     if (scroller) window.requestAnimationFrame(() => { scroller.scrollLeft = Math.max(0, scroller.scrollWidth - scroller.clientWidth); });

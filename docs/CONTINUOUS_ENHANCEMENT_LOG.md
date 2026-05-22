@@ -1,5 +1,16 @@
 # Continuous Enhancement Log
 
+## 2026-05-23 Python Strategy Explanation and Optimization Surface
+
+- Runtime: `2026-05-23 01:18 KST`.
+- Current status: continued the Python Strategy Lab toward the full natural-language -> Python code -> backtest -> Bayesian optimization -> explanation workflow. This remains research evidence only; no live execution or recommendation path was added.
+- Backend contract: `POST /api/v1/quant/python-strategy/run` now returns `explanation` derived from validated code status, freshness, backtest metrics, optimization results, robustness gates, recommended-vs-default parameter changes, and parameter sensitivity. `optimization.parameter_sensitivity` summarizes which tested parameter values had the strongest average scores.
+- UI/UX: `/ui/#auto-trading` now renders a Python strategy explanation panel, robustness check grid, parameter insight grid, trial score strip, and parameter sensitivity surface alongside the generated Python code and indicator entry/exit chart.
+- Cache safety: static assets were bumped to `app.js?v=20260523-python-strategy-v3` and `styles.css?v=20260523-python-strategy-v3`; the AI Portfolio smoke bundle guard and UI routing expectations were synchronized.
+- Verification: `python -m py_compile pipelines\strategies\python_generator.py app\api\routers\quant_lab.py pipelines\strategies\generator.py`; `node --check app\web\app.js`; `python scripts\check_ui_contract.py`; `python -m pytest tests\test_python_strategy_generator.py tests\test_strategy_generator.py tests\test_quant_lab_api.py tests\test_ui_routing_contract.py -q` (`71 passed, 4 subtests passed`) all passed.
+- Browser verification: fresh server `http://127.0.0.1:8826/ui/#auto-trading`; local Playwright confirmed v3 app/style bundles, RSI Python code, indicator panel, explanation panel, 5 robustness checks, 10 parameter insights, 32 trial score rows, 16 sensitivity cells, console errors `0`, desktop/mobile body overflow `0`, and critical overflow `0`.
+- Screenshots: `F:\LLM\python-strategy-explanation-rsi-desktop-8826.png`, `F:\LLM\python-strategy-explanation-rsi-mobile-8826.png`.
+
 ## 2026-05-23 Python Strategy Family Expansion
 
 - Runtime: `2026-05-23 00:47 KST`.
