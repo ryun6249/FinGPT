@@ -589,8 +589,8 @@ def _backtest_moving_average_strategy(rows: list[dict[str, Any]], parameters: di
         exit_reasons={"long": "fast_ma_cross_below_slow_ma", "short": "fast_ma_cross_above_slow_ma"},
         indicators={
             "overlays": [
-                {"key": "fast_ma", "label": "Fast MA", "class_name": "python-fast-ma-line"},
-                {"key": "slow_ma", "label": "Slow MA", "class_name": "python-slow-ma-line"},
+                {"key": "fast_ma", "label": "단기 MA", "class_name": "python-fast-ma-line"},
+                {"key": "slow_ma", "label": "장기 MA", "class_name": "python-slow-ma-line"},
             ],
             "panels": [],
         },
@@ -1083,25 +1083,25 @@ def _robustness_checks(
         {
             "name": "Out-of-sample split",
             "status": "pass" if oos_return > 0 and oos_dd > -0.35 else ("warn" if oos_return > -0.05 else "fail"),
-            "detail": f"OOS return {oos_return:.2%}, max drawdown {oos_dd:.2%}",
+            "detail": f"OOS 수익률 {oos_return:.2%}, 최대 낙폭 {oos_dd:.2%}",
             "warning": "" if oos_return > 0 else "oos_return_non_positive",
         },
         {
             "name": "Walk-forward consistency",
             "status": "pass" if pass_rate >= 0.67 else ("warn" if pass_rate >= 0.34 else "fail"),
-            "detail": f"{walk_forward.get('positive_segments') or 0}/{walk_forward.get('segment_count') or 0} segments passed",
+            "detail": f"{walk_forward.get('positive_segments') or 0}/{walk_forward.get('segment_count') or 0}개 구간 통과",
             "warning": "" if pass_rate >= 0.34 else "walk_forward_low_pass_rate",
         },
         {
             "name": "3x cost stress",
             "status": "pass" if cost_pass else "warn",
-            "detail": f"worst stressed return {_float_or(cost_stress.get('worst_total_return'), 0.0):.2%}",
+            "detail": f"최악 스트레스 수익률 {_float_or(cost_stress.get('worst_total_return'), 0.0):.2%}",
             "warning": "" if cost_pass else "cost_stress_eroded_return",
         },
         {
             "name": "Monte Carlo resampling",
             "status": "pass" if mc_status == "success" and mc_p05 > -0.20 and mc_loss < 0.35 else ("warn" if mc_status == "success" else "warn"),
-            "detail": f"p05 return {mc_p05:.2%}, loss probability {mc_loss:.2%}" if mc_status == "success" else "not enough closed trades",
+            "detail": f"p05 수익률 {mc_p05:.2%}, 손실 확률 {mc_loss:.2%}" if mc_status == "success" else "완료 거래 부족",
             "warning": "" if mc_status == "success" else "monte_carlo_insufficient_trades",
         },
     ]
@@ -1212,32 +1212,32 @@ def explain_python_strategy_result(
         {
             "name": "Python interface validation",
             "status": "pass" if validation_ok else "fail",
-            "detail": "strategy_parameters/generate_signals interface is valid" if validation_ok else "generated code requires review before use",
+            "detail": "strategy_parameters/generate_signals 인터페이스가 유효합니다" if validation_ok else "생성 코드는 사용 전 검토가 필요합니다",
         },
         {
             "name": "Freshness gate",
             "status": "pass" if freshness_ok else "fail",
-            "detail": "price data satisfied the configured freshness policy" if freshness_ok else "strict freshness policy blocked research evidence",
+            "detail": "가격 데이터가 설정된 신선도 정책을 통과했습니다" if freshness_ok else "엄격한 신선도 정책이 리서치 증거를 차단했습니다",
         },
         {
             "name": "Trade sample",
             "status": "pass" if trade_count >= 5 else ("warn" if trade_count >= 2 else "fail"),
-            "detail": f"{trade_count} closed trades; low samples need OOS/walk-forward confirmation",
+            "detail": f"완료 거래 {trade_count}개; 표본이 적으면 OOS/Walk-forward 확인이 필요합니다",
         },
         {
             "name": "Drawdown guard",
             "status": "pass" if max_drawdown >= -0.20 else ("warn" if max_drawdown >= -0.35 else "fail"),
-            "detail": f"max drawdown {max_drawdown:.2%}",
+            "detail": f"최대 낙폭 {max_drawdown:.2%}",
         },
         {
             "name": "Bayesian search",
             "status": "pass" if optimization_ok and trial_count >= 4 else ("warn" if optimization_ok else "fail"),
-            "detail": f"{trial_count} trials using {optimization.get('bayesian_backend') or 'not_run'}",
+            "detail": f"{trial_count}회 시도 · 백엔드 {optimization.get('bayesian_backend') or 'not_run'}",
         },
     ]
     robustness_checks.extend(
         {
-            "name": check.get("name") or "Robustness check",
+            "name": check.get("name") or "강건성 검증",
             "status": check.get("status") or "warn",
             "detail": check.get("detail") or "",
         }
@@ -1245,20 +1245,20 @@ def explain_python_strategy_result(
     )
     parameter_insights = _parameter_insights(manifest, plan.get("parameters") or {}, recommended, best)
     reasons = [
-        f"Backtest return {total_return:.2%}, Sharpe {sharpe:.2f}, max drawdown {max_drawdown:.2%}, trades {trade_count}.",
-        f"Optimizer objective {optimization.get('objective') or 'not_run'} selected recommended parameters from {trial_count} trial(s).",
+        f"백테스트 수익률 {total_return:.2%}, Sharpe {sharpe:.2f}, 최대 낙폭 {max_drawdown:.2%}, 거래 수 {trade_count}개.",
+        f"최적화 목적함수 {optimization.get('objective') or 'not_run'} 기준으로 {trial_count}회 시도 중 추천 파라미터를 선택했습니다.",
     ]
     if parameter_insights:
         changed = [item for item in parameter_insights if item.get("direction") != "unchanged"]
-        reasons.append(f"{len(changed)} optimized parameter(s) moved away from the generated default.")
+        reasons.append(f"{len(changed)}개 최적화 파라미터가 생성 기본값과 달라졌습니다.")
     if trade_count < 5:
-        reasons.append("Trade count is thin; treat this as a research candidate until walk-forward and OOS checks pass.")
+        reasons.append("거래 표본이 적으므로 Walk-forward와 OOS 검증을 통과하기 전까지는 리서치 후보로만 취급해야 합니다.")
     elif max_drawdown < -0.35:
-        reasons.append("Drawdown is severe enough to require rejection or stricter risk controls before promotion.")
+        reasons.append("낙폭이 커서 승격 전 반려 또는 더 엄격한 리스크 제어가 필요합니다.")
     elif robustness_verdict:
-        reasons.append(f"Robustness validation verdict: {robustness_verdict.get('label') or robustness_verdict.get('status')}.")
+        reasons.append(f"강건성 검증 판정: {robustness_verdict.get('label') or robustness_verdict.get('status')}.")
     else:
-        reasons.append("The result can be reviewed as a research candidate, not as an execution recommendation.")
+        reasons.append("이 결과는 실행 추천이 아니라 리서치 후보로 검토해야 합니다.")
     summary = (
         f"{_family_label(family)} 전략은 검증된 Python 템플릿으로 생성됐고, "
         f"백테스트/최적화 결과는 {verdict['label']} 상태입니다. "
@@ -1393,19 +1393,19 @@ def _parameter_direction(default: Any, recommended: Any) -> str:
 
 def _parameter_change_detail(label: str, default: Any, recommended: Any, direction: str) -> str:
     if direction == "unchanged":
-        return f"{label} kept the generated default ({default})."
+        return f"{label}은 생성 기본값({default})을 유지했습니다."
     if direction == "increase":
-        return f"{label} moved higher from {default} to {recommended}."
+        return f"{label}은 {default}에서 {recommended}(으)로 높아졌습니다."
     if direction == "decrease":
-        return f"{label} moved lower from {default} to {recommended}."
-    return f"{label} changed from {default} to {recommended}."
+        return f"{label}은 {default}에서 {recommended}(으)로 낮아졌습니다."
+    return f"{label}은 {default}에서 {recommended}(으)로 변경됐습니다."
 
 
 def _family_label(family: str) -> str:
     labels = {
         "supertrend": "Supertrend",
-        "moving_average_crossover": "Moving-average crossover",
-        "rsi_reversion": "RSI reversion",
+        "moving_average_crossover": "이동평균 교차",
+        "rsi_reversion": "RSI 평균회귀",
     }
     return labels.get(family, family)
 
@@ -1491,7 +1491,7 @@ def _fallback_plan(prompt: str) -> dict[str, Any]:
         slow_window = 50 if fast_window <= 10 else 100
         return {
             "family": family,
-            "rationale": "Moving-average crossover intent mapped to fast/slow SMA crosses, next-bar execution, and editable cost/risk controls.",
+            "rationale": "이동평균 교차 의도를 단기/장기 SMA 교차, 다음 봉 체결, 수정 가능한 비용/리스크 제어로 매핑했습니다.",
             "parameters": _normalize_moving_average_parameters({**common, "fast_window": fast_window, "slow_window": slow_window}),
             "search_space": _default_moving_average_search_space(),
             "warnings": [],
@@ -1501,7 +1501,7 @@ def _fallback_plan(prompt: str) -> dict[str, Any]:
         overbought = 75.0 if oversold <= 25.0 else 70.0
         return {
             "family": family,
-            "rationale": "RSI mean-reversion intent mapped to oversold/overbought entries, mean-exit threshold, next-bar execution, and editable cost/risk controls.",
+            "rationale": "RSI 평균회귀 의도를 과매도/과매수 진입, 평균회귀 청산 기준, 다음 봉 체결, 수정 가능한 비용/리스크 제어로 매핑했습니다.",
             "parameters": _normalize_rsi_reversion_parameters(
                 {**common, "rsi_period": 14, "oversold": oversold, "overbought": overbought, "exit_rsi": 50.0}
             ),
@@ -1512,7 +1512,7 @@ def _fallback_plan(prompt: str) -> dict[str, Any]:
     atr_period = 14 if any(token in clean for token in ["smooth", "완만", "보수", "conservative"]) else 10
     return {
         "family": "supertrend",
-        "rationale": "Supertrend intent mapped to ATR trend flips, next-bar execution, and editable stop/take-profit parameters.",
+        "rationale": "Supertrend 의도를 ATR 추세 전환, 다음 봉 체결, 수정 가능한 손절/익절 파라미터로 매핑했습니다.",
         "parameters": _normalize_supertrend_parameters({**common, "atr_period": atr_period, "factor": factor}),
         "search_space": _default_supertrend_search_space(),
         "warnings": [],
@@ -1543,8 +1543,8 @@ def _manifest_for_plan(plan: dict[str, Any]) -> list[dict[str, Any]]:
         return _rsi_reversion_manifest(plan)
     params = _normalize_supertrend_parameters(plan.get("parameters") or {})
     return [
-        {"name": "atr_period", "label": "ATR Period", "type": "int", "default": params["atr_period"], "min": 5, "max": 50, "step": 1, "optimize_values": [7, 10, 14, 20]},
-        {"name": "factor", "label": "Supertrend Factor", "type": "float", "default": params["factor"], "min": 0.5, "max": 8.0, "step": 0.1, "optimize_values": [1.5, 2.0, 3.0, 4.0]},
+        {"name": "atr_period", "label": "ATR 기간", "type": "int", "default": params["atr_period"], "min": 5, "max": 50, "step": 1, "optimize_values": [7, 10, 14, 20]},
+        {"name": "factor", "label": "Supertrend 배수", "type": "float", "default": params["factor"], "min": 0.5, "max": 8.0, "step": 0.1, "optimize_values": [1.5, 2.0, 3.0, 4.0]},
         *_common_manifest_items(params),
     ]
 
@@ -1552,8 +1552,8 @@ def _manifest_for_plan(plan: dict[str, Any]) -> list[dict[str, Any]]:
 def _moving_average_manifest(plan: dict[str, Any]) -> list[dict[str, Any]]:
     params = _normalize_moving_average_parameters(plan.get("parameters") or {})
     return [
-        {"name": "fast_window", "label": "Fast MA Window", "type": "int", "default": params["fast_window"], "min": 2, "max": 250, "step": 1, "optimize_values": [5, 10, 20, 30]},
-        {"name": "slow_window", "label": "Slow MA Window", "type": "int", "default": params["slow_window"], "min": 3, "max": 500, "step": 1, "optimize_values": [50, 100, 150, 200]},
+        {"name": "fast_window", "label": "단기 MA 기간", "type": "int", "default": params["fast_window"], "min": 2, "max": 250, "step": 1, "optimize_values": [5, 10, 20, 30]},
+        {"name": "slow_window", "label": "장기 MA 기간", "type": "int", "default": params["slow_window"], "min": 3, "max": 500, "step": 1, "optimize_values": [50, 100, 150, 200]},
         *_common_manifest_items(params),
     ]
 
@@ -1561,23 +1561,23 @@ def _moving_average_manifest(plan: dict[str, Any]) -> list[dict[str, Any]]:
 def _rsi_reversion_manifest(plan: dict[str, Any]) -> list[dict[str, Any]]:
     params = _normalize_rsi_reversion_parameters(plan.get("parameters") or {})
     return [
-        {"name": "rsi_period", "label": "RSI Period", "type": "int", "default": params["rsi_period"], "min": 2, "max": 100, "step": 1, "optimize_values": [7, 10, 14, 21]},
-        {"name": "oversold", "label": "Oversold Entry", "type": "float", "default": params["oversold"], "min": 5.0, "max": 45.0, "step": 0.5, "optimize_values": [20.0, 25.0, 30.0, 35.0]},
-        {"name": "overbought", "label": "Overbought Entry", "type": "float", "default": params["overbought"], "min": 55.0, "max": 95.0, "step": 0.5, "optimize_values": [65.0, 70.0, 75.0, 80.0]},
-        {"name": "exit_rsi", "label": "Mean Exit RSI", "type": "float", "default": params["exit_rsi"], "min": 35.0, "max": 65.0, "step": 0.5, "optimize_values": [45.0, 50.0, 55.0]},
+        {"name": "rsi_period", "label": "RSI 기간", "type": "int", "default": params["rsi_period"], "min": 2, "max": 100, "step": 1, "optimize_values": [7, 10, 14, 21]},
+        {"name": "oversold", "label": "과매도 진입", "type": "float", "default": params["oversold"], "min": 5.0, "max": 45.0, "step": 0.5, "optimize_values": [20.0, 25.0, 30.0, 35.0]},
+        {"name": "overbought", "label": "과매수 진입", "type": "float", "default": params["overbought"], "min": 55.0, "max": 95.0, "step": 0.5, "optimize_values": [65.0, 70.0, 75.0, 80.0]},
+        {"name": "exit_rsi", "label": "평균회귀 청산 RSI", "type": "float", "default": params["exit_rsi"], "min": 35.0, "max": 65.0, "step": 0.5, "optimize_values": [45.0, 50.0, 55.0]},
         *_common_manifest_items(params),
     ]
 
 
 def _common_manifest_items(params: dict[str, Any]) -> list[dict[str, Any]]:
     return [
-        {"name": "enable_long", "label": "Enable Long", "type": "bool", "default": params["enable_long"], "optimize_values": [True]},
-        {"name": "enable_short", "label": "Enable Short", "type": "bool", "default": params["enable_short"], "optimize_values": [False, True]},
-        {"name": "use_sltp", "label": "Use Stop Loss / Take Profit", "type": "bool", "default": params["use_sltp"], "optimize_values": [False, True]},
-        {"name": "stop_loss_pct", "label": "Stop Loss (%)", "type": "float", "default": params["stop_loss_pct"], "min": 0.1, "max": 30.0, "step": 0.1, "optimize_values": [1.5, 3.0, 5.0, 8.0]},
-        {"name": "take_profit_pct", "label": "Take Profit (%)", "type": "float", "default": params["take_profit_pct"], "min": 0.1, "max": 60.0, "step": 0.1, "optimize_values": [3.0, 6.0, 10.0, 15.0]},
-        {"name": "transaction_cost_bps", "label": "Commission (bps)", "type": "float", "default": params["transaction_cost_bps"], "min": 0.0, "max": 100.0, "step": 0.5, "optimize_values": [2.0, 5.0, 10.0]},
-        {"name": "slippage_bps", "label": "Slippage (bps)", "type": "float", "default": params["slippage_bps"], "min": 0.0, "max": 100.0, "step": 0.5, "optimize_values": [1.0, 2.0, 5.0]},
+        {"name": "enable_long", "label": "롱 허용", "type": "bool", "default": params["enable_long"], "optimize_values": [True]},
+        {"name": "enable_short", "label": "숏 허용", "type": "bool", "default": params["enable_short"], "optimize_values": [False, True]},
+        {"name": "use_sltp", "label": "손절/익절 사용", "type": "bool", "default": params["use_sltp"], "optimize_values": [False, True]},
+        {"name": "stop_loss_pct", "label": "손절률 (%)", "type": "float", "default": params["stop_loss_pct"], "min": 0.1, "max": 30.0, "step": 0.1, "optimize_values": [1.5, 3.0, 5.0, 8.0]},
+        {"name": "take_profit_pct", "label": "익절률 (%)", "type": "float", "default": params["take_profit_pct"], "min": 0.1, "max": 60.0, "step": 0.1, "optimize_values": [3.0, 6.0, 10.0, 15.0]},
+        {"name": "transaction_cost_bps", "label": "수수료 (bps)", "type": "float", "default": params["transaction_cost_bps"], "min": 0.0, "max": 100.0, "step": 0.5, "optimize_values": [2.0, 5.0, 10.0]},
+        {"name": "slippage_bps", "label": "슬리피지 (bps)", "type": "float", "default": params["slippage_bps"], "min": 0.0, "max": 100.0, "step": 0.5, "optimize_values": [1.0, 2.0, 5.0]},
     ]
 
 

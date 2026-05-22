@@ -15,7 +15,7 @@ UI:
 
 - `/ui/#auto-trading`
 - Tab: `Auto Trading`
-- Cards: `Auto Trading Workbench`, `Auto Trading Control`, `Strategy Research Lab`
+- Cards: `Auto Trading 워크벤치`, `Auto Trading 제어`, `전략 리서치 랩`
 
 API:
 
@@ -29,7 +29,7 @@ Artifacts:
 ## Workflow
 
 1. In `Auto Trading Workbench`, select the asset universe and chart asset.
-2. Edit or generate the governed JSON strategy script in the workbench, or use `Python strategy` for natural-language-to-Python code generation.
+2. Edit or generate the governed JSON strategy script in the workbench, or use `Python 전략 실행` for natural-language-to-Python code generation.
 3. Run dry-run validation before treating a JSON script as usable evidence.
 4. Run `Backtest signals` to create Quant backtest evidence and render internal-data entry/exit markers.
 5. Review the asset evidence map so excluded, stale, or missing symbols are visible.
@@ -41,7 +41,7 @@ Artifacts:
 
 ## Python Strategy Lab
 
-Use `Python strategy` in `Auto Trading Workbench` when you want natural language to produce Python strategy code instead of governed JSON. The current production path supports controlled strategy families for Supertrend, moving-average crossover, and RSI reversion:
+Use `Python 전략 실행` in `Auto Trading 워크벤치` when you want natural language to produce Python strategy code instead of governed JSON. The current production path supports controlled strategy families for Supertrend, moving-average crossover, and RSI reversion:
 
 - natural-language intent -> validated Python code
 - parameter manifest for family-specific controls such as ATR/factor, fast/slow MA windows, RSI period/thresholds, long/short enablement, stop loss, take profit, commission, and slippage

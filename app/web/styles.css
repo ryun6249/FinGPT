@@ -14280,6 +14280,38 @@ html[data-theme="light"] .quality-context-item {
   .auto-trading-action-row .ghost-btn {
     flex: 1 1 140px;
   }
+
+  .python-check-grid,
+  .python-parameter-insight-grid,
+  .python-sensitivity-grid,
+  .python-robustness-grid,
+  .python-validation-metrics,
+  .python-monte-carlo-grid,
+  .python-walk-forward-grid,
+  .python-cost-stress-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .python-strategy-explanation,
+  .python-optimization-visual,
+  .python-robustness-validation {
+    padding: 8px;
+  }
+
+  .python-robustness-item-head {
+    display: grid;
+    gap: 4px;
+  }
+
+  .python-robustness-item-head span {
+    max-width: none;
+    text-align: left;
+  }
+
+  .python-trial-score {
+    grid-template-columns: 20px minmax(80px, 1fr) minmax(54px, auto);
+    gap: 6px;
+  }
 }
 
 .dashboard-surface-grid[data-dashboard-tab="auto-trading"] .auto-trading-workbench-card { order: 1; grid-column: 1 / -1; }

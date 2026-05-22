@@ -9768,7 +9768,7 @@ async function loadDashboardMarketOverview(force = false) {
 
 function decisionStatusClass(status) {
   const key = String(status || "").toLowerCase();
-  if (["ok", "success", "succeeded", "accepted"].includes(key)) return "ok";
+  if (["ok", "success", "succeeded", "accepted", "pass"].includes(key)) return "ok";
   if (["failed", "fail", "error", "rejected"].includes(key)) return "fail";
   if (["partial", "warn", "stale", "empty", "pending", "queued", "running", "credentials_missing", "dependency_missing", "unavailable", "missing_series", "provider_error", "transformation_error"].includes(key)) return "warn";
   return "muted";
@@ -9776,6 +9776,7 @@ function decisionStatusClass(status) {
 
 function decisionStatusLabel(status) {
   const key = String(status || "").toLowerCase();
+  if (key === "pass") return "통과";
   if (key === "success" || key === "ok") return "정상";
   if (key === "succeeded") return "완료";
   if (key === "accepted") return "승인";
@@ -9787,7 +9788,72 @@ function decisionStatusLabel(status) {
   if (key === "partial") return "부분";
   if (key === "warn" || key === "stale") return "경고";
   if (key === "empty") return "비어 있음";
+  if (key === "skipped" || key === "not_run") return "미실행";
+  if (key === "insufficient_trades") return "완료 거래 부족";
   return status || "미확인";
+}
+
+function pythonStrategyBackendLabel(value) {
+  const key = String(value || "").toLowerCase();
+  if (key === "deterministic_surrogate") return "결정론 대체 탐색";
+  if (key === "optuna_tpe") return "Optuna TPE";
+  if (key === "not_run" || key === "skipped") return "미실행";
+  return value || "백엔드 미확인";
+}
+
+function pythonStrategyObjectiveLabel(value) {
+  const key = String(value || "").toLowerCase();
+  if (key === "sharpe_drawdown_trade_quality") return "Sharpe·낙폭·거래 품질";
+  if (key === "not_run" || key === "skipped") return "미실행";
+  return value || "목적함수 미확인";
+}
+
+function pythonStrategyModelStatusLabel(value) {
+  const key = String(value || "").toLowerCase();
+  if (key === "local_llm_plan_template_python") return "로컬 LLM 의도 해석 + Python 템플릿";
+  if (key === "deterministic_template") return "검증 템플릿";
+  if (key === "verified_backtest_and_optimizer") return "백테스트·최적화 검증";
+  return value || "모델 상태 미확인";
+}
+
+function pythonStrategyMethodLabel(value) {
+  const key = String(value || "").toLowerCase();
+  if (key === "oos_walk_forward_cost_monte_carlo") return "OOS·Walk-forward·비용·몬테카를로";
+  if (key === "bayesian") return "베이지안";
+  return value || "방법 미확인";
+}
+
+function pythonStrategyLocalizedText(value) {
+  return String(value || "")
+    .replaceAll("deterministic_surrogate", "결정론 대체 탐색")
+    .replaceAll("sharpe_drawdown_trade_quality", "Sharpe·낙폭·거래 품질")
+    .replaceAll("OOS return", "OOS 수익률")
+    .replaceAll("max drawdown", "최대 낙폭")
+    .replaceAll("segments passed", "개 구간 통과")
+    .replaceAll("worst stressed return", "최악 스트레스 수익률")
+    .replaceAll("p05 return", "p05 수익률")
+    .replaceAll("loss probability", "손실 확률")
+    .replaceAll("not enough closed trades", "완료 거래 부족")
+    .replaceAll("oos_return_non_positive", "OOS 수익률 비양수")
+    .replaceAll("walk_forward_low_pass_rate", "Walk-forward 통과율 낮음")
+    .replaceAll("cost_stress_eroded_return", "비용 스트레스 수익률 훼손")
+    .replaceAll("monte_carlo_insufficient_trades", "몬테카를로 완료 거래 부족");
+}
+
+function pythonStrategyCheckNameLabel(value) {
+  const key = String(value || "").toLowerCase();
+  const labels = {
+    "python interface validation": "Python 인터페이스 검증",
+    "freshness gate": "데이터 신선도 게이트",
+    "trade sample": "거래 표본",
+    "drawdown guard": "낙폭 가드",
+    "bayesian search": "베이지안 탐색",
+    "out-of-sample split": "표본외 분할",
+    "walk-forward consistency": "Walk-forward 일관성",
+    "3x cost stress": "3배 비용 스트레스",
+    "monte carlo resampling": "몬테카를로 재표본추출",
+  };
+  return labels[key] || value || "검증";
 }
 
 function decisionEmpty(message) {
@@ -14208,7 +14274,7 @@ async function runQuantStrategyGenerate() {
     return;
   }
   const button = els.quantStrategyGenerate || els.autoTradingGenerate;
-  const idleText = button?.textContent || "JSON strategy";
+  const idleText = button?.textContent || "JSON 전략";
   if (button) {
     button.disabled = true;
     button.textContent = "생성 중";
@@ -14593,7 +14659,7 @@ function renderAutoTradingBacktestSummary(data = {}, request = {}) {
       <p>${pass ? "The run produced usable strategy research evidence, but promotion still requires validation, OOS checks, and cost stress." : "The result needs review before it can be treated as deployment-candidate evidence."}</p>
       <p>Executable assets and stale/missing symbols are shown above so the strategy is not evaluated against a hidden universe.</p>
     </div>
-    ${warnings.length ? `<div class="decision-warning">${escapeHtml(formatQuantWarnings(warnings))}</div>` : ""}
+    ${warnings.length ? `<div class="decision-warning">${escapeHtml(pythonStrategyLocalizedText(formatQuantWarnings(warnings)))}</div>` : ""}
   `;
 }
 
@@ -14750,7 +14816,7 @@ function pythonStrategyRequestFromControls() {
   syncAutoTradingPrimaryTickerOptions();
   const primary = normalizeTickerToken(els.autoTradingPrimaryTicker?.value || "") || autoTradingTickers()[0] || "SPY";
   return {
-    prompt: (els.autoTradingPrompt?.value || "").trim() || "Create a Supertrend strategy with editable ATR, factor, stop loss, take profit, costs, and next-bar execution.",
+    prompt: (els.autoTradingPrompt?.value || "").trim() || "ATR, factor, 손절, 익절, 거래비용, 다음 봉 체결을 조정할 수 있는 Supertrend 전략을 만들어줘.",
     ticker: primary,
     lookback_days: numberInputValue(els.autoTradingLookbackDays, 756, { min: 60, max: 5000 }),
     use_local_llm: !!els.pythonStrategyUseLocalLlm?.checked,
@@ -14767,16 +14833,16 @@ function renderPythonStrategyParameterManifest(data = {}) {
   const manifest = Array.isArray(data.parameter_manifest) ? data.parameter_manifest : [];
   const params = data.parameters || {};
   const search = data.search_space || {};
-  if (!manifest.length) return decisionEmpty("Python strategy parameter manifest is empty.");
+  if (!manifest.length) return decisionEmpty("Python 전략 파라미터 명세가 비어 있습니다.");
   return `
-    <div class="decision-section-title">Python parameter manifest</div>
+    <div class="decision-section-title">Python 파라미터 명세</div>
     <div class="decision-status-row">
-      <span class="decision-badge ${escapeHtml(decisionStatusClass(data.validation?.valid ? "success" : "partial"))}">${escapeHtml(data.validation?.valid ? "valid" : "review")}</span>
+      <span class="decision-badge ${escapeHtml(decisionStatusClass(data.validation?.valid ? "success" : "partial"))}">${escapeHtml(data.validation?.valid ? "검증 통과" : "검토 필요")}</span>
       <span>${escapeHtml(data.family || "strategy")} · ${escapeHtml(data.language || "python")} · ${escapeHtml(llmStatusLabel(data.llm_diagnostics?.status || data.model_status || "deterministic_template"))}</span>
     </div>
     <div class="decision-table-wrap">
       <table class="decision-table">
-        <thead><tr><th>Parameter</th><th>Default</th><th>Active</th><th>Optimize values</th></tr></thead>
+        <thead><tr><th>파라미터</th><th>기본값</th><th>적용값</th><th>최적화 후보</th></tr></thead>
         <tbody>
           ${manifest.map((item) => `
             <tr>
@@ -14789,7 +14855,7 @@ function renderPythonStrategyParameterManifest(data = {}) {
         </tbody>
       </table>
     </div>
-    <div class="decision-assumption">Python code is rendered from this manifest; optimization evaluates manifest values rather than arbitrary untrusted code.</div>
+    <div class="decision-assumption">Python 코드는 이 명세에서 렌더링되며, 최적화는 임의 코드가 아니라 명세에 정의된 후보 값만 평가합니다.</div>
   `;
 }
 
@@ -14798,8 +14864,8 @@ function pythonStrategyOverlayDefinitions(chart = {}, family = "") {
   if (raw.length) return raw.filter((item) => item && item.key);
   if (family === "moving_average_crossover") {
     return [
-      { key: "fast_ma", label: "Fast MA", class_name: "python-fast-ma-line" },
-      { key: "slow_ma", label: "Slow MA", class_name: "python-slow-ma-line" },
+      { key: "fast_ma", label: "단기 MA", class_name: "python-fast-ma-line" },
+      { key: "slow_ma", label: "장기 MA", class_name: "python-slow-ma-line" },
     ];
   }
   return [{ key: "supertrend", label: "Supertrend", class_name: "python-supertrend-line" }];
@@ -14891,7 +14957,8 @@ function renderPythonStrategyPositionBands(points, height, padTop, padBottom) {
     if (!start || !end) return "";
     const x = Math.min(start.x, end.x);
     const bandWidth = Math.max(5, Math.abs(end.x - start.x));
-    const tooltip = `${band.side.toUpperCase()} exposure · ${start.date || "-"} -> ${end.date || "-"}`;
+    const sideLabel = band.side === "short" ? "숏" : "롱";
+    const tooltip = `${sideLabel} 노출 · ${start.date || "-"} -> ${end.date || "-"}`;
     return `
       <rect class="python-position-band ${escapeHtml(band.side)}" data-chart-tooltip="${escapeHtml(tooltip)}" x="${x.toFixed(2)}" y="${padTop}" width="${bandWidth.toFixed(2)}" height="${(height - padTop - padBottom).toFixed(2)}">
         <title>${escapeHtml(tooltip)}</title>
@@ -14920,10 +14987,10 @@ function renderPythonStrategyTradePaths(chart, backtest, points, min, max, heigh
     const midY = (y1 + y2) / 2 + (index % 2 === 0 ? -10 : 14);
     const showLabel = index % labelStride === 0 || index === paths.length - 1;
     const tooltip = [
-      `Trade ${trade.trade_number || index + 1}`,
+      `거래 ${trade.trade_number || index + 1}`,
       side,
       `${trade.entry_date || entry.date} -> ${trade.exit_date || exit.date}`,
-      `PnL ${formatQuantValue(pnl)}`,
+      `손익 ${formatQuantValue(pnl)}`,
       trade.exit_reason || "",
     ].filter(Boolean).join(" · ");
     return `
@@ -14943,7 +15010,7 @@ function renderPythonStrategyChart(data = {}) {
   const chart = backtest.chart || {};
   const rows = Array.isArray(chart.rows) ? chart.rows : [];
   if (rows.length < 2) {
-    return decisionEmpty("Python strategy did not produce enough chart rows for visual entry/exit review.");
+    return decisionEmpty("Python 전략이 진입/청산을 시각화할 만큼 충분한 차트 행을 만들지 못했습니다.");
   }
   const overlays = pythonStrategyOverlayDefinitions(chart, data.family || backtest.family || "");
   const panels = pythonStrategyPanelDefinitions(chart);
@@ -15001,18 +15068,18 @@ function renderPythonStrategyChart(data = {}) {
     <div class="auto-trading-chart python-strategy-chart" data-testid="python-strategy-chart">
       <div class="internal-chart-head">
         <div>
-          <strong>${escapeHtml(data.ticker || backtest.ticker || "asset")} Python strategy chart</strong>
-          <span>${escapeHtml(rows[0].date)} -> ${escapeHtml(rows[rows.length - 1].date)} · ${escapeHtml(_fmtNumber(rows.length))} bars · ${escapeHtml(data.family || "strategy")}</span>
+          <strong>${escapeHtml(data.ticker || backtest.ticker || "asset")} Python 전략 차트</strong>
+          <span>${escapeHtml(rows[0].date)} -> ${escapeHtml(rows[rows.length - 1].date)} · ${escapeHtml(_fmtNumber(rows.length))}개 봉 · ${escapeHtml(data.family || "strategy")}</span>
         </div>
         <b class="${Number(metrics.total_return || 0) >= 0 ? "ok" : "warn"}">${escapeHtml(formatQuantValue(metrics.total_return))}</b>
       </div>
       <div class="auto-trading-metric-strip">
-        ${decisionMetric("Return", formatQuantValue(metrics.total_return), Number(metrics.total_return || 0) >= 0 ? "ok" : "warn")}
+        ${decisionMetric("수익률", formatQuantValue(metrics.total_return), Number(metrics.total_return || 0) >= 0 ? "ok" : "warn")}
         ${decisionMetric("Sharpe", formatQuantValue(metrics.sharpe), Number(metrics.sharpe || 0) > 0.8 ? "ok" : "warn")}
-        ${decisionMetric("Max DD", formatQuantValue(metrics.max_drawdown), Number(metrics.max_drawdown || 0) < -0.2 ? "warn" : "ok")}
-        ${decisionMetric("Trades", _fmtNumber(metrics.trade_count || 0), Number(metrics.trade_count || 0) ? "ok" : "warn")}
-        ${decisionMetric("Entry/Exit", `${_fmtNumber(entryCount)} / ${_fmtNumber(exitCount)}`, entryCount || exitCount ? "ok" : "warn")}
-        ${decisionMetric("Trade paths", _fmtNumber(tradePathCount), tradePathCount ? "ok" : "warn")}
+        ${decisionMetric("최대 낙폭", formatQuantValue(metrics.max_drawdown), Number(metrics.max_drawdown || 0) < -0.2 ? "warn" : "ok")}
+        ${decisionMetric("거래 수", _fmtNumber(metrics.trade_count || 0), Number(metrics.trade_count || 0) ? "ok" : "warn")}
+        ${decisionMetric("진입/청산", `${_fmtNumber(entryCount)} / ${_fmtNumber(exitCount)}`, entryCount || exitCount ? "ok" : "warn")}
+        ${decisionMetric("거래 경로", _fmtNumber(tradePathCount), tradePathCount ? "ok" : "warn")}
       </div>
       <div class="internal-chart-scroll" tabindex="0" aria-label="Python strategy signal chart horizontal scroll">
         <svg class="internal-ohlc-chart auto-trading-svg python-strategy-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(data.ticker || "asset")} Python strategy signal chart">
@@ -15027,21 +15094,21 @@ function renderPythonStrategyChart(data = {}) {
               ...overlays.map((overlay) => `${overlay.label || overlay.key} ${fmtDecimal(point[overlay.key], 2)}`),
               ...panels.map((panel) => `${panel.label || panel.key} ${fmtDecimal(point[panel.key], 2)}`),
             ].join(" · ");
-            return `${point.date || "-"} · Close ${fmtDecimal(point.value, 2)}${indicatorText ? ` · ${indicatorText}` : ""}`;
+            return `${point.date || "-"} · 종가 ${fmtDecimal(point.value, 2)}${indicatorText ? ` · ${indicatorText}` : ""}`;
           })}
         </svg>
       </div>
       ${renderPythonStrategyIndicatorPanel(rows, panels, width)}
       <div class="auto-trading-legend">
-        <span><i class="entry"></i> Entry</span>
-        <span><i class="exit"></i> Exit</span>
-        <span><i class="trade-path"></i> Trade path / PnL</span>
-        <span><i class="position-long"></i> Long zone</span>
-        <span><i class="position-short"></i> Short zone</span>
+        <span><i class="entry"></i> 진입</span>
+        <span><i class="exit"></i> 청산</span>
+        <span><i class="trade-path"></i> 거래 경로 / 손익</span>
+        <span><i class="position-long"></i> 롱 구간</span>
+        <span><i class="position-short"></i> 숏 구간</span>
         ${overlays.map((overlay) => `<span><i class="${escapeHtml(overlay.class_name || "python-strategy-overlay-line")}"></i> ${escapeHtml(overlay.label || overlay.key)}</span>`).join("")}
         ${panels.map((panel) => `<span><i class="${escapeHtml(panel.class_name || "python-rsi-line")}"></i> ${escapeHtml(panel.label || panel.key)}</span>`).join("")}
       </div>
-      <div class="decision-assumption">Signals are confirmed on the prior bar and executed on the next bar; visual markers show execution points, not live orders.</div>
+      <div class="decision-assumption">신호는 직전 봉에서 확정되고 다음 봉에서 체결된 것으로 계산합니다. 시각 마커는 실행 지점이며 실주문이 아닙니다.</div>
     </div>
   `;
 }
@@ -15056,17 +15123,17 @@ function renderPythonStrategyExplanation(data = {}) {
   return `
     <div class="python-strategy-explanation" data-testid="python-strategy-explanation">
       <div class="decision-status-row">
-        <span class="decision-badge ${escapeHtml(decisionStatusClass(verdict.tone || verdict.status || "partial"))}">${escapeHtml(verdict.label || "review")}</span>
-        <span>${escapeHtml(explanation.source || "verified_backtest_and_optimizer")}</span>
+        <span class="decision-badge ${escapeHtml(decisionStatusClass(verdict.tone || verdict.status || "partial"))}">${escapeHtml(verdict.label || "검토 필요")}</span>
+        <span>${escapeHtml(pythonStrategyModelStatusLabel(explanation.source || "verified_backtest_and_optimizer"))}</span>
       </div>
-      <p>${escapeHtml(explanation.summary || "Verified metrics are available for review.")}</p>
-      ${reasons.length ? `<ul class="python-explanation-list">${reasons.slice(0, 5).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}
+      <p>${escapeHtml(explanation.summary || "검증된 지표를 검토할 수 있습니다.")}</p>
+      ${reasons.length ? `<ul class="python-explanation-list">${reasons.slice(0, 5).map((item) => `<li>${escapeHtml(pythonStrategyLocalizedText(item))}</li>`).join("")}</ul>` : ""}
       ${checks.length ? `
         <div class="python-check-grid" data-testid="python-strategy-robustness-checks">
           ${checks.map((check) => `
             <div class="python-check-item ${escapeHtml(check.status || "warn")}">
-              <strong>${escapeHtml(check.name || "check")}</strong>
-              <span>${escapeHtml(check.detail || "-")}</span>
+              <strong>${escapeHtml(pythonStrategyCheckNameLabel(check.name || "검증 항목"))}</strong>
+              <span>${escapeHtml(pythonStrategyLocalizedText(check.detail || "-"))}</span>
             </div>
           `).join("")}
         </div>
@@ -15090,7 +15157,7 @@ function renderPythonStrategyOptimizationVisual(data = {}) {
   const optimization = data.optimization || {};
   const trials = Array.isArray(optimization.trials) ? optimization.trials : [];
   const sensitivity = Array.isArray(optimization.parameter_sensitivity) ? optimization.parameter_sensitivity : [];
-  if (!trials.length && !sensitivity.length) return decisionEmpty("Python strategy optimization did not return trial details.");
+  if (!trials.length && !sensitivity.length) return decisionEmpty("Python 전략 최적화가 trial 세부 정보를 반환하지 않았습니다.");
   const scores = trials.map((trial) => Number(trial.score)).filter(Number.isFinite);
   const minScore = scores.length ? Math.min(...scores) : 0;
   const maxScore = scores.length ? Math.max(...scores) : 1;
@@ -15098,10 +15165,10 @@ function renderPythonStrategyOptimizationVisual(data = {}) {
   const displayTrials = trials.slice(0, 24);
   return `
     <div class="python-optimization-visual" data-testid="python-strategy-optimization-visual">
-      <div class="decision-section-title">Python Bayesian optimization surface</div>
+      <div class="decision-section-title">Python 베이지안 최적화 표면</div>
       <div class="decision-status-row">
-        <span class="decision-badge ${escapeHtml(decisionStatusClass(optimization.status || "partial"))}">${escapeHtml(optimization.method || "optimization")}</span>
-        <span>${escapeHtml(optimization.bayesian_backend || "backend")} · ${escapeHtml(_fmtNumber(optimization.trial_count || trials.length))} trials · objective ${escapeHtml(optimization.objective || "-")}</span>
+        <span class="decision-badge ${escapeHtml(decisionStatusClass(optimization.status || "partial"))}">${escapeHtml(pythonStrategyMethodLabel(optimization.method || "bayesian"))}</span>
+        <span>${escapeHtml(pythonStrategyBackendLabel(optimization.bayesian_backend || "backend"))} · ${escapeHtml(_fmtNumber(optimization.trial_count || trials.length))}회 시도 · 목적함수 ${escapeHtml(pythonStrategyObjectiveLabel(optimization.objective || "-"))}</span>
       </div>
       ${displayTrials.length ? `
         <div class="python-trial-score-strip" data-testid="python-strategy-trial-scores">
@@ -15109,7 +15176,7 @@ function renderPythonStrategyOptimizationVisual(data = {}) {
             const score = Number(trial.score);
             const width = Number.isFinite(score) ? 16 + ((score - minScore) / scoreSpan) * 84 : 16;
             const tone = trial.status === "success" ? "ok" : "warn";
-            const tooltip = `Trial ${trial.trial_number || "-"} · score ${formatQuantValue(score)} · return ${formatQuantValue(trial.metrics?.total_return)} · drawdown ${formatQuantValue(trial.metrics?.max_drawdown)}`;
+            const tooltip = `시도 ${trial.trial_number || "-"} · 점수 ${formatQuantValue(score)} · 수익률 ${formatQuantValue(trial.metrics?.total_return)} · 낙폭 ${formatQuantValue(trial.metrics?.max_drawdown)}`;
             return `
               <div class="python-trial-score ${tone}" data-chart-tooltip="${escapeHtml(tooltip)}">
                 <span>${escapeHtml(String(trial.trial_number || "-"))}</span>
@@ -15125,8 +15192,8 @@ function renderPythonStrategyOptimizationVisual(data = {}) {
           ${sensitivity.slice(0, 8).map((item) => `
             <div class="python-sensitivity-item">
               <strong>${escapeHtml(item.label || item.name)}</strong>
-              <span>best ${escapeHtml(String(item.best_value ?? "-"))} · worst ${escapeHtml(String(item.worst_value ?? "-"))}</span>
-              <small>spread ${escapeHtml(formatQuantValue(item.score_spread))}</small>
+               <span>최고 ${escapeHtml(String(item.best_value ?? "-"))} · 최저 ${escapeHtml(String(item.worst_value ?? "-"))}</span>
+               <small>격차 ${escapeHtml(formatQuantValue(item.score_spread))}</small>
             </div>
           `).join("")}
         </div>
@@ -15152,25 +15219,25 @@ function renderPythonStrategyRobustness(data = {}) {
   const monteSuccess = monte.status === "success";
   return `
     <div class="python-robustness-validation" data-testid="python-strategy-robustness-validation">
-      <div class="decision-section-title">Python robustness validation</div>
+      <div class="decision-section-title">Python 강건성 검증</div>
       <div class="decision-status-row">
-        <span class="decision-badge ${escapeHtml(decisionStatusClass(verdict.tone || robustness.status || "partial"))}">${escapeHtml(verdict.label || robustness.status || "review")}</span>
-        <span>${escapeHtml(robustness.method || "oos_walk_forward_cost_monte_carlo")}</span>
+        <span class="decision-badge ${escapeHtml(decisionStatusClass(verdict.tone || robustness.status || "partial"))}">${escapeHtml(verdict.label || robustness.status || "검토 필요")}</span>
+        <span>${escapeHtml(pythonStrategyMethodLabel(robustness.method || "oos_walk_forward_cost_monte_carlo"))}</span>
       </div>
       <div class="python-robustness-grid">
         <div class="python-robustness-item" data-testid="python-strategy-oos-validation">
           <div class="python-robustness-item-head">
-            <strong>Out-of-sample split</strong>
-            <span>${escapeHtml(split.status || "not_run")}</span>
+            <strong>표본외 분할</strong>
+            <span>${escapeHtml(decisionStatusLabel(split.status || "not_run"))}</span>
           </div>
           <div class="python-validation-metrics">
-            ${decisionMetric("Train score", formatQuantValue(split.train_score), Number(split.train_score || 0) > 0 ? "ok" : "warn")}
-            ${decisionMetric("Train return", formatQuantValue(trainMetrics.total_return), Number(trainMetrics.total_return || 0) >= 0 ? "ok" : "warn")}
-            ${decisionMetric("OOS return", formatQuantValue(oosMetrics.total_return), Number(oosMetrics.total_return || 0) >= 0 ? "ok" : "warn")}
-            ${decisionMetric("OOS DD", formatQuantValue(oosMetrics.max_drawdown), Number(oosMetrics.max_drawdown || 0) < -0.25 ? "warn" : "ok")}
+            ${decisionMetric("학습 점수", formatQuantValue(split.train_score), Number(split.train_score || 0) > 0 ? "ok" : "warn")}
+            ${decisionMetric("학습 수익률", formatQuantValue(trainMetrics.total_return), Number(trainMetrics.total_return || 0) >= 0 ? "ok" : "warn")}
+            ${decisionMetric("OOS 수익률", formatQuantValue(oosMetrics.total_return), Number(oosMetrics.total_return || 0) >= 0 ? "ok" : "warn")}
+            ${decisionMetric("OOS 낙폭", formatQuantValue(oosMetrics.max_drawdown), Number(oosMetrics.max_drawdown || 0) < -0.25 ? "warn" : "ok")}
           </div>
           <small>${escapeHtml((split.train_range?.start || "-") + " -> " + (split.oos_range?.end || "-"))}</small>
-          <small>Degradation return ${escapeHtml(formatQuantValue(degradation.return_delta))} · Sharpe ${escapeHtml(formatQuantValue(degradation.sharpe_delta))}</small>
+          <small>성능 저하 수익률 ${escapeHtml(formatQuantValue(degradation.return_delta))} · Sharpe ${escapeHtml(formatQuantValue(degradation.sharpe_delta))}</small>
         </div>
         <div class="python-robustness-item" data-testid="python-strategy-walk-forward">
           <div class="python-robustness-item-head">
@@ -15178,8 +15245,8 @@ function renderPythonStrategyRobustness(data = {}) {
             <span>${escapeHtml(_fmtNumber(walk.positive_segments || 0))} / ${escapeHtml(_fmtNumber(walk.segment_count || 0))}</span>
           </div>
           <div class="python-validation-metrics">
-            ${decisionMetric("Pass rate", formatQuantValue(walk.pass_rate), Number(walk.pass_rate || 0) >= 0.67 ? "ok" : "warn")}
-            ${decisionMetric("Segments", _fmtNumber(walk.segment_count || 0), Number(walk.segment_count || 0) >= 3 ? "ok" : "warn")}
+            ${decisionMetric("통과율", formatQuantValue(walk.pass_rate), Number(walk.pass_rate || 0) >= 0.67 ? "ok" : "warn")}
+            ${decisionMetric("구간 수", _fmtNumber(walk.segment_count || 0), Number(walk.segment_count || 0) >= 3 ? "ok" : "warn")}
           </div>
           <div class="python-walk-forward-grid">
             ${segments.slice(0, 3).map((item) => {
@@ -15188,20 +15255,20 @@ function renderPythonStrategyRobustness(data = {}) {
                 <div class="python-walk-forward-segment ${escapeHtml(item.status || "warn")}">
                   <strong>S${escapeHtml(_fmtNumber(item.segment || 0))}</strong>
                   <span>${escapeHtml((item.test_range?.start || "-") + " -> " + (item.test_range?.end || "-"))}</span>
-                  <small>Return ${escapeHtml(formatQuantValue(testMetrics.total_return))} · DD ${escapeHtml(formatQuantValue(testMetrics.max_drawdown))}</small>
+                  <small>수익률 ${escapeHtml(formatQuantValue(testMetrics.total_return))} · 낙폭 ${escapeHtml(formatQuantValue(testMetrics.max_drawdown))}</small>
                 </div>
               `;
-            }).join("") || `<span class="muted">segments unavailable</span>`}
+            }).join("") || `<span class="muted">구간 데이터 없음</span>`}
           </div>
         </div>
         <div class="python-robustness-item" data-testid="python-strategy-cost-stress">
           <div class="python-robustness-item-head">
-            <strong>Cost stress</strong>
-            <span>${escapeHtml(cost.passes_3x_cost ? "3x pass" : "3x review")}</span>
+            <strong>비용 스트레스</strong>
+            <span>${escapeHtml(cost.passes_3x_cost ? "3배 통과" : "3배 검토")}</span>
           </div>
           <div class="python-validation-metrics">
-            ${decisionMetric("Worst return", formatQuantValue(cost.worst_total_return), Number(cost.worst_total_return || 0) >= 0 ? "ok" : "warn")}
-            ${decisionMetric("Scenarios", _fmtNumber(scenarios.length), scenarios.length >= 3 ? "ok" : "warn")}
+            ${decisionMetric("최악 수익률", formatQuantValue(cost.worst_total_return), Number(cost.worst_total_return || 0) >= 0 ? "ok" : "warn")}
+            ${decisionMetric("시나리오", _fmtNumber(scenarios.length), scenarios.length >= 3 ? "ok" : "warn")}
           </div>
           <div class="python-cost-stress-grid">
             ${scenarios.map((item) => {
@@ -15210,35 +15277,35 @@ function renderPythonStrategyRobustness(data = {}) {
                 <div class="python-cost-stress-scenario ${escapeHtml(Number(metrics.total_return || 0) >= 0 ? "ok" : "warn")}">
                   <strong>${escapeHtml(String(item.multiplier ?? "-"))}x</strong>
                   <span>${escapeHtml(formatQuantValue(metrics.total_return))}</span>
-                  <small>cost ${escapeHtml(formatQuantValue(item.transaction_cost_bps))}bps · slip ${escapeHtml(formatQuantValue(item.slippage_bps))}bps</small>
+                  <small>비용 ${escapeHtml(formatQuantValue(item.transaction_cost_bps))}bps · 슬리피지 ${escapeHtml(formatQuantValue(item.slippage_bps))}bps</small>
                 </div>
               `;
-            }).join("") || `<span class="muted">cost stress not run</span>`}
+            }).join("") || `<span class="muted">비용 스트레스 미실행</span>`}
           </div>
         </div>
         <div class="python-robustness-item" data-testid="python-strategy-monte-carlo">
           <div class="python-robustness-item-head">
-            <strong>Monte Carlo resampling</strong>
-            <span>${escapeHtml(monte.status || "not_run")}</span>
+            <strong>몬테카를로 재표본추출</strong>
+            <span>${escapeHtml(decisionStatusLabel(monte.status || "not_run"))}</span>
           </div>
           ${monteSuccess ? `
             <div class="python-monte-carlo-grid">
-              ${decisionMetric("Median", formatQuantValue(monte.median_total_return), Number(monte.median_total_return || 0) >= 0 ? "ok" : "warn")}
-              ${decisionMetric("p05 return", formatQuantValue(monte.p05_total_return), Number(monte.p05_total_return || 0) > -0.2 ? "ok" : "warn")}
-              ${decisionMetric("p95 return", formatQuantValue(monte.p95_total_return), "muted")}
-              ${decisionMetric("p05 DD", formatQuantValue(monte.p05_max_drawdown), Number(monte.p05_max_drawdown || 0) < -0.35 ? "warn" : "ok")}
-              ${decisionMetric("Loss prob", formatQuantValue(monte.loss_probability), Number(monte.loss_probability || 0) < 0.35 ? "ok" : "warn")}
-              ${decisionMetric("Sims", _fmtNumber(monte.simulations || 0), Number(monte.simulations || 0) >= 100 ? "ok" : "warn")}
+              ${decisionMetric("중앙값", formatQuantValue(monte.median_total_return), Number(monte.median_total_return || 0) >= 0 ? "ok" : "warn")}
+              ${decisionMetric("p05 수익률", formatQuantValue(monte.p05_total_return), Number(monte.p05_total_return || 0) > -0.2 ? "ok" : "warn")}
+              ${decisionMetric("p95 수익률", formatQuantValue(monte.p95_total_return), "muted")}
+              ${decisionMetric("p05 낙폭", formatQuantValue(monte.p05_max_drawdown), Number(monte.p05_max_drawdown || 0) < -0.35 ? "warn" : "ok")}
+              ${decisionMetric("손실 확률", formatQuantValue(monte.loss_probability), Number(monte.loss_probability || 0) < 0.35 ? "ok" : "warn")}
+              ${decisionMetric("시뮬레이션", _fmtNumber(monte.simulations || 0), Number(monte.simulations || 0) >= 100 ? "ok" : "warn")}
             </div>
           ` : `
-            <div class="decision-empty compact">Monte Carlo needs at least five closed trades. Current closed trades: ${escapeHtml(_fmtNumber(monte.trade_count || 0))}.</div>
+            <div class="decision-empty compact">Monte Carlo는 최소 5개의 완료 거래가 필요합니다. 현재 완료 거래: ${escapeHtml(_fmtNumber(monte.trade_count || 0))}개.</div>
           `}
         </div>
       </div>
       ${checks.length ? `
         <div class="python-robustness-checks">
           ${checks.map((check) => `
-            <span class="${escapeHtml(check.status || "warn")}">${escapeHtml(check.name || "check")} · ${escapeHtml(check.detail || "-")}</span>
+            <span class="${escapeHtml(check.status || "warn")}">${escapeHtml(pythonStrategyCheckNameLabel(check.name || "검증"))} · ${escapeHtml(pythonStrategyLocalizedText(check.detail || "-"))}</span>
           `).join("")}
         </div>
       ` : ""}
@@ -15254,30 +15321,30 @@ function renderPythonStrategyResult(data = {}, startedAt = Date.now()) {
   const recommended = optimization.recommended_parameters || {};
   const warnings = [...(data.warnings || []), ...(backtest.warnings || []), ...(optimization.warnings || [])];
   return `
-    ${renderActionCompletion("Python strategy run complete", startedAt, `${data.family || "strategy"} · ${backtest.run_id || "run"}`)}
+    ${renderActionCompletion("Python 전략 실행 완료", startedAt, `${data.family || "strategy"} · ${backtest.run_id || "run"}`)}
     <div class="decision-status-row">
-      <span class="decision-badge ${escapeHtml(decisionStatusClass(data.status || "partial"))}">${escapeHtml(data.status || "partial")}</span>
-      <span>${escapeHtml(data.model_status || "deterministic_template")} · ${escapeHtml(data.validation?.valid ? "Python validated" : "Python review required")}</span>
+      <span class="decision-badge ${escapeHtml(decisionStatusClass(data.status || "partial"))}">${escapeHtml(decisionStatusLabel(data.status || "partial"))}</span>
+      <span>${escapeHtml(pythonStrategyModelStatusLabel(data.model_status || "deterministic_template"))} · ${escapeHtml(data.validation?.valid ? "Python 검증 통과" : "Python 검토 필요")}</span>
     </div>
     <div class="decision-practical-grid forecast-metric-grid">
-      ${decisionMetric("Return", formatQuantValue(metrics.total_return), Number(metrics.total_return || 0) >= 0 ? "ok" : "warn")}
+      ${decisionMetric("수익률", formatQuantValue(metrics.total_return), Number(metrics.total_return || 0) >= 0 ? "ok" : "warn")}
       ${decisionMetric("Sharpe", formatQuantValue(metrics.sharpe), Number(metrics.sharpe || 0) > 0.8 ? "ok" : "warn")}
-      ${decisionMetric("Drawdown", formatQuantValue(metrics.max_drawdown), Number(metrics.max_drawdown || 0) < -0.2 ? "warn" : "ok")}
-      ${decisionMetric("Trades", _fmtNumber(metrics.trade_count || 0), Number(metrics.trade_count || 0) ? "ok" : "warn")}
-      ${decisionMetric("Bayesian", optimization.status || "skipped", optimization.status === "success" ? "ok" : "warn")}
-      ${decisionMetric("Trials", _fmtNumber(optimization.trial_count || 0), Number(optimization.trial_count || 0) ? "ok" : "warn")}
+      ${decisionMetric("낙폭", formatQuantValue(metrics.max_drawdown), Number(metrics.max_drawdown || 0) < -0.2 ? "warn" : "ok")}
+      ${decisionMetric("거래 수", _fmtNumber(metrics.trade_count || 0), Number(metrics.trade_count || 0) ? "ok" : "warn")}
+      ${decisionMetric("베이지안", decisionStatusLabel(optimization.status || "skipped"), optimization.status === "success" ? "ok" : "warn")}
+      ${decisionMetric("시도 횟수", _fmtNumber(optimization.trial_count || 0), Number(optimization.trial_count || 0) ? "ok" : "warn")}
     </div>
     ${renderPythonStrategyExplanation(data)}
     <div class="strategy-research-explain">
-      <strong>Recommended parameters</strong>
+      <strong>추천 파라미터</strong>
       <p>${escapeHtml(JSON.stringify(recommended || {}, null, 0) || "-")}</p>
-      <strong>Best raw parameters</strong>
+      <strong>최고 원본 파라미터</strong>
       <p>${escapeHtml(JSON.stringify(best || {}, null, 0) || "-")}</p>
-      <p>${escapeHtml(data.rationale || "Python strategy code, backtest, and optimization were generated from the validated manifest.")}</p>
+      <p>${escapeHtml(data.rationale || "Python 전략 코드, 백테스트, 최적화는 검증된 명세에서 생성됐습니다.")}</p>
     </div>
     ${renderPythonStrategyOptimizationVisual(data)}
     ${renderPythonStrategyRobustness(data)}
-    ${warnings.length ? `<div class="decision-warning">${escapeHtml(formatQuantWarnings(warnings))}</div>` : ""}
+    ${warnings.length ? `<div class="decision-warning">${escapeHtml(pythonStrategyLocalizedText(formatQuantWarnings(warnings)))}</div>` : ""}
   `;
 }
 
@@ -15285,12 +15352,12 @@ async function runPythonStrategyLab() {
   if (!els.pythonStrategyRun || !els.autoTradingChartSurface) return;
   const startedAt = Date.now();
   const request = pythonStrategyRequestFromControls();
-  setButtonBusy(els.pythonStrategyRun, true, "Running");
+  setButtonBusy(els.pythonStrategyRun, true, "실행 중");
   if (els.pythonStrategyResultSurface) {
-    els.pythonStrategyResultSurface.innerHTML = decisionEmpty("Python strategy code, backtest, and Bayesian optimization are running.");
+    els.pythonStrategyResultSurface.innerHTML = decisionEmpty("Python 전략 코드 생성, 백테스트, 베이지안 최적화를 실행 중입니다.");
   }
   if (els.autoTradingChartSurface) {
-    els.autoTradingChartSurface.innerHTML = decisionEmpty(`${request.ticker} Python strategy chart is rendering after backtest.`);
+    els.autoTradingChartSurface.innerHTML = decisionEmpty(`${request.ticker} Python 전략 차트를 백테스트 후 렌더링합니다.`);
   }
   try {
     const res = await fetch(API.quantPythonStrategyRun, {
@@ -15311,9 +15378,9 @@ async function runPythonStrategyLab() {
   } catch (err) {
     const message = err.message || String(err);
     if (els.pythonStrategyResultSurface) {
-      els.pythonStrategyResultSurface.innerHTML = `${renderActionCompletion("Python strategy run failed", startedAt, message, "fail")}${decisionEmpty(message)}`;
+      els.pythonStrategyResultSurface.innerHTML = `${renderActionCompletion("Python 전략 실행 실패", startedAt, message, "fail")}${decisionEmpty(message)}`;
     }
-    if (els.autoTradingChartSurface) els.autoTradingChartSurface.innerHTML = decisionEmpty(`Python strategy chart failed: ${message}`);
+    if (els.autoTradingChartSurface) els.autoTradingChartSurface.innerHTML = decisionEmpty(`Python 전략 차트 실패: ${message}`);
   } finally {
     setButtonBusy(els.pythonStrategyRun, false);
   }
@@ -15799,7 +15866,7 @@ function strategyResearchBaseConfig() {
       transaction_cost_bps: request.transaction_cost_bps || 5,
       slippage_bps: request.slippage_bps || 2,
     },
-    evidence_notes: [autoTradingActive ? "UI request from Auto Trading Workbench" : "UI request from Quant Lab controls", "repo-local deterministic evidence"],
+    evidence_notes: [autoTradingActive ? "Auto Trading 워크벤치 UI 요청" : "Quant Lab 컨트롤 UI 요청", "repo-local deterministic evidence"],
   };
 }
 

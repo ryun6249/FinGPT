@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FinGPT Local Research Assistant</title>
-  <link rel="stylesheet" href="styles.css?v=20260523-python-strategy-v7" />
+  <link rel="stylesheet" href="styles.css?v=20260523-python-strategy-v13" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='48' font-size='48'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E" />
 </head>
 <body>
@@ -904,177 +904,177 @@
           </section>
           <section class="home-card auto-trading-workbench-card auto-trading-surface" data-panel-tier="primary" data-testid="auto-trading-workbench">
             <div class="home-card-head">
-              <h3>Auto Trading Workbench</h3>
-              <span>strategy editor · signal chart · backtest · Bayesian search</span>
+              <h3>Auto Trading 워크벤치</h3>
+              <span>전략 편집 · 신호 차트 · 백테스트 · 베이지안 탐색</span>
             </div>
             <div class="workbench-guardrail-strip auto-trading-guardrail">
-              <span><strong>Mode</strong> research and paper seam</span>
-              <span><strong>Code</strong> governed JSON strategy</span>
-              <span><strong>Signals</strong> next-bar evidence</span>
-              <span><strong>Live</strong> protected fail-closed</span>
+              <span><strong>모드</strong> 리서치와 페이퍼 경계</span>
+              <span><strong>코드</strong> 관리되는 JSON/Python 전략</span>
+              <span><strong>신호</strong> 다음 봉 체결 근거</span>
+              <span><strong>실거래</strong> 보호 런타임 없이는 차단</span>
             </div>
             <div class="auto-trading-shell">
               <div class="auto-trading-left">
                 <div class="decision-form auto-trading-controls">
                   <label>
-                    <span>Assets</span>
+                    <span>자산</span>
                     <div class="input-action-row">
                       <input id="autoTradingTicker" type="text" value="SPY,TLT,GLD" maxlength="12000" aria-label="Auto Trading asset universe" />
-                      <button type="button" id="autoTradingTickerOpen" class="ghost-btn" data-testid="auto-trading-ticker-open">Find</button>
+                      <button type="button" id="autoTradingTickerOpen" class="ghost-btn" data-testid="auto-trading-ticker-open">찾기</button>
                     </div>
                     <div id="autoTradingAssetChips" class="selected-symbol-chips" aria-live="polite"></div>
                   </label>
-                  <label><span>Chart asset</span><select id="autoTradingPrimaryTicker" aria-label="Auto Trading chart asset"><option value="SPY">SPY</option></select></label>
-                  <label><span>Strategy</span><select id="autoTradingStrategySelect" aria-label="Auto Trading saved strategy"><option value="">Default draft</option></select></label>
-                  <label><span>Template</span><select id="autoTradingTemplate" aria-label="Auto Trading template"><option value="risk_adjusted_momentum" selected>Risk adjusted momentum</option><option value="momentum_ranking">Momentum ranking</option><option value="moving_average_trend">Moving average trend</option><option value="volatility_targeting">Volatility targeting</option><option value="buy_and_hold">Buy and hold evidence</option></select></label>
-                  <label><span>Timeframe</span><select id="autoTradingTimeframe" aria-label="Auto Trading timeframe"><option value="1d" selected>1D internal bars</option><option value="4h">4H research preset</option></select></label>
-                  <label><span>History days</span><input id="autoTradingLookbackDays" type="number" value="756" min="120" max="5000" aria-label="Auto Trading history days" /></label>
-                  <label><span>Signal lookback</span><input id="autoTradingSignalLookback" type="number" value="63" min="5" max="756" aria-label="Auto Trading signal lookback" /></label>
-                  <label><span>Top N</span><input id="autoTradingTopN" type="number" value="2" min="1" max="20" aria-label="Auto Trading top N" /></label>
-                  <label><span>Rebalance</span><input id="autoTradingRebalanceEvery" type="number" value="21" min="1" max="252" aria-label="Auto Trading rebalance frequency" /></label>
-                  <label><span>Cost bps</span><input id="autoTradingCostBps" type="number" value="5" min="0" max="1000" aria-label="Auto Trading transaction cost basis points" /></label>
-                  <label><span>Slippage bps</span><input id="autoTradingSlippageBps" type="number" value="2" min="0" max="1000" aria-label="Auto Trading slippage basis points" /></label>
+                  <label><span>차트 자산</span><select id="autoTradingPrimaryTicker" aria-label="Auto Trading chart asset"><option value="SPY">SPY</option></select></label>
+                  <label><span>저장 전략</span><select id="autoTradingStrategySelect" aria-label="Auto Trading saved strategy"><option value="">기본 초안</option></select></label>
+                  <label><span>템플릿</span><select id="autoTradingTemplate" aria-label="Auto Trading template"><option value="risk_adjusted_momentum" selected>위험조정 모멘텀</option><option value="momentum_ranking">모멘텀 랭킹</option><option value="moving_average_trend">이동평균 추세</option><option value="volatility_targeting">변동성 타깃</option><option value="buy_and_hold">매수 후 보유 근거</option></select></label>
+                  <label><span>시간프레임</span><select id="autoTradingTimeframe" aria-label="Auto Trading timeframe"><option value="1d" selected>1일 내부 봉</option><option value="4h">4시간 리서치 프리셋</option></select></label>
+                  <label><span>조회 일수</span><input id="autoTradingLookbackDays" type="number" value="756" min="120" max="5000" aria-label="Auto Trading history days" /></label>
+                  <label><span>신호 조회</span><input id="autoTradingSignalLookback" type="number" value="63" min="5" max="756" aria-label="Auto Trading signal lookback" /></label>
+                  <label><span>상위 N</span><input id="autoTradingTopN" type="number" value="2" min="1" max="20" aria-label="Auto Trading top N" /></label>
+                  <label><span>리밸런싱</span><input id="autoTradingRebalanceEvery" type="number" value="21" min="1" max="252" aria-label="Auto Trading rebalance frequency" /></label>
+                  <label><span>비용 bps</span><input id="autoTradingCostBps" type="number" value="5" min="0" max="1000" aria-label="Auto Trading transaction cost basis points" /></label>
+                  <label><span>슬리피지 bps</span><input id="autoTradingSlippageBps" type="number" value="2" min="0" max="1000" aria-label="Auto Trading slippage basis points" /></label>
                 </div>
                 <div id="autoTradingAssetStatus" class="decision-surface compact-surface auto-trading-asset-status" data-testid="auto-trading-asset-status">
-                  <div class="home-news-empty">Select assets, then run a signal backtest to see which symbols have executable internal evidence.</div>
+                  <div class="home-news-empty">자산을 선택한 뒤 신호 백테스트를 실행하면 실행 가능한 내부 근거가 있는 심볼을 확인할 수 있습니다.</div>
                 </div>
                 <div class="auto-trading-action-row">
-                  <button type="button" id="autoTradingDraft" class="ghost-btn" data-testid="auto-trading-draft">New draft</button>
-                  <button type="button" id="autoTradingGenerate" class="ghost-btn" data-testid="auto-trading-generate">JSON strategy</button>
-                  <button type="button" id="autoTradingDryRun" class="ghost-btn" data-testid="auto-trading-dry-run">Validate code</button>
-                  <button type="button" id="autoTradingSave" class="ghost-btn" data-testid="auto-trading-save">Save</button>
-                  <button type="button" id="autoTradingBacktest" class="ghost-btn strong" data-testid="auto-trading-backtest">Backtest signals</button>
-                  <button type="button" id="autoTradingOptimize" class="ghost-btn" data-testid="auto-trading-optimize">Bayesian optimize</button>
-                  <button type="button" id="pythonStrategyRun" class="ghost-btn strong" data-testid="python-strategy-run">Python strategy</button>
+                  <button type="button" id="autoTradingDraft" class="ghost-btn" data-testid="auto-trading-draft">새 초안</button>
+                  <button type="button" id="autoTradingGenerate" class="ghost-btn" data-testid="auto-trading-generate">JSON 전략</button>
+                  <button type="button" id="autoTradingDryRun" class="ghost-btn" data-testid="auto-trading-dry-run">코드 검증</button>
+                  <button type="button" id="autoTradingSave" class="ghost-btn" data-testid="auto-trading-save">저장</button>
+                  <button type="button" id="autoTradingBacktest" class="ghost-btn strong" data-testid="auto-trading-backtest">신호 백테스트</button>
+                  <button type="button" id="autoTradingOptimize" class="ghost-btn" data-testid="auto-trading-optimize">베이지안 최적화</button>
+                  <button type="button" id="pythonStrategyRun" class="ghost-btn strong" data-testid="python-strategy-run">Python 전략 실행</button>
                 </div>
                 <div id="autoTradingDryRunSurface" class="decision-surface compact-surface" data-testid="auto-trading-dry-run-surface">
-                  <div class="home-news-empty">Generated or edited strategy definitions are validated here before backtest evidence is used.</div>
+                  <div class="home-news-empty">생성하거나 수정한 전략 정의는 백테스트 근거로 사용하기 전에 이곳에서 검증됩니다.</div>
                 </div>
               </div>
               <div class="auto-trading-editor-stack">
                 <label class="auto-trading-prompt-panel">
-                  <span>Strategy intent prompt</span>
-                  <textarea id="autoTradingPrompt" class="strategy-prompt-input" spellcheck="false" aria-label="Auto Trading strategy intent prompt">Create a risk-adjusted momentum strategy for the selected assets. Use next-bar execution, include transaction costs, and explain failure conditions before any promotion.</textarea>
+                  <span>전략 의도 프롬프트</span>
+                  <textarea id="autoTradingPrompt" class="strategy-prompt-input" spellcheck="false" aria-label="Auto Trading strategy intent prompt">선택한 자산에 대해 위험조정 모멘텀 전략을 만들어줘. 다음 봉 체결을 사용하고 거래비용을 포함하며, 승격 전에 실패 조건을 설명해줘.</textarea>
                 </label>
                 <div class="auto-trading-param-panel" data-testid="auto-trading-llm-parameter-tuning">
                   <div class="auto-trading-param-head">
-                    <label class="inline-check"><input id="autoTradingParamTuningEnabled" type="checkbox" checked aria-label="Enable JSON parameter tuning" /> JSON parameter tuning</label>
+                    <label class="inline-check"><input id="autoTradingParamTuningEnabled" type="checkbox" checked aria-label="Enable JSON parameter tuning" /> JSON 파라미터 튜닝</label>
                     <select id="autoTradingParamObjective" aria-label="JSON parameter tuning objective">
-                      <option value="risk_adjusted_return" selected>Risk-adjusted return</option>
-                      <option value="drawdown_control">Drawdown control</option>
-                      <option value="turnover_control">Turnover control</option>
-                      <option value="balanced">Balanced</option>
+                      <option value="risk_adjusted_return" selected>위험조정 수익</option>
+                      <option value="drawdown_control">낙폭 제어</option>
+                      <option value="turnover_control">회전율 제어</option>
+                      <option value="balanced">균형</option>
                     </select>
                   </div>
                   <textarea id="autoTradingParamSearchSpace" class="auto-trading-param-search" spellcheck="false" aria-label="LLM parameter search space">{"lookback":[21,42,63,126],"vol_lookback":[14,21,42],"top_n":[1,2,3,5],"rebalance_every":[5,10,21,42],"transaction_cost_bps":[2,5,10],"slippage_bps":[1,2,5],"portfolio_method":["equal_weight","inverse_volatility","risk_parity","minimum_volatility","max_sharpe"]}</textarea>
                   <div id="autoTradingParamSurface" class="decision-surface compact-surface auto-trading-param-surface" data-testid="auto-trading-parameter-surface">
-                    <div class="home-news-empty">JSON strategy tuning will show selected ranges, adjusted values, and model status here.</div>
+                    <div class="home-news-empty">JSON 전략 튜닝 결과의 선택 범위, 조정 값, 모델 상태가 여기에 표시됩니다.</div>
                   </div>
                 </div>
                 <label class="auto-trading-code-panel">
-                  <span>Strategy script</span>
+                  <span>전략 스크립트</span>
                   <textarea id="autoTradingCode" class="strategy-json-editor auto-trading-code-editor" spellcheck="false" aria-label="Auto Trading strategy JSON code"></textarea>
                 </label>
                 <div class="auto-trading-param-panel python-strategy-panel" data-testid="python-strategy-lab">
                   <div class="auto-trading-param-head">
-                    <label class="inline-check"><input id="pythonStrategyUseLocalLlm" type="checkbox" checked aria-label="Use local LLM for Python strategy intent" /> Local LLM intent</label>
-                    <label><span>Trials</span><input id="pythonStrategyMaxTrials" type="number" value="16" min="1" max="120" aria-label="Python strategy optimization trials" /></label>
+                    <label class="inline-check"><input id="pythonStrategyUseLocalLlm" type="checkbox" checked aria-label="Use local LLM for Python strategy intent" /> 로컬 LLM 의도 해석</label>
+                    <label><span>시도 횟수</span><input id="pythonStrategyMaxTrials" type="number" value="16" min="1" max="120" aria-label="Python strategy optimization trials" /></label>
                   </div>
                   <label class="auto-trading-code-panel">
-                    <span>Generated Python</span>
+                    <span>생성된 Python</span>
                     <textarea id="pythonStrategyCode" class="strategy-json-editor auto-trading-code-editor python-strategy-code" spellcheck="false" aria-label="Generated Python strategy code"></textarea>
                   </label>
                   <div id="pythonStrategyParamSurface" class="decision-surface compact-surface auto-trading-param-surface" data-testid="python-strategy-parameter-surface">
-                    <div class="home-news-empty">Python parameter manifest and Bayesian search-space values will appear here.</div>
+                    <div class="home-news-empty">Python 파라미터 명세와 베이지안 탐색 범위가 여기에 표시됩니다.</div>
                   </div>
                 </div>
               </div>
               <div class="auto-trading-output-stack">
                 <div id="pythonStrategyResultSurface" class="decision-surface compact-surface" data-testid="python-strategy-result-surface">
-                  <div class="home-news-empty">Run Python strategy to generate code, backtest it, optimize parameters, and render entry/exit markers.</div>
+                  <div class="home-news-empty">Python 전략을 실행하면 코드 생성, 백테스트, 파라미터 최적화, 진입/청산 마커가 순서대로 표시됩니다.</div>
                 </div>
                 <div id="autoTradingChartSurface" class="decision-surface auto-trading-chart-surface" data-testid="auto-trading-chart-surface">
-                  <div class="home-news-empty">Run Backtest signals to render the internal data chart with entry and exit markers.</div>
+                  <div class="home-news-empty">신호 백테스트를 실행하면 내부 데이터 차트와 진입/청산 마커가 표시됩니다.</div>
                 </div>
                 <div id="autoTradingBacktestSurface" class="decision-surface compact-surface" data-testid="auto-trading-backtest-surface">
-                  <div class="home-news-empty">Backtest evidence summary, run context, and decision notes will appear here.</div>
+                  <div class="home-news-empty">백테스트 근거 요약, 실행 조건, 의사결정 메모가 여기에 표시됩니다.</div>
                 </div>
                 <div id="autoTradingOptimizationSurface" class="decision-surface compact-surface" data-testid="auto-trading-optimization-surface">
-                  <div class="home-news-empty">Bayesian optimization uses the Strategy Research engine and keeps recommendations validation-gated.</div>
+                  <div class="home-news-empty">베이지안 최적화는 Strategy Research 엔진을 사용하며 추천값은 검증 게이트를 통과해야 합니다.</div>
                 </div>
               </div>
             </div>
           </section>
           <section class="home-card auto-trading-control-card auto-trading-surface" data-panel-tier="primary" data-testid="auto-trading-control-plane">
             <div class="home-card-head">
-              <h3>Auto Trading Control</h3>
-              <span>strategy operation seam</span>
+              <h3>Auto Trading 제어</h3>
+              <span>전략 운영 경계</span>
             </div>
             <div class="workbench-guardrail-strip">
-              <span><strong>Mode</strong> research to paper seam</span>
-              <span><strong>Core</strong> user controlled</span>
-              <span><strong>Evidence</strong> validation gated</span>
-              <span><strong>Live</strong> protected fail-closed</span>
+              <span><strong>모드</strong> 리서치에서 페이퍼까지</span>
+              <span><strong>핵심</strong> 사용자 승인 기반</span>
+              <span><strong>근거</strong> 검증 통과 후 사용</span>
+              <span><strong>실거래</strong> 보호 런타임 없이는 차단</span>
             </div>
             <div class="decision-surface compact-surface">
               <div class="decision-summary-grid">
-                <div><strong>1. Define</strong><span>전략 초안, JSON 정의, dry-run 검증을 이 탭에서 조작합니다.</span></div>
-                <div><strong>2. Research</strong><span>파라미터 최적화, 실패 진단, 가설 생성, OOS 검증을 분리합니다.</span></div>
-                <div><strong>3. Promote</strong><span>검증 전 가설은 pending이며, accepted version만 paper/live seam 후보가 됩니다.</span></div>
+                <div><strong>1. 정의</strong><span>전략 초안, JSON/Python 정의, dry-run 검증을 이 탭에서 조작합니다.</span></div>
+                <div><strong>2. 리서치</strong><span>파라미터 최적화, 실패 진단, 가설 생성, OOS 검증을 분리합니다.</span></div>
+                <div><strong>3. 승격</strong><span>검증 전 가설은 보류 상태이며, 승인된 버전만 페이퍼/실거래 후보가 됩니다.</span></div>
               </div>
-              <p class="form-notice subtle">현재 화면은 전략 리서치와 운영 준비용입니다. 브로커 실행, LEAN protected evidence, live 주문은 별도 protected runtime이 확인되기 전까지 fail-closed로 유지됩니다.</p>
+              <p class="form-notice subtle">현재 화면은 전략 리서치와 운영 준비용입니다. 브로커 실행, LEAN 보호 근거, 실주문은 별도 보호 런타임이 확인되기 전까지 차단 상태로 유지됩니다.</p>
             </div>
           </section>
           <section class="home-card model-profile-card quant-surface" data-panel-tier="primary">
             <div class="home-card-head">
-              <h3>Model Profile</h3>
+              <h3>모델 프로필</h3>
               <button type="button" id="quantModelProfileRefresh" class="linkish" data-testid="quant-model-profile-refresh">새로고침</button>
             </div>
             <div class="workbench-guardrail-strip forecast-guardrail-strip">
-              <span><strong>Strategy</strong> code-only</span>
-              <span><strong>Profile</strong> universe/model/target</span>
-              <span><strong>Execution</strong> next-bar only</span>
-              <span><strong>Policy</strong> advisory only</span>
+              <span><strong>전략</strong> 코드 전용</span>
+              <span><strong>프로필</strong> 유니버스/모델/타깃</span>
+              <span><strong>체결</strong> 다음 봉 전용</span>
+              <span><strong>정책</strong> 자문 전용</span>
             </div>
             <div class="decision-form model-profile-form">
-              <label><span>Profile</span><select id="quantModelProfileSelect" aria-label="Quant model profile"><option value="">기본 프로필</option></select></label>
-              <label><span>Profile ID</span><input id="quantModelProfileId" type="text" value="core_universe_forecast_v1" maxlength="80" aria-label="Quant model profile id" /></label>
-              <label><span>Run mode</span><select id="quantModelProfileRunMode" aria-label="Quant model run mode"><option value="universe_per_asset">유니버스 종목별 Forecast</option><option value="cross_sectional_rank">패널 랭킹 Forecast</option><option value="single_asset">단일 종목 Forecast</option></select></label>
+              <label><span>프로필</span><select id="quantModelProfileSelect" aria-label="Quant model profile"><option value="">기본 프로필</option></select></label>
+              <label><span>프로필 ID</span><input id="quantModelProfileId" type="text" value="core_universe_forecast_v1" maxlength="80" aria-label="Quant model profile id" /></label>
+              <label><span>실행 모드</span><select id="quantModelProfileRunMode" aria-label="Quant model run mode"><option value="universe_per_asset">유니버스 종목별 Forecast</option><option value="cross_sectional_rank">패널 랭킹 Forecast</option><option value="single_asset">단일 종목 Forecast</option></select></label>
               <button type="button" id="quantModelProfileDryRun" class="ghost-btn" data-testid="quant-model-profile-dry-run">프로필 검증</button>
               <button type="button" id="quantModelProfileSave" class="ghost-btn" data-testid="quant-model-profile-save">프로필 저장</button>
-              <button type="button" id="quantModelProfileRun" class="ghost-btn" data-testid="quant-model-lab-run">Model Lab 실행</button>
+              <button type="button" id="quantModelProfileRun" class="ghost-btn" data-testid="quant-model-lab-run">모델 랩 실행</button>
               <button type="button" id="quantModelProfileQueue" class="ghost-btn" data-testid="quant-model-lab-job">Job 큐</button>
               <button type="button" id="quantModelProfileDelete" class="ghost-btn danger" data-testid="quant-model-profile-delete">삭제</button>
             </div>
             <div class="decision-note">전략은 신호/체결 규칙만 담당하고, 모델 프로필은 유니버스, 타깃, 검증, 모델, 랭킹 기준을 관리합니다. 기존 ML Forecast 엔진은 그대로 사용합니다.</div>
             <div id="quantModelProfileSurface" class="decision-surface">
-              <div class="home-news-empty">Connect the current Forecast settings with a saved strategy selection to validate or save a Model Lab profile.</div>
+              <div class="home-news-empty">현재 Forecast 설정과 저장 전략을 연결해 모델 랩 프로필을 검증하거나 저장합니다.</div>
             </div>
           </section>
           <section class="home-card quant-rank-card quant-surface" data-panel-tier="primary">
             <div class="home-card-head">
-              <h3>Panel Rank Result</h3>
-              <span>cross-sectional ML ranking</span>
+              <h3>패널 랭킹 결과</h3>
+              <span>횡단면 ML 랭킹</span>
             </div>
             <div id="quantRankSurface" class="decision-surface quant-rank-surface">
-              <div class="home-news-empty">Model Profile에서 패널 랭킹 Forecast를 실행하면 상위 후보, 점수 격차, 검증 필요 항목이 여기에 표시됩니다.</div>
+              <div class="home-news-empty">모델 프로필에서 패널 랭킹 Forecast를 실행하면 상위 후보, 점수 격차, 검증 필요 항목이 여기에 표시됩니다.</div>
             </div>
           </section>
           <section class="home-card strategy-research-card auto-trading-surface" data-panel-tier="primary" data-testid="strategy-research-lab">
             <div class="home-card-head">
-              <h3>Strategy Research Lab</h3>
+              <h3>전략 리서치 랩</h3>
               <button type="button" id="strategyResearchRefresh" class="linkish" data-testid="strategy-research-refresh">갱신</button>
             </div>
             <div class="workbench-guardrail-strip strategy-research-guardrail">
-              <span><strong>Evidence</strong> repo-local deterministic</span>
-              <span><strong>AI</strong> hypothesis pending</span>
-              <span><strong>Core</strong> protected</span>
-              <span><strong>Decision</strong> validation gated</span>
+              <span><strong>근거</strong> 로컬 결정론 실행</span>
+              <span><strong>AI</strong> 가설은 보류 상태</span>
+              <span><strong>핵심</strong> 보호 경계 유지</span>
+              <span><strong>판정</strong> 검증 게이트 통과 후 사용</span>
             </div>
             <div class="decision-form strategy-research-form">
-              <label><span>Strategy</span><select id="strategyResearchStrategySelect" aria-label="Strategy research strategy"><option value="risk_adjusted_momentum_v1">Risk adjusted momentum</option></select></label>
-              <label><span>Method</span><select id="strategyResearchMethod" aria-label="Strategy optimization method"><option value="grid_search">Grid</option><option value="random_search">Random</option><option value="bayesian" selected>Bayesian Optuna/fallback</option></select></label>
-              <label><span>Trials</span><input id="strategyResearchMaxTrials" type="number" min="1" max="120" value="12" aria-label="Strategy optimization trial count" /></label>
+              <label><span>전략</span><select id="strategyResearchStrategySelect" aria-label="Strategy research strategy"><option value="risk_adjusted_momentum_v1">위험조정 모멘텀</option></select></label>
+              <label><span>방법</span><select id="strategyResearchMethod" aria-label="Strategy optimization method"><option value="grid_search">그리드</option><option value="random_search">랜덤</option><option value="bayesian" selected>베이지안 Optuna/fallback</option></select></label>
+              <label><span>시도 횟수</span><input id="strategyResearchMaxTrials" type="number" min="1" max="120" value="12" aria-label="Strategy optimization trial count" /></label>
               <button type="button" id="strategyResearchOptimize" class="ghost-btn" data-testid="strategy-research-optimize">최적화</button>
               <button type="button" id="strategyResearchDiagnose" class="ghost-btn" data-testid="strategy-research-diagnose">진단</button>
               <button type="button" id="strategyResearchHypotheses" class="ghost-btn" data-testid="strategy-research-hypotheses">가설 생성</button>
@@ -1130,7 +1130,7 @@
               <label>
                 <span>저장 전략</span>
                 <select id="backtestStrategyRegistry" aria-label="Saved strategy selector">
-                  <option value="">Saved strategy</option>
+                  <option value="">저장 전략</option>
                 </select>
               </label>
               <label>
@@ -1292,29 +1292,29 @@
               <span>검증 가능한 예측 실험실</span>
             </div>
             <div class="workbench-guardrail-strip forecast-guardrail-strip">
-              <span><strong>Validation</strong> Walk-forward</span>
-              <span><strong>Leakage</strong> Purge / embargo</span>
-              <span><strong>Target</strong> OOS forward return</span>
-              <span><strong>Execution</strong> 1-bar delay</span>
-              <span><strong>Policy</strong> Advisory only</span>
+              <span><strong>검증</strong> Walk-forward</span>
+              <span><strong>누수</strong> Purge / embargo</span>
+              <span><strong>타깃</strong> OOS forward return</span>
+              <span><strong>체결</strong> 1봉 지연</span>
+              <span><strong>정책</strong> 자문 전용</span>
             </div>
             <div class="decision-form forecast-form">
-              <label><span>Ticker</span><div class="input-action-row compact"><input id="forecastTicker" type="text" value="MSFT" maxlength="24" aria-label="ML Forecast ticker" /><button type="button" id="forecastTickerOpen" class="ghost-btn">찾기</button></div></label>
-              <label><span>Benchmark</span><div class="input-action-row compact"><input id="forecastBenchmark" type="text" value="QQQ" maxlength="24" aria-label="ML Forecast benchmark" /><button type="button" id="forecastBenchmarkOpen" class="ghost-btn">찾기</button></div></label>
-              <label><span>Start</span><input id="forecastStartDate" type="date" aria-label="ML Forecast start date" /></label>
-              <label><span>End</span><input id="forecastEndDate" type="date" aria-label="ML Forecast end date" /></label>
-              <label><span>Horizon</span><input id="forecastHorizon" type="number" value="5" min="1" max="252" step="1" aria-label="Forecast horizon days" /></label>
-              <label><span>Target</span><select id="forecastTargetType" aria-label="Forecast target type"><option value="forward_return">forward_return</option><option value="direction">direction</option><option value="volatility">volatility</option><option value="excess_return">excess_return</option><option value="quantile_return">quantile_return</option><option value="triple_barrier_label">triple_barrier_label</option></select></label>
-              <label><span>Model</span><select id="forecastModel" aria-label="Forecast model"><option value="ridge_regression">ridge_regression</option><option value="random_forest_regressor">random_forest_regressor</option><option value="gradient_boosting_regressor">gradient_boosting_regressor</option><option value="historical_mean">historical_mean</option><option value="zero_return">zero_return</option></select></label>
-              <label><span>Validation</span><select id="forecastValidation" aria-label="Forecast validation method"><option value="walk_forward">walk_forward</option><option value="expanding_window">expanding_window</option><option value="rolling_window">rolling_window</option><option value="walk_forward_plus_purged_cv">walk_forward + purged CV diagnostic</option></select></label>
-              <label class="checkbox-label"><span>Macro context</span><input id="forecastIncludeMacro" type="checkbox" aria-label="Include macro context" /></label>
-              <label class="checkbox-label"><span>Cross asset</span><input id="forecastIncludeCrossAsset" type="checkbox" aria-label="Include cross asset features" /></label>
-              <button type="button" id="forecastPreviewDataset" class="ghost-btn" data-testid="ml-forecast-preview">Preview Dataset</button>
-              <button type="button" id="forecastHydrateDataset" class="ghost-btn" data-testid="ml-forecast-hydrate">Hydrate Data</button>
-              <button type="button" id="forecastBuildFeatures" class="ghost-btn" data-testid="ml-forecast-features">Build Features</button>
-              <button type="button" id="forecastRunTrain" class="ghost-btn" data-testid="ml-forecast-train">Train / Forecast</button>
-              <button type="button" id="forecastQueueJob" class="ghost-btn" data-testid="ml-forecast-job-submit">Queue Job</button>
-              <button type="button" id="forecastGenerateAi" class="ghost-btn" data-testid="ml-forecast-ai">AI Interpretation</button>
+              <label><span>티커</span><div class="input-action-row compact"><input id="forecastTicker" type="text" value="MSFT" maxlength="24" aria-label="ML Forecast ticker" /><button type="button" id="forecastTickerOpen" class="ghost-btn">찾기</button></div></label>
+              <label><span>벤치마크</span><div class="input-action-row compact"><input id="forecastBenchmark" type="text" value="QQQ" maxlength="24" aria-label="ML Forecast benchmark" /><button type="button" id="forecastBenchmarkOpen" class="ghost-btn">찾기</button></div></label>
+              <label><span>시작일</span><input id="forecastStartDate" type="date" aria-label="ML Forecast start date" /></label>
+              <label><span>종료일</span><input id="forecastEndDate" type="date" aria-label="ML Forecast end date" /></label>
+              <label><span>예측 기간</span><input id="forecastHorizon" type="number" value="5" min="1" max="252" step="1" aria-label="Forecast horizon days" /></label>
+              <label><span>타깃</span><select id="forecastTargetType" aria-label="Forecast target type"><option value="forward_return">forward_return</option><option value="direction">direction</option><option value="volatility">volatility</option><option value="excess_return">excess_return</option><option value="quantile_return">quantile_return</option><option value="triple_barrier_label">triple_barrier_label</option></select></label>
+              <label><span>모델</span><select id="forecastModel" aria-label="Forecast model"><option value="ridge_regression">ridge_regression</option><option value="random_forest_regressor">random_forest_regressor</option><option value="gradient_boosting_regressor">gradient_boosting_regressor</option><option value="historical_mean">historical_mean</option><option value="zero_return">zero_return</option></select></label>
+              <label><span>검증</span><select id="forecastValidation" aria-label="Forecast validation method"><option value="walk_forward">walk_forward</option><option value="expanding_window">expanding_window</option><option value="rolling_window">rolling_window</option><option value="walk_forward_plus_purged_cv">walk_forward + purged CV diagnostic</option></select></label>
+              <label class="checkbox-label"><span>매크로 맥락</span><input id="forecastIncludeMacro" type="checkbox" aria-label="Include macro context" /></label>
+              <label class="checkbox-label"><span>교차자산</span><input id="forecastIncludeCrossAsset" type="checkbox" aria-label="Include cross asset features" /></label>
+              <button type="button" id="forecastPreviewDataset" class="ghost-btn" data-testid="ml-forecast-preview">데이터셋 미리보기</button>
+              <button type="button" id="forecastHydrateDataset" class="ghost-btn" data-testid="ml-forecast-hydrate">데이터 보강</button>
+              <button type="button" id="forecastBuildFeatures" class="ghost-btn" data-testid="ml-forecast-features">피처 생성</button>
+              <button type="button" id="forecastRunTrain" class="ghost-btn" data-testid="ml-forecast-train">학습 / 예측</button>
+              <button type="button" id="forecastQueueJob" class="ghost-btn" data-testid="ml-forecast-job-submit">작업 큐 등록</button>
+              <button type="button" id="forecastGenerateAi" class="ghost-btn" data-testid="ml-forecast-ai">AI 해석</button>
               <button type="button" id="forecastGenerateProviderAi" class="ghost-btn" data-testid="ml-forecast-provider-ai">Provider AI</button>
             </div>
             <div class="decision-note">가격 경로를 단정하지 않고 forward return, direction probability, uncertainty, advisory signal, OOS 백테스트를 분리해 표시합니다. 실제 주문 실행은 제공하지 않습니다.</div>
@@ -1339,13 +1339,13 @@
           </section>
           <section class="home-card forecast-card forecast-universe-card forecast-surface model-lab-surface quant-surface" data-panel-tier="primary">
             <div class="home-card-head">
-              <h3>Forecast Universe Lab</h3>
+              <h3>Forecast 유니버스 랩</h3>
               <span>유니버스 구성, ML 적용, 랭킹</span>
             </div>
             <div class="forecast-universe-layout">
               <div class="forecast-universe-controls decision-form">
                 <label>
-                  <span>Universe</span>
+                  <span>유니버스</span>
                   <select id="forecastUniversePreset" aria-label="ML Forecast universe preset">
                     <option value="custom">직접 입력</option>
                     <option value="sp500_top_200">S&P 500 Top 200</option>
@@ -1357,7 +1357,7 @@
                   </select>
                 </label>
                 <label class="forecast-universe-symbols">
-                  <span>Custom Symbols</span>
+                  <span>직접 입력 심볼</span>
                   <div class="input-action-row compact">
                     <input id="forecastUniverseTickers" type="text" value="MSFT,NVDA,AAPL,AMZN,META" aria-label="ML Forecast custom universe tickers" />
                     <button type="button" id="forecastUniverseOpen" class="ghost-btn">찾기</button>
@@ -1377,12 +1377,12 @@
                     <option value="risk_adjusted">Risk-adjusted</option>
                   </select>
                 </label>
-                <button type="button" id="forecastRunUniverse" class="ghost-btn" data-testid="ml-forecast-universe-run">Run Universe ML</button>
+                <button type="button" id="forecastRunUniverse" class="ghost-btn" data-testid="ml-forecast-universe-run">유니버스 ML 실행</button>
               </div>
               <div id="forecastUniverseChips" class="selected-symbol-chips compact" aria-live="polite"></div>
               <div id="forecastUniverseStatus" class="decision-note">단일 Forecast 설정의 모델, 타깃, 검증 규칙을 그대로 사용해 선택 유니버스에 적용합니다.</div>
               <div id="forecastUniverseSurface" class="decision-surface forecast-universe-surface">
-                <div class="home-news-empty">유니버스를 선택하고 Run Universe ML을 실행하면 종목별 예측, 신뢰도, 데이터 품질, leakage 상태가 함께 랭킹됩니다.</div>
+                <div class="home-news-empty">유니버스를 선택하고 유니버스 ML을 실행하면 종목별 예측, 신뢰도, 데이터 품질, leakage 상태가 함께 랭킹됩니다.</div>
               </div>
             </div>
           </section>
@@ -1399,11 +1399,11 @@
             <div id="forecastVizSurface" class="decision-surface"><div class="home-news-empty">Train / Forecast를 실행하면 축 설명과 해석이 포함된 예측 품질, 전략 성과, 모델/데이터 진단 차트가 표시됩니다.</div></div>
           </section>
           <section class="home-card forecast-card forecast-backtest-card forecast-surface model-lab-surface quant-surface" data-panel-tier="details">
-            <div class="home-card-head"><h3>Backtest Result</h3><span>1-bar delay, 비용 반영</span></div>
+            <div class="home-card-head"><h3>백테스트 결과</h3><span>1봉 지연, 비용 반영</span></div>
             <div id="forecastBacktestSurface" class="decision-surface"><div class="home-news-empty">OOS signal 기반 백테스트 결과가 표시됩니다.</div></div>
           </section>
           <section class="home-card forecast-card forecast-evaluation-card forecast-surface model-lab-surface quant-surface" data-panel-tier="details">
-            <div class="home-card-head"><h3>Model Evaluation</h3><span>ML, 금융, 안정성 지표</span></div>
+            <div class="home-card-head"><h3>모델 평가</h3><span>ML, 금융, 안정성 지표</span></div>
             <div id="forecastEvaluationSurface" class="decision-surface"><div class="home-news-empty">Walk-forward fold 성능, baseline 비교, overfitting check가 표시됩니다.</div></div>
           </section>
           <section class="home-card forecast-card forecast-explain-card forecast-surface model-lab-surface quant-surface" data-panel-tier="details">
@@ -1411,7 +1411,7 @@
             <div id="forecastExplainSurface" class="decision-surface"><div class="home-news-empty">feature importance와 reason code를 표시합니다.</div></div>
           </section>
           <section class="home-card forecast-card forecast-ai-card forecast-surface model-lab-surface quant-surface" data-panel-tier="details">
-            <div class="home-card-head"><h3>AI Interpretation</h3><span>구조화 ML output만 사용</span></div>
+            <div class="home-card-head"><h3>AI 해석</h3><span>구조화 ML output만 사용</span></div>
             <div id="forecastAiSurface" class="decision-surface"><div class="home-news-empty">AI 해석은 ML 수치를 생성하지 않고 제공된 결과만 설명합니다.</div></div>
           </section>
           <section class="home-card forecast-card forecast-provider-card forecast-surface" data-panel-tier="operations">
@@ -1430,7 +1430,7 @@
           </section>
           <section class="home-card forecast-card forecast-comparison-card forecast-surface" data-panel-tier="operations">
             <div class="home-card-head">
-              <h3>Model Comparison</h3>
+              <h3>모델 비교</h3>
               <button type="button" id="forecastModelComparisonRefresh" class="linkish" data-testid="ml-forecast-model-comparison-refresh">새로고침</button>
             </div>
             <div id="forecastModelComparisonSurface" class="decision-surface"><div class="home-news-empty">저장된 실험의 confidence, signal quality, backtest metric을 비교합니다.</div></div>
@@ -1444,14 +1444,14 @@
           </section>
           <section class="home-card forecast-card forecast-history-card forecast-surface" data-panel-tier="operations">
             <div class="home-card-head">
-              <h3>Experiment History</h3>
+              <h3>실험 이력</h3>
               <button type="button" id="forecastHistoryRefresh" class="linkish" data-testid="ml-forecast-history-refresh">새로고침</button>
             </div>
             <div id="forecastHistorySurface" class="decision-surface"><div class="home-news-empty">저장된 forecast experiment가 표시됩니다.</div></div>
           </section>
           <section class="home-card forecast-card forecast-registry-card forecast-surface" data-panel-tier="operations">
             <div class="home-card-head">
-              <h3>Model Registry</h3>
+              <h3>모델 레지스트리</h3>
               <button type="button" id="forecastRegistryRefresh" class="linkish" data-testid="ml-forecast-registry-refresh">새로고침</button>
             </div>
             <div id="forecastRegistrySurface" class="decision-surface"><div class="home-news-empty">검증된 모델 registry가 표시됩니다.</div></div>
@@ -1519,7 +1519,7 @@
 
           <section class="home-card ai-portfolio-card ai-portfolio-create-card ai-portfolio-surface" data-panel-tier="primary">
             <div class="home-card-head">
-              <h3>Create Portfolio</h3>
+              <h3>포트폴리오 생성</h3>
               <span>투자형 · 유니버스 · 정책</span>
             </div>
             <div class="decision-section-title">투자형 선택</div>
@@ -1560,22 +1560,22 @@
           </section>
 
           <section class="home-card ai-portfolio-card ai-portfolio-recommendation-card ai-portfolio-surface" data-panel-tier="primary">
-            <div class="home-card-head"><h3>Recommendation</h3><span>정량 결과 · AI 설명 분리</span></div>
+            <div class="home-card-head"><h3>추천안</h3><span>정량 결과 · AI 설명 분리</span></div>
             <div id="aiPortfolioRecommendationSurface" class="decision-surface"><div class="home-news-empty">포트폴리오를 생성하면 추천 배분, 리스크, 제약조건, AI 설명이 표시됩니다.</div></div>
           </section>
 
           <section class="home-card ai-portfolio-card ai-portfolio-performance-card ai-portfolio-surface" data-panel-tier="details">
-            <div class="home-card-head"><h3>Performance</h3><span>성과 · 벤치마크 · 위험</span></div>
+            <div class="home-card-head"><h3>성과</h3><span>성과 · 벤치마크 · 위험</span></div>
             <div id="aiPortfolioPerformanceSurface" class="decision-surface compact-surface"><div class="home-news-empty">성과 지표는 충분한 공통 가격 이력이 있을 때만 표시합니다.</div></div>
           </section>
 
           <section class="home-card ai-portfolio-card ai-portfolio-compliance-card ai-portfolio-surface" data-panel-tier="details">
-            <div class="home-card-head"><h3>Policy Compliance</h3><span>제약조건 검사</span></div>
+            <div class="home-card-head"><h3>정책 준수</h3><span>제약조건 검사</span></div>
             <div id="aiPortfolioComplianceSurface" class="decision-surface compact-surface"><div class="home-news-empty">정책 범위, 현금 비중, 단일 자산 한도, 누락 데이터를 검사합니다.</div></div>
           </section>
 
           <section class="home-card ai-portfolio-card ai-portfolio-rebalance-card ai-portfolio-surface" data-panel-tier="operations">
-            <div class="home-card-head"><h3>Rebalancing</h3><span>사용자 승인 기반</span></div>
+            <div class="home-card-head"><h3>리밸런싱</h3><span>사용자 승인 기반</span></div>
             <label class="ai-current-weights-label"><span>현재 비중 JSON 또는 "SPY 40, TLT 30" 형식</span><textarea id="aiPortfolioCurrentWeights" spellcheck="false" aria-label="AI Portfolio current weights"></textarea></label>
             <div class="ai-rebalance-actions">
               <button type="button" id="aiPortfolioCheckRebalance" class="ghost-btn">리밸런싱 점검</button>
@@ -1587,7 +1587,7 @@
           </section>
 
           <section class="home-card ai-portfolio-card ai-portfolio-reports-card ai-portfolio-surface" data-panel-tier="operations">
-            <div class="home-card-head"><h3>Reports</h3><span>성과 · 리밸런싱 리포트</span></div>
+            <div class="home-card-head"><h3>리포트</h3><span>성과 · 리밸런싱 리포트</span></div>
             <div class="ai-report-actions">
               <button type="button" id="aiPortfolioReportWeekly" class="ghost-btn">주간 리포트</button>
               <button type="button" id="aiPortfolioReportMonthly" class="ghost-btn">월간 리포트</button>
@@ -1597,7 +1597,7 @@
           </section>
 
           <section class="home-card ai-portfolio-card ai-portfolio-history-card ai-portfolio-surface" data-panel-tier="operations">
-            <div class="home-card-head"><h3>History</h3><span>정책 · 추천 · 신호 이력</span></div>
+            <div class="home-card-head"><h3>이력</h3><span>정책 · 추천 · 신호 이력</span></div>
             <div id="aiPortfolioHistorySurface" class="decision-surface compact-surface"><div class="home-news-empty">정책 생성, 추천 생성, 리밸런싱 점검, 사용자 조치가 이력으로 기록됩니다.</div></div>
           </section>
 
@@ -1966,6 +1966,6 @@
   <script src="modules/quant-ui.js?v=20260521-market-signals-v1"></script>
   <script src="modules/ai-portfolio-ui.js?v=20260520-ai-portfolio-ops-v1"></script>
   <script src="modules/quantamental-ui.js?v=20260521-quantamental-decision-v23"></script>
-  <script src="app.js?v=20260523-python-strategy-v7"></script>
+  <script src="app.js?v=20260523-python-strategy-v13"></script>
 </body>
 </html>

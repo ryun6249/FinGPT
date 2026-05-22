@@ -1,5 +1,16 @@
 # Continuous Enhancement Log
 
+## 2026-05-23 Auto Trading Korean LLM Scenario QA
+
+- Runtime: `2026-05-23 06:35 KST`.
+- Current status: upgraded the v8 `/ui/#auto-trading` flow so Korean natural-language prompts generate controlled Python strategy code, render editable parameter manifests, run backtests, run Bayesian optimization, and place the result/robustness output in the full-width row below the LLM/code area.
+- UI/UX: remaining Auto Trading Python Strategy Lab controls, result badges, parameter labels, optimization surface, robustness checks, and status text were localized for Korean review while preserving backend check-name contracts for tests and API consumers.
+- Cache safety: static assets were bumped to `app.js?v=20260523-python-strategy-v13` and `styles.css?v=20260523-python-strategy-v13`; routing-contract and smoke bundle guards were synchronized.
+- Verification: `node --check app\web\app.js`; `python -m pytest tests\test_python_strategy_generator.py tests\test_strategy_generator.py tests\test_quant_lab_api.py tests\test_ui_routing_contract.py -q`; `python scripts\check_ui_contract.py`; and `git diff --check` passed. `git diff --check` reported only LF/CRLF working-copy warnings.
+- Browser verification: in-app Browser was unavailable because no active Codex browser pane was attached, so local Playwright verified `http://127.0.0.1:8828/ui/#auto-trading`. The v8 scenario batch succeeded through the UI for SPY Supertrend, QQQ moving-average crossover, TLT RSI reversion, GLD Supertrend, and AAPL RSI reversion: each returned HTTP 200, generated Python code, parameter manifests, backtest evidence, 5 optimization trials, chart markers/trades, and no abnormal flow flags.
+- Layout proof: after the v13 cache bump and Korean localization polish, Playwright confirmed fresh bundles, no console warnings/errors, no horizontal overflow or mojibake, no targeted English residue in the Python result surface, and the Python result surface below the generated code on desktop and mobile. The representative AAPL RSI run produced `family=rsi_reversion`, 11 parameters, 5 trials, 7 trades, visible chart evidence, and Korean optimization/robustness labels.
+- Screenshots: `F:\LLM\auto-trading-v13-ko-final-result-desktop.png`, `F:\LLM\auto-trading-v13-ko-final-result-mobile.png`.
+
 ## 2026-05-23 Auto Trading LLM Layout Expansion
 
 - Runtime: `2026-05-23 04:45 KST`.
