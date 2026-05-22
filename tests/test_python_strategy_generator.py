@@ -55,6 +55,10 @@ def test_python_strategy_lab_generates_valid_code_backtest_and_optimization(monk
     assert result["backtest"]["status"] == "success"
     assert result["backtest"]["chart"]["rows"]
     assert result["backtest"]["chart"]["markers"]
+    assert result["backtest"]["chart"]["trade_paths"]
+    assert result["backtest"]["chart"]["trade_paths"][0]["entry_date"]
+    assert result["backtest"]["chart"]["trade_paths"][0]["exit_date"]
+    assert result["backtest"]["chart"]["trade_paths"][0]["result"] in {"win", "loss"}
     assert result["optimization"]["status"] == "success"
     assert result["optimization"]["trial_count"] <= 8
     assert result["optimization"]["recommended_parameters"]
@@ -101,6 +105,7 @@ def test_python_strategy_lab_generates_moving_average_strategy(monkeypatch) -> N
     assert result["validation"]["valid"] is True
     assert result["backtest"]["status"] == "success"
     assert result["backtest"]["chart"]["indicators"]["overlays"][0]["key"] == "fast_ma"
+    assert result["backtest"]["chart"]["trade_paths"]
     assert any("fast_ma" in row and "slow_ma" in row for row in result["backtest"]["chart"]["rows"])
     assert result["optimization"]["status"] == "success"
     assert set(result["optimization"]["recommended_parameters"]) <= manifest_names
@@ -132,6 +137,7 @@ def test_python_strategy_lab_generates_rsi_reversion_strategy(monkeypatch) -> No
     assert result["validation"]["valid"] is True
     assert result["backtest"]["status"] == "success"
     assert result["backtest"]["chart"]["indicators"]["panels"][0]["key"] == "rsi"
+    assert result["backtest"]["chart"]["trade_paths"]
     assert any("rsi" in row for row in result["backtest"]["chart"]["rows"])
     assert result["optimization"]["status"] == "success"
     assert set(result["optimization"]["recommended_parameters"]) <= manifest_names

@@ -14056,6 +14056,66 @@ html[data-theme="light"] .quality-context-item {
   filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.25));
 }
 
+.python-position-band {
+  opacity: 0.1;
+  pointer-events: all;
+}
+
+.python-position-band.long {
+  fill: var(--bull);
+}
+
+.python-position-band.short {
+  fill: var(--bear);
+}
+
+.python-trade-path {
+  pointer-events: all;
+}
+
+.python-trade-path line {
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 6 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.python-trade-path.long line {
+  stroke: color-mix(in srgb, var(--bull), white 8%);
+}
+
+.python-trade-path.short line {
+  stroke: color-mix(in srgb, var(--bear), white 6%);
+}
+
+.python-trade-path.loss line {
+  stroke-dasharray: 3 5;
+}
+
+.python-trade-path circle {
+  stroke: color-mix(in srgb, var(--surface), black 20%);
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+
+.python-trade-path .entry-node {
+  fill: var(--bull);
+}
+
+.python-trade-path .exit-node {
+  fill: var(--bear);
+}
+
+.python-trade-path text {
+  fill: var(--text);
+  stroke: color-mix(in srgb, var(--panel), transparent 6%);
+  stroke-width: 3;
+  paint-order: stroke;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-anchor: middle;
+}
+
 .auto-trading-signal-marker.entry path {
   fill: var(--bull);
   stroke: color-mix(in srgb, var(--bull), black 18%);
@@ -14155,6 +14215,9 @@ html[data-theme="light"] .quality-context-item {
 .auto-trading-legend i.entry { background: var(--bull); }
 .auto-trading-legend i.exit { background: var(--bear); }
 .auto-trading-legend i.rebalance { background: var(--accent); }
+.auto-trading-legend i.trade-path { background: color-mix(in srgb, var(--accent), var(--bull) 35%); }
+.auto-trading-legend i.position-long { background: color-mix(in srgb, var(--bull), transparent 20%); }
+.auto-trading-legend i.position-short { background: color-mix(in srgb, var(--bear), transparent 20%); }
 .auto-trading-legend i.python-supertrend-line,
 .auto-trading-legend i.python-strategy-overlay-line { background: var(--accent); }
 .auto-trading-legend i.python-fast-ma-line { background: #2563eb; }

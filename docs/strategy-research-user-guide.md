@@ -50,7 +50,7 @@ Use `Python strategy` in `Auto Trading Workbench` when you want natural language
 - Bayesian optimization over the same manifest search space
 - robustness validation using a train/OOS split, walk-forward segments, 1x/2x/3x cost stress, and Monte Carlo trade resampling
 - verified Korean result explanation, parameter-change notes, robustness checks, and parameter sensitivity
-- SVG chart with family-specific indicator overlays or panels plus entry/exit execution markers
+- SVG chart with family-specific indicator overlays or panels, entry/exit execution markers, long/short exposure bands, and trade-path/PnL overlays
 
 The backend deliberately does not execute arbitrary LLM code. LLM output is used as an intent/parameter plan, then FinGPT renders and validates the Python code from a controlled template so the backtest and optimizer stay reproducible.
 

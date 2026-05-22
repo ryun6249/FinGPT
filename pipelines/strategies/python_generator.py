@@ -526,6 +526,7 @@ def backtest_python_strategy(
     warnings = []
     if metrics["trade_count"] < 2:
         warnings.append("low_trade_count")
+    visible_chart_rows = chart_rows[-500:]
     return {
         "run_id": run_id,
         "status": "success",
@@ -537,8 +538,9 @@ def backtest_python_strategy(
         "drawdown_curve": drawdown_curve,
         "trades": trades,
         "chart": {
-            "rows": chart_rows[-500:],
+            "rows": visible_chart_rows,
             "markers": markers[-200:],
+            "trade_paths": _trade_paths_for_chart(trades, visible_chart_rows),
             "indicators": {
                 "overlays": [{"key": "supertrend", "label": "Supertrend", "class_name": "python-supertrend-line"}],
                 "panels": [],
@@ -767,6 +769,7 @@ def _run_indicator_backtest(
 
     metrics = _metrics_from_returns(returns, trades, drawdown_curve, exposure_bars=exposure_bars, total_bars=max(len(rows) - 1, 1), ending_equity=equity)
     warnings = ["low_trade_count"] if metrics["trade_count"] < 2 else []
+    visible_chart_rows = chart_rows[-500:]
     return {
         "run_id": _make_id("pystrat", family, ticker, params, rows[0]["date"], rows[-1]["date"]),
         "status": "success",
@@ -777,7 +780,12 @@ def _run_indicator_backtest(
         "equity_curve": equity_curve,
         "drawdown_curve": drawdown_curve,
         "trades": trades,
-        "chart": {"rows": chart_rows[-500:], "markers": markers[-200:], "indicators": indicators},
+        "chart": {
+            "rows": visible_chart_rows,
+            "markers": markers[-200:],
+            "trade_paths": _trade_paths_for_chart(trades, visible_chart_rows),
+            "indicators": indicators,
+        },
         "warnings": warnings,
         "diagnostics": {
             "lookahead_safe": True,
@@ -1140,6 +1148,32 @@ def _percentile(values: list[float], pct: float) -> float:
         return values[lower]
     weight = pos - lower
     return values[lower] * (1.0 - weight) + values[upper] * weight
+
+
+def _trade_paths_for_chart(trades: list[dict[str, Any]], chart_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    date_index = {str(row.get("date") or ""): idx for idx, row in enumerate(chart_rows)}
+    paths: list[dict[str, Any]] = []
+    for trade_number, trade in enumerate(trades, start=1):
+        entry_date = str(trade.get("entry_date") or "")
+        exit_date = str(trade.get("exit_date") or "")
+        if entry_date not in date_index or exit_date not in date_index:
+            continue
+        pnl_pct = _float_or(trade.get("pnl_pct"), 0.0)
+        paths.append(
+            {
+                "trade_number": trade_number,
+                "side": str(trade.get("side") or "long"),
+                "entry_date": entry_date,
+                "exit_date": exit_date,
+                "entry_price": round(_float_or(trade.get("entry_price"), 0.0), 6),
+                "exit_price": round(_float_or(trade.get("exit_price"), 0.0), 6),
+                "pnl_pct": round(pnl_pct, 8),
+                "exit_reason": str(trade.get("exit_reason") or ""),
+                "duration_bars": max(1, date_index[exit_date] - date_index[entry_date]),
+                "result": "win" if pnl_pct >= 0 else "loss",
+            }
+        )
+    return paths[-120:]
 
 
 def explain_python_strategy_result(
@@ -2011,7 +2045,7 @@ def _failed_backtest(ticker: str, reason: str) -> dict[str, Any]:
         "equity_curve": [],
         "drawdown_curve": [],
         "trades": [],
-        "chart": {"rows": [], "markers": []},
+        "chart": {"rows": [], "markers": [], "trade_paths": []},
         "warnings": [reason],
         "diagnostics": {"lookahead_safe": True, "execution_assumption": "not_run", "data_source": "data_mart:prices_daily"},
     }

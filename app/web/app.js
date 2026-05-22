@@ -14867,6 +14867,76 @@ function renderPythonStrategyIndicatorPanel(rows, panels, width) {
   }).join("");
 }
 
+function renderPythonStrategyPositionBands(points, height, padTop, padBottom) {
+  const bands = [];
+  let active = null;
+  points.forEach((point, index) => {
+    const position = Number(point.position || 0);
+    const side = position > 0 ? "long" : position < 0 ? "short" : "";
+    if (!side && active) {
+      bands.push({ ...active, endIndex: Math.max(active.startIndex, index - 1) });
+      active = null;
+      return;
+    }
+    if (side && (!active || active.side !== side)) {
+      if (active) bands.push({ ...active, endIndex: Math.max(active.startIndex, index - 1) });
+      active = { side, startIndex: index };
+    }
+  });
+  if (active) bands.push({ ...active, endIndex: points.length - 1 });
+  return bands.map((band) => {
+    const start = points[band.startIndex];
+    const end = points[band.endIndex];
+    if (!start || !end) return "";
+    const x = Math.min(start.x, end.x);
+    const bandWidth = Math.max(5, Math.abs(end.x - start.x));
+    const tooltip = `${band.side.toUpperCase()} exposure · ${start.date || "-"} -> ${end.date || "-"}`;
+    return `
+      <rect class="python-position-band ${escapeHtml(band.side)}" data-chart-tooltip="${escapeHtml(tooltip)}" x="${x.toFixed(2)}" y="${padTop}" width="${bandWidth.toFixed(2)}" height="${(height - padTop - padBottom).toFixed(2)}">
+        <title>${escapeHtml(tooltip)}</title>
+      </rect>
+    `;
+  }).join("");
+}
+
+function renderPythonStrategyTradePaths(chart, backtest, points, min, max, height, padTop, padBottom) {
+  const rawPaths = Array.isArray(chart.trade_paths) && chart.trade_paths.length ? chart.trade_paths : (backtest.trades || []);
+  const paths = rawPaths.slice(-80);
+  if (!paths.length) return "";
+  const labelStride = Math.max(1, Math.ceil(paths.length / 28));
+  return paths.map((trade, index) => {
+    const entry = nearestChartPoint(points, trade.entry_date);
+    const exit = nearestChartPoint(points, trade.exit_date);
+    if (!entry || !exit) return "";
+    const entryPrice = Number(trade.entry_price);
+    const exitPrice = Number(trade.exit_price);
+    const y1 = Number.isFinite(entryPrice) && entryPrice > 0 ? chartY(min, max, entryPrice, height, padTop, padBottom) : entry.y;
+    const y2 = Number.isFinite(exitPrice) && exitPrice > 0 ? chartY(min, max, exitPrice, height, padTop, padBottom) : exit.y;
+    const pnl = Number(trade.pnl_pct);
+    const result = Number.isFinite(pnl) && pnl >= 0 ? "win" : "loss";
+    const side = String(trade.side || "long").toLowerCase() === "short" ? "short" : "long";
+    const midX = (entry.x + exit.x) / 2;
+    const midY = (y1 + y2) / 2 + (index % 2 === 0 ? -10 : 14);
+    const showLabel = index % labelStride === 0 || index === paths.length - 1;
+    const tooltip = [
+      `Trade ${trade.trade_number || index + 1}`,
+      side,
+      `${trade.entry_date || entry.date} -> ${trade.exit_date || exit.date}`,
+      `PnL ${formatQuantValue(pnl)}`,
+      trade.exit_reason || "",
+    ].filter(Boolean).join(" · ");
+    return `
+      <g class="python-trade-path ${escapeHtml(side)} ${escapeHtml(result)}" data-testid="python-strategy-trade-path" data-chart-tooltip="${escapeHtml(tooltip)}">
+        <line x1="${entry.x.toFixed(2)}" y1="${y1.toFixed(2)}" x2="${exit.x.toFixed(2)}" y2="${y2.toFixed(2)}"></line>
+        <circle class="entry-node" cx="${entry.x.toFixed(2)}" cy="${y1.toFixed(2)}" r="3.6"></circle>
+        <circle class="exit-node" cx="${exit.x.toFixed(2)}" cy="${y2.toFixed(2)}" r="3.6"></circle>
+        ${showLabel ? `<text x="${midX.toFixed(2)}" y="${midY.toFixed(2)}">${escapeHtml(formatQuantValue(pnl))}</text>` : ""}
+        <title>${escapeHtml(tooltip)}</title>
+      </g>
+    `;
+  }).join("");
+}
+
 function renderPythonStrategyChart(data = {}) {
   const backtest = data.backtest || {};
   const chart = backtest.chart || {};
@@ -14902,6 +14972,8 @@ function renderPythonStrategyChart(data = {}) {
     if (!linePoints) return "";
     return `<polyline points="${linePoints}" class="${escapeHtml(overlay.class_name || "python-strategy-overlay-line")}"></polyline>`;
   }).join("");
+  const positionBands = renderPythonStrategyPositionBands(points, height, padTop, padBottom);
+  const tradePaths = renderPythonStrategyTradePaths(chart, backtest, points, min, max, height, padTop, padBottom);
   const markers = (Array.isArray(chart.markers) ? chart.markers : []).slice(-160).map((marker, index) => {
     const point = nearestChartPoint(points, marker.date);
     if (!point) return "";
@@ -14923,6 +14995,7 @@ function renderPythonStrategyChart(data = {}) {
   const metrics = backtest.metrics || {};
   const entryCount = (chart.markers || []).filter((marker) => marker.kind === "entry").length;
   const exitCount = (chart.markers || []).filter((marker) => marker.kind === "exit").length;
+  const tradePathCount = (Array.isArray(chart.trade_paths) ? chart.trade_paths : (backtest.trades || [])).length;
   return `
     <div class="auto-trading-chart python-strategy-chart" data-testid="python-strategy-chart">
       <div class="internal-chart-head">
@@ -14938,12 +15011,15 @@ function renderPythonStrategyChart(data = {}) {
         ${decisionMetric("Max DD", formatQuantValue(metrics.max_drawdown), Number(metrics.max_drawdown || 0) < -0.2 ? "warn" : "ok")}
         ${decisionMetric("Trades", _fmtNumber(metrics.trade_count || 0), Number(metrics.trade_count || 0) ? "ok" : "warn")}
         ${decisionMetric("Entry/Exit", `${_fmtNumber(entryCount)} / ${_fmtNumber(exitCount)}`, entryCount || exitCount ? "ok" : "warn")}
+        ${decisionMetric("Trade paths", _fmtNumber(tradePathCount), tradePathCount ? "ok" : "warn")}
       </div>
       <div class="internal-chart-scroll" tabindex="0" aria-label="Python strategy signal chart horizontal scroll">
         <svg class="internal-ohlc-chart auto-trading-svg python-strategy-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(data.ticker || "asset")} Python strategy signal chart">
           ${renderChartYAxis({ width, height, padLeft, padRight, padTop, padBottom, min, max, formatter: (value) => fmtDecimal(value, Math.abs(value) >= 100 ? 0 : 2) })}
+          ${positionBands}
           <polyline points="${svgPolylinePoints(points)}" class="internal-close-line"></polyline>
           ${overlayLines}
+          ${tradePaths}
           ${markers}
           ${renderChartHoverTargets(points.map((point) => ({ ...point, value: point.close })), (point) => {
             const indicatorText = [
@@ -14958,6 +15034,9 @@ function renderPythonStrategyChart(data = {}) {
       <div class="auto-trading-legend">
         <span><i class="entry"></i> Entry</span>
         <span><i class="exit"></i> Exit</span>
+        <span><i class="trade-path"></i> Trade path / PnL</span>
+        <span><i class="position-long"></i> Long zone</span>
+        <span><i class="position-short"></i> Short zone</span>
         ${overlays.map((overlay) => `<span><i class="${escapeHtml(overlay.class_name || "python-strategy-overlay-line")}"></i> ${escapeHtml(overlay.label || overlay.key)}</span>`).join("")}
         ${panels.map((panel) => `<span><i class="${escapeHtml(panel.class_name || "python-rsi-line")}"></i> ${escapeHtml(panel.label || panel.key)}</span>`).join("")}
       </div>

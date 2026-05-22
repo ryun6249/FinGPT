@@ -424,6 +424,7 @@ REQUIRED_APP_JS_MARKERS: dict[str, str] = {
     "python strategy runner": "async function runPythonStrategyLab",
     "python strategy chart": "function renderPythonStrategyChart",
     "python strategy indicator panel": "function renderPythonStrategyIndicatorPanel",
+    "python strategy trade paths": "function renderPythonStrategyTradePaths",
     "python strategy explanation": "function renderPythonStrategyExplanation",
     "python strategy optimization visual": "function renderPythonStrategyOptimizationVisual",
     "python strategy robustness validation": "function renderPythonStrategyRobustness",

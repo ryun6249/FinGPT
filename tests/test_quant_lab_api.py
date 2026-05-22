@@ -538,6 +538,7 @@ def test_python_strategy_run_endpoint_returns_code_backtest_and_optimization(mon
     assert body["validation"]["valid"] is True
     assert body["backtest"]["status"] == "success"
     assert body["backtest"]["chart"]["markers"]
+    assert body["backtest"]["chart"]["trade_paths"]
     assert body["optimization"]["status"] == "success"
     assert body["optimization"]["trial_count"] <= 6
     assert body["explanation"]["source"] == "verified_backtest_and_optimizer"
@@ -587,6 +588,7 @@ def test_python_strategy_run_endpoint_supports_moving_average_family(monkeypatch
     assert "def simple_moving_average" in body["code"]
     assert body["backtest"]["status"] == "success"
     assert body["backtest"]["chart"]["indicators"]["overlays"][0]["key"] == "fast_ma"
+    assert body["backtest"]["chart"]["trade_paths"]
     assert body["optimization"]["status"] == "success"
     assert set(body["optimization"]["recommended_parameters"]) <= {item["name"] for item in body["parameter_manifest"]}
     assert body["optimization"]["parameter_sensitivity"]
