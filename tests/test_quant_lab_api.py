@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import math
 from datetime import date, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -494,6 +495,51 @@ def test_strategy_generate_endpoint_returns_code_only_strategy_without_llm() -> 
     for text in [*body["advantages"], *body["disadvantages"]]:
         assert re.search(r"[\uac00-\ud7a3]", text)
         assert not cjk_or_japanese.search(text)
+
+
+def test_python_strategy_run_endpoint_returns_code_backtest_and_optimization(monkeypatch) -> None:
+    rows = []
+    prev_close = 100.0
+    for idx in range(220):
+        day = (date(2025, 1, 1) + timedelta(days=idx)).isoformat()
+        close = 100.0 + math.sin(idx / 6.0) * 8.0 + idx * 0.02
+        rows.append(
+            {
+                "ticker": "SPY",
+                "date": day,
+                "open": prev_close,
+                "high": max(prev_close, close) * 1.02,
+                "low": min(prev_close, close) * 0.98,
+                "close": close,
+                "adjusted_close": close,
+                "source": "test",
+            }
+        )
+        prev_close = close
+    monkeypatch.setattr("pipelines.strategies.python_generator.get_prices", lambda ticker, limit=252: rows[-limit:])
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/v1/quant/python-strategy/run",
+        json={
+            "prompt": "Supertrend 전략을 Python으로 만들고 atr/factor/손절/익절을 Bayesian 최적화해줘.",
+            "ticker": "SPY",
+            "use_local_llm": False,
+            "max_trials": 6,
+            "parameter_overrides": {"atr_period": 7, "factor": 1.5, "enable_short": True, "use_sltp": True},
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "success"
+    assert body["language"] == "python"
+    assert "def generate_signals" in body["code"]
+    assert body["validation"]["valid"] is True
+    assert body["backtest"]["status"] == "success"
+    assert body["backtest"]["chart"]["markers"]
+    assert body["optimization"]["status"] == "success"
+    assert body["optimization"]["trial_count"] <= 6
 
 
 def test_model_profile_api_roundtrip_and_dry_run(tmp_path, monkeypatch) -> None:

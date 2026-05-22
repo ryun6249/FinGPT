@@ -1,5 +1,18 @@
 # Continuous Enhancement Log
 
+## 2026-05-22 Python Strategy Lab
+
+- Runtime: `2026-05-22 21:45 KST`.
+- Current status: continued the Auto Trading strategy-coding workflow toward natural-language -> Python strategy code -> backtest -> Bayesian optimization -> visual entry/exit review. This remains research evidence only; live execution and recommendations stay out of scope.
+- Backend contract: added `POST /api/v1/quant/python-strategy/run`. It accepts a natural-language prompt, ticker, local-LLM flag, parameter overrides, and trial budget, then returns validated Python strategy code, a parameter manifest/search space, freshness details, backtest metrics/trades/chart rows, and Bayesian optimization trials/recommended parameters.
+- Safety boundary: arbitrary LLM Python is not executed. The LLM is used as an intent/parameter planner, then FinGPT renders controlled Python from a Supertrend template and validates it with AST/interface checks before backtesting. The existing `/api/v1/quant/strategy/generate` timeout cap was raised to 180s so qwen strategy prompts no longer false-fallback around 45s.
+- UI/UX: `/ui/#auto-trading` now has a `Python strategy` action, Local LLM intent toggle, trial control, generated Python code editor, parameter manifest table, optimization summary, and an SVG Supertrend chart with entry/exit markers and the Supertrend line.
+- Cache safety: static assets were bumped to `app.js?v=20260522-python-strategy-v1` and `styles.css?v=20260522-python-strategy-v1`; the AI Portfolio smoke bundle guard and UI routing expectations were synchronized.
+- Verification: `python -m pytest tests\test_python_strategy_generator.py tests\test_strategy_generator.py tests\test_quant_lab_api.py tests\test_ui_routing_contract.py -q` (`68 passed, 4 subtests passed`), `node --check app\web\app.js`, `python scripts\check_ui_contract.py`, and a direct API smoke on `http://127.0.0.1:8824/api/v1/quant/python-strategy/run` all passed.
+- Local LLM proof: the new Python endpoint with `use_local_llm=true`, qwen timeout `120s`, and Supertrend prompt returned `model_status=local_llm_plan_template_python`, `llm_status=success`, `fallback_used=False`, `validation=True`, `backtest=success`, `optimization=success`, and `26` chart markers in `43.6s`.
+- Browser verification: fresh server `http://127.0.0.1:8824/ui/#auto-trading`; Browser/IAB confirmed v1 app/style bundles, Python Strategy Lab controls, generated Python code, manifest table, successful optimization summary, Supertrend line, and entry/exit markers. Desktop and mobile `390x900` checks had console errors `0`, body overflow `0`, and Python panel overflow `0`.
+- Screenshots: `F:\LLM\python-strategy-auto-trading-desktop-8824.png`, `F:\LLM\python-strategy-auto-trading-mobile-8824.png`.
+
 ## 2026-05-22 LLM Strategy Progress and Tuning
 
 - Runtime: `2026-05-22 20:56 KST`.

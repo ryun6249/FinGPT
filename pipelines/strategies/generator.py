@@ -97,7 +97,7 @@ def generate_strategy_from_prompt(
             base_url=base_url,
             model=model,
             prompt=_strategy_prompt(clean_prompt, context, fallback["strategy"], tuning),
-            timeout_s=max(4.0, min(float(timeout_s or 24.0), 45.0)),
+            timeout_s=max(4.0, min(float(timeout_s or 120.0), 180.0)),
         )
         parsed = _extract_json_object(raw)
         strategy = _code_only_strategy(parsed.get("strategy") if isinstance(parsed.get("strategy"), dict) else parsed)

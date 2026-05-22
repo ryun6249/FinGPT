@@ -56,6 +56,7 @@ from pipelines.data_mart.jobs.ensure_price_history import ensure_price_history
 from pipelines.data_mart.jobs.update_prices_daily import update_prices_daily
 from pipelines.data_mart.storage.repository import get_prices, price_availability
 from pipelines.strategies.generator import generate_strategy_from_prompt
+from pipelines.strategies.python_generator import PythonStrategyRunRequest, run_python_strategy_lab
 from pipelines.strategies.registry import get_strategy, list_strategies
 from pipelines.strategies.storage import delete_strategy, load_strategy, migrate_strategy, save_strategy, validate_strategy
 
@@ -98,13 +99,54 @@ class QuantStrategyGenerateRequest(BaseModel):
     prompt: str = Field(default="", max_length=5000)
     context: dict[str, Any] = Field(default_factory=dict)
     use_local_llm: bool = True
-    timeout_s: float = Field(default=45.0, ge=4.0, le=45.0)
+    timeout_s: float = Field(default=120.0, ge=4.0, le=180.0)
     parameter_tuning: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("prompt", mode="before")
     @classmethod
     def _clean_prompt(cls, value: Any) -> str:
         return str(value or "").strip()
+
+
+class QuantPythonStrategyRunApiRequest(BaseModel):
+    prompt: str = Field(default="", max_length=5000)
+    ticker: str = "SPY"
+    start_date: str | None = None
+    end_date: str | None = None
+    lookback_days: int = Field(default=756, ge=60, le=5000)
+    use_local_llm: bool = True
+    timeout_s: float = Field(default=120.0, ge=4.0, le=180.0)
+    optimize: bool = True
+    max_trials: int = Field(default=16, ge=1, le=120)
+    random_seed: int = Field(default=42, ge=0, le=999_999)
+    freshness_profile: str = "research_default"
+    require_fresh_prices: bool = False
+    max_market_calendar_lag_days: int = Field(default=3, ge=0, le=30)
+    parameter_overrides: dict[str, Any] = Field(default_factory=dict)
+    search_space: dict[str, list[Any]] = Field(default_factory=dict)
+
+    @field_validator("prompt", mode="before")
+    @classmethod
+    def _clean_prompt(cls, value: Any) -> str:
+        return str(value or "").strip()
+
+    @field_validator("ticker", mode="before")
+    @classmethod
+    def _clean_ticker(cls, value: Any) -> str:
+        ticker = str(value or "SPY").strip().upper()
+        return ticker or "SPY"
+
+    @field_validator("freshness_profile", mode="before")
+    @classmethod
+    def _clean_freshness_profile(cls, value: Any) -> str:
+        clean = str(value or "research_default").strip().lower()
+        return clean if clean in {"research_default", "decision_review", "historical_lab"} else "research_default"
+
+    @field_validator("start_date", "end_date", mode="before")
+    @classmethod
+    def _clean_date(cls, value: Any) -> str | None:
+        cleaned = str(value or "").strip()
+        return cleaned or None
 
 
 class QuantRunCompareRequest(BaseModel):
@@ -514,6 +556,29 @@ async def post_strategy_generate(request: QuantStrategyGenerateRequest) -> dict[
         use_local_llm=request.use_local_llm,
         timeout_s=request.timeout_s,
         parameter_tuning=request.parameter_tuning,
+    )
+
+
+@router.post("/python-strategy/run")
+async def post_python_strategy_run(request: QuantPythonStrategyRunApiRequest) -> dict[str, Any]:
+    return run_python_strategy_lab(
+        PythonStrategyRunRequest(
+            prompt=request.prompt,
+            ticker=request.ticker,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            lookback_days=request.lookback_days,
+            use_local_llm=request.use_local_llm,
+            timeout_s=request.timeout_s,
+            optimize=request.optimize,
+            max_trials=request.max_trials,
+            random_seed=request.random_seed,
+            freshness_profile=request.freshness_profile,
+            require_fresh_prices=request.require_fresh_prices,
+            max_market_calendar_lag_days=request.max_market_calendar_lag_days,
+            parameter_overrides=request.parameter_overrides,
+            search_space=request.search_space,
+        )
     )
 
 

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FinGPT Local Research Assistant</title>
-  <link rel="stylesheet" href="styles.css?v=20260522-llm-strategy-v1" />
+  <link rel="stylesheet" href="styles.css?v=20260522-python-strategy-v1" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='48' font-size='48'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E" />
 </head>
 <body>
@@ -945,6 +945,7 @@
                   <button type="button" id="autoTradingSave" class="ghost-btn" data-testid="auto-trading-save">Save</button>
                   <button type="button" id="autoTradingBacktest" class="ghost-btn strong" data-testid="auto-trading-backtest">Backtest signals</button>
                   <button type="button" id="autoTradingOptimize" class="ghost-btn" data-testid="auto-trading-optimize">Bayesian optimize</button>
+                  <button type="button" id="pythonStrategyRun" class="ghost-btn strong" data-testid="python-strategy-run">Python strategy</button>
                 </div>
                 <div id="autoTradingDryRunSurface" class="decision-surface compact-surface" data-testid="auto-trading-dry-run-surface">
                   <div class="home-news-empty">Generated or edited strategy definitions are validated here before backtest evidence is used.</div>
@@ -974,8 +975,24 @@
                   <span>Strategy script</span>
                   <textarea id="autoTradingCode" class="strategy-json-editor auto-trading-code-editor" spellcheck="false" aria-label="Auto Trading strategy JSON code"></textarea>
                 </label>
+                <div class="auto-trading-param-panel python-strategy-panel" data-testid="python-strategy-lab">
+                  <div class="auto-trading-param-head">
+                    <label class="inline-check"><input id="pythonStrategyUseLocalLlm" type="checkbox" checked aria-label="Use local LLM for Python strategy intent" /> Local LLM intent</label>
+                    <label><span>Trials</span><input id="pythonStrategyMaxTrials" type="number" value="16" min="1" max="120" aria-label="Python strategy optimization trials" /></label>
+                  </div>
+                  <label class="auto-trading-code-panel">
+                    <span>Generated Python</span>
+                    <textarea id="pythonStrategyCode" class="strategy-json-editor auto-trading-code-editor python-strategy-code" spellcheck="false" aria-label="Generated Python strategy code"></textarea>
+                  </label>
+                  <div id="pythonStrategyParamSurface" class="decision-surface compact-surface auto-trading-param-surface" data-testid="python-strategy-parameter-surface">
+                    <div class="home-news-empty">Python parameter manifest and Bayesian search-space values will appear here.</div>
+                  </div>
+                </div>
               </div>
               <div class="auto-trading-output-stack">
+                <div id="pythonStrategyResultSurface" class="decision-surface compact-surface" data-testid="python-strategy-result-surface">
+                  <div class="home-news-empty">Run Python strategy to generate code, backtest it, optimize parameters, and render entry/exit markers.</div>
+                </div>
                 <div id="autoTradingChartSurface" class="decision-surface auto-trading-chart-surface" data-testid="auto-trading-chart-surface">
                   <div class="home-news-empty">Run Backtest signals to render the internal data chart with entry and exit markers.</div>
                 </div>
@@ -1991,6 +2008,6 @@
   <script src="modules/quant-ui.js?v=20260521-market-signals-v1"></script>
   <script src="modules/ai-portfolio-ui.js?v=20260520-ai-portfolio-ops-v1"></script>
   <script src="modules/quantamental-ui.js?v=20260521-quantamental-decision-v23"></script>
-  <script src="app.js?v=20260522-llm-strategy-v1"></script>
+  <script src="app.js?v=20260522-python-strategy-v1"></script>
 </body>
 </html>

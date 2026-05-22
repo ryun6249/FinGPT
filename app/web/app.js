@@ -120,6 +120,7 @@ const API = {
   quantStrategy: (strategyId) => `/api/v1/quant/strategy/${encodeURIComponent(strategyId)}`,
   quantStrategyDryRun: "/api/v1/quant/strategy/dry-run",
   quantStrategyGenerate: "/api/v1/quant/strategy/generate",
+  quantPythonStrategyRun: "/api/v1/quant/python-strategy/run",
   quantStrategySave: "/api/v1/quant/strategy/save",
   quantModelProfiles: "/api/v1/quant/model-profile/list",
   quantModelProfile: (profileId) => `/api/v1/quant/model-profile/${encodeURIComponent(profileId)}`,
@@ -660,6 +661,12 @@ const els = {
   autoTradingSave: document.getElementById("autoTradingSave"),
   autoTradingBacktest: document.getElementById("autoTradingBacktest"),
   autoTradingOptimize: document.getElementById("autoTradingOptimize"),
+  pythonStrategyRun: document.getElementById("pythonStrategyRun"),
+  pythonStrategyUseLocalLlm: document.getElementById("pythonStrategyUseLocalLlm"),
+  pythonStrategyMaxTrials: document.getElementById("pythonStrategyMaxTrials"),
+  pythonStrategyCode: document.getElementById("pythonStrategyCode"),
+  pythonStrategyParamSurface: document.getElementById("pythonStrategyParamSurface"),
+  pythonStrategyResultSurface: document.getElementById("pythonStrategyResultSurface"),
   autoTradingAssetStatus: document.getElementById("autoTradingAssetStatus"),
   autoTradingDryRunSurface: document.getElementById("autoTradingDryRunSurface"),
   autoTradingChartSurface: document.getElementById("autoTradingChartSurface"),
@@ -14215,7 +14222,7 @@ async function runQuantStrategyGenerate() {
         prompt,
         context: strategyGenerationContextFromControls(),
         use_local_llm: true,
-        timeout_s: 45,
+        timeout_s: 120,
         parameter_tuning: parameterTuning,
       }),
     });
@@ -14735,6 +14742,201 @@ async function runAutoTradingOptimize() {
     els.autoTradingOptimizationSurface.innerHTML = `${renderActionCompletion("Bayesian optimization failed", startedAt, err.message || String(err), "fail")}${decisionEmpty(err.message || String(err))}`;
   } finally {
     setButtonBusy(els.autoTradingOptimize, false);
+  }
+}
+
+function pythonStrategyRequestFromControls() {
+  syncAutoTradingPrimaryTickerOptions();
+  const primary = normalizeTickerToken(els.autoTradingPrimaryTicker?.value || "") || autoTradingTickers()[0] || "SPY";
+  return {
+    prompt: (els.autoTradingPrompt?.value || "").trim() || "Create a Supertrend strategy with editable ATR, factor, stop loss, take profit, costs, and next-bar execution.",
+    ticker: primary,
+    lookback_days: numberInputValue(els.autoTradingLookbackDays, 756, { min: 60, max: 5000 }),
+    use_local_llm: !!els.pythonStrategyUseLocalLlm?.checked,
+    timeout_s: 120,
+    optimize: true,
+    max_trials: numberInputValue(els.pythonStrategyMaxTrials, 16, { min: 1, max: 120 }),
+    freshness_profile: els.backtestFreshnessProfile?.value || "research_default",
+    require_fresh_prices: !!els.backtestRequireFresh?.checked,
+    max_market_calendar_lag_days: numberInputValue(els.backtestMaxMarketLagDays, 3, { min: 0, max: 30 }),
+  };
+}
+
+function renderPythonStrategyParameterManifest(data = {}) {
+  const manifest = Array.isArray(data.parameter_manifest) ? data.parameter_manifest : [];
+  const params = data.parameters || {};
+  const search = data.search_space || {};
+  if (!manifest.length) return decisionEmpty("Python strategy parameter manifest is empty.");
+  return `
+    <div class="decision-section-title">Python parameter manifest</div>
+    <div class="decision-status-row">
+      <span class="decision-badge ${escapeHtml(decisionStatusClass(data.validation?.valid ? "success" : "partial"))}">${escapeHtml(data.validation?.valid ? "valid" : "review")}</span>
+      <span>${escapeHtml(data.family || "strategy")} · ${escapeHtml(data.language || "python")} · ${escapeHtml(llmStatusLabel(data.llm_diagnostics?.status || data.model_status || "deterministic_template"))}</span>
+    </div>
+    <div class="decision-table-wrap">
+      <table class="decision-table">
+        <thead><tr><th>Parameter</th><th>Default</th><th>Active</th><th>Optimize values</th></tr></thead>
+        <tbody>
+          ${manifest.map((item) => `
+            <tr>
+              <td>${escapeHtml(item.label || item.name)}</td>
+              <td>${escapeHtml(String(item.default ?? "-"))}</td>
+              <td>${escapeHtml(String(params[item.name] ?? item.default ?? "-"))}</td>
+              <td>${escapeHtml(JSON.stringify(search[item.name] || item.optimize_values || []))}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+    <div class="decision-assumption">Python code is rendered from this manifest; optimization evaluates manifest values rather than arbitrary untrusted code.</div>
+  `;
+}
+
+function renderPythonStrategyChart(data = {}) {
+  const backtest = data.backtest || {};
+  const chart = backtest.chart || {};
+  const rows = Array.isArray(chart.rows) ? chart.rows : [];
+  if (rows.length < 2) {
+    return decisionEmpty("Python strategy did not produce enough chart rows for visual entry/exit review.");
+  }
+  const width = Math.max(980, Math.min(5600, rows.length * 8 + 160));
+  const height = 450;
+  const padLeft = 74;
+  const padRight = 58;
+  const padTop = 28;
+  const padBottom = 52;
+  const { min, max } = paddedChartDomain(rows.flatMap((row) => [row.high || row.close, row.low || row.close, row.close, row.supertrend]));
+  const points = rows.map((row, index) => {
+    const x = padLeft + (index / Math.max(1, rows.length - 1)) * (width - padLeft - padRight);
+    return {
+      ...row,
+      x,
+      y: chartY(min, max, Number(row.close), height, padTop, padBottom),
+      stY: chartY(min, max, Number(row.supertrend), height, padTop, padBottom),
+    };
+  });
+  const markers = (Array.isArray(chart.markers) ? chart.markers : []).slice(-160).map((marker, index) => {
+    const point = nearestChartPoint(points, marker.date);
+    if (!point) return "";
+    const kind = String(marker.kind || "").toLowerCase() === "exit" ? "exit" : "entry";
+    const y = Number.isFinite(Number(marker.price))
+      ? chartY(min, max, Number(marker.price), height, padTop, padBottom)
+      : point.y;
+    const tooltip = `${marker.date || point.date} · ${kind} · ${marker.side || "-"} · ${marker.reason || "-"} · ${formatQuantValue(marker.price || point.close)}`;
+    const shape = kind === "exit"
+      ? `<path d="M ${point.x.toFixed(2)} ${(y + 9).toFixed(2)} L ${(point.x - 7).toFixed(2)} ${(y - 5).toFixed(2)} L ${(point.x + 7).toFixed(2)} ${(y - 5).toFixed(2)} Z"></path>`
+      : `<path d="M ${point.x.toFixed(2)} ${(y - 9).toFixed(2)} L ${(point.x - 7).toFixed(2)} ${(y + 5).toFixed(2)} L ${(point.x + 7).toFixed(2)} ${(y + 5).toFixed(2)} Z"></path>`;
+    return `
+      <g class="auto-trading-signal-marker ${kind}" data-testid="python-strategy-${kind}-marker" data-chart-tooltip="${escapeHtml(tooltip)}" transform="translate(0 ${index % 2 === 0 ? 0 : kind === "entry" ? -8 : 8})">
+        ${shape}
+        <title>${escapeHtml(tooltip)}</title>
+      </g>
+    `;
+  }).join("");
+  const metrics = backtest.metrics || {};
+  const entryCount = (chart.markers || []).filter((marker) => marker.kind === "entry").length;
+  const exitCount = (chart.markers || []).filter((marker) => marker.kind === "exit").length;
+  return `
+    <div class="auto-trading-chart python-strategy-chart" data-testid="python-strategy-chart">
+      <div class="internal-chart-head">
+        <div>
+          <strong>${escapeHtml(data.ticker || backtest.ticker || "asset")} Python strategy chart</strong>
+          <span>${escapeHtml(rows[0].date)} -> ${escapeHtml(rows[rows.length - 1].date)} · ${escapeHtml(_fmtNumber(rows.length))} bars · ${escapeHtml(data.family || "strategy")}</span>
+        </div>
+        <b class="${Number(metrics.total_return || 0) >= 0 ? "ok" : "warn"}">${escapeHtml(formatQuantValue(metrics.total_return))}</b>
+      </div>
+      <div class="auto-trading-metric-strip">
+        ${decisionMetric("Return", formatQuantValue(metrics.total_return), Number(metrics.total_return || 0) >= 0 ? "ok" : "warn")}
+        ${decisionMetric("Sharpe", formatQuantValue(metrics.sharpe), Number(metrics.sharpe || 0) > 0.8 ? "ok" : "warn")}
+        ${decisionMetric("Max DD", formatQuantValue(metrics.max_drawdown), Number(metrics.max_drawdown || 0) < -0.2 ? "warn" : "ok")}
+        ${decisionMetric("Trades", _fmtNumber(metrics.trade_count || 0), Number(metrics.trade_count || 0) ? "ok" : "warn")}
+        ${decisionMetric("Entry/Exit", `${_fmtNumber(entryCount)} / ${_fmtNumber(exitCount)}`, entryCount || exitCount ? "ok" : "warn")}
+      </div>
+      <div class="internal-chart-scroll" tabindex="0" aria-label="Python strategy signal chart horizontal scroll">
+        <svg class="internal-ohlc-chart auto-trading-svg python-strategy-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(data.ticker || "asset")} Python strategy signal chart">
+          ${renderChartYAxis({ width, height, padLeft, padRight, padTop, padBottom, min, max, formatter: (value) => fmtDecimal(value, Math.abs(value) >= 100 ? 0 : 2) })}
+          <polyline points="${svgPolylinePoints(points)}" class="internal-close-line"></polyline>
+          <polyline points="${points.map((point) => `${point.x.toFixed(2)},${point.stY.toFixed(2)}`).join(" ")}" class="python-supertrend-line"></polyline>
+          ${markers}
+          ${renderChartHoverTargets(points.map((point) => ({ ...point, value: point.close })), (point) => `${point.date || "-"} · Close ${fmtDecimal(point.value, 2)} · Supertrend ${fmtDecimal(point.supertrend, 2)} · ${point.trend || "-"}`)}
+        </svg>
+      </div>
+      <div class="auto-trading-legend">
+        <span><i class="entry"></i> Entry</span>
+        <span><i class="exit"></i> Exit</span>
+        <span><i class="rebalance"></i> Supertrend line</span>
+      </div>
+      <div class="decision-assumption">Signals are confirmed on the prior bar and executed on the next bar; visual markers show execution points, not live orders.</div>
+    </div>
+  `;
+}
+
+function renderPythonStrategyResult(data = {}, startedAt = Date.now()) {
+  const backtest = data.backtest || {};
+  const metrics = backtest.metrics || {};
+  const optimization = data.optimization || {};
+  const best = optimization.best_parameters || {};
+  const recommended = optimization.recommended_parameters || {};
+  const warnings = [...(data.warnings || []), ...(backtest.warnings || []), ...(optimization.warnings || [])];
+  return `
+    ${renderActionCompletion("Python strategy run complete", startedAt, `${data.family || "strategy"} · ${backtest.run_id || "run"}`)}
+    <div class="decision-status-row">
+      <span class="decision-badge ${escapeHtml(decisionStatusClass(data.status || "partial"))}">${escapeHtml(data.status || "partial")}</span>
+      <span>${escapeHtml(data.model_status || "deterministic_template")} · ${escapeHtml(data.validation?.valid ? "Python validated" : "Python review required")}</span>
+    </div>
+    <div class="decision-practical-grid forecast-metric-grid">
+      ${decisionMetric("Return", formatQuantValue(metrics.total_return), Number(metrics.total_return || 0) >= 0 ? "ok" : "warn")}
+      ${decisionMetric("Sharpe", formatQuantValue(metrics.sharpe), Number(metrics.sharpe || 0) > 0.8 ? "ok" : "warn")}
+      ${decisionMetric("Drawdown", formatQuantValue(metrics.max_drawdown), Number(metrics.max_drawdown || 0) < -0.2 ? "warn" : "ok")}
+      ${decisionMetric("Trades", _fmtNumber(metrics.trade_count || 0), Number(metrics.trade_count || 0) ? "ok" : "warn")}
+      ${decisionMetric("Bayesian", optimization.status || "skipped", optimization.status === "success" ? "ok" : "warn")}
+      ${decisionMetric("Trials", _fmtNumber(optimization.trial_count || 0), Number(optimization.trial_count || 0) ? "ok" : "warn")}
+    </div>
+    <div class="strategy-research-explain">
+      <strong>Recommended parameters</strong>
+      <p>${escapeHtml(JSON.stringify(recommended || {}, null, 0) || "-")}</p>
+      <strong>Best raw parameters</strong>
+      <p>${escapeHtml(JSON.stringify(best || {}, null, 0) || "-")}</p>
+      <p>${escapeHtml(data.rationale || "Python strategy code, backtest, and optimization were generated from the validated manifest.")}</p>
+    </div>
+    ${warnings.length ? `<div class="decision-warning">${escapeHtml(formatQuantWarnings(warnings))}</div>` : ""}
+  `;
+}
+
+async function runPythonStrategyLab() {
+  if (!els.pythonStrategyRun || !els.autoTradingChartSurface) return;
+  const startedAt = Date.now();
+  const request = pythonStrategyRequestFromControls();
+  setButtonBusy(els.pythonStrategyRun, true, "Running");
+  if (els.pythonStrategyResultSurface) {
+    els.pythonStrategyResultSurface.innerHTML = decisionEmpty("Python strategy code, backtest, and Bayesian optimization are running.");
+  }
+  if (els.autoTradingChartSurface) {
+    els.autoTradingChartSurface.innerHTML = decisionEmpty(`${request.ticker} Python strategy chart is rendering after backtest.`);
+  }
+  try {
+    const res = await fetch(API.quantPythonStrategyRun, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+    state.pythonStrategyLastRun = data;
+    if (els.pythonStrategyCode) els.pythonStrategyCode.value = data.code || "";
+    if (els.pythonStrategyParamSurface) els.pythonStrategyParamSurface.innerHTML = renderPythonStrategyParameterManifest(data);
+    if (els.pythonStrategyResultSurface) els.pythonStrategyResultSurface.innerHTML = renderPythonStrategyResult(data, startedAt);
+    if (els.autoTradingChartSurface) els.autoTradingChartSurface.innerHTML = renderPythonStrategyChart(data);
+    const scroller = els.autoTradingChartSurface?.querySelector?.(".internal-chart-scroll");
+    if (scroller) window.requestAnimationFrame(() => { scroller.scrollLeft = Math.max(0, scroller.scrollWidth - scroller.clientWidth); });
+  } catch (err) {
+    const message = err.message || String(err);
+    if (els.pythonStrategyResultSurface) {
+      els.pythonStrategyResultSurface.innerHTML = `${renderActionCompletion("Python strategy run failed", startedAt, message, "fail")}${decisionEmpty(message)}`;
+    }
+    if (els.autoTradingChartSurface) els.autoTradingChartSurface.innerHTML = decisionEmpty(`Python strategy chart failed: ${message}`);
+  } finally {
+    setButtonBusy(els.pythonStrategyRun, false);
   }
 }
 
@@ -22736,6 +22938,7 @@ function bindInputs() {
   if (els.autoTradingSave) els.autoTradingSave.addEventListener("click", saveAutoTradingStrategy);
   if (els.autoTradingBacktest) els.autoTradingBacktest.addEventListener("click", runAutoTradingBacktest);
   if (els.autoTradingOptimize) els.autoTradingOptimize.addEventListener("click", runAutoTradingOptimize);
+  if (els.pythonStrategyRun) els.pythonStrategyRun.addEventListener("click", runPythonStrategyLab);
   if (els.quantModelProfileRefresh) els.quantModelProfileRefresh.addEventListener("click", () => loadQuantModelProfiles(true));
   if (els.quantModelProfileSelect) {
     els.quantModelProfileSelect.addEventListener("change", () => {

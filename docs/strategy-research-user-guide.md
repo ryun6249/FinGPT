@@ -20,6 +20,7 @@ UI:
 API:
 
 - `/api/v1/quant/strategy-research/*`
+- `/api/v1/quant/python-strategy/run`
 
 Artifacts:
 
@@ -37,6 +38,19 @@ Artifacts:
 8. Run diagnostics to identify failure tags and cost/drawdown context.
 9. Generate hypotheses and keep them pending until validation evidence is reviewed.
 10. Run validation, then accept or reject strategy versions and hypotheses based on OOS, walk-forward, stability, Monte Carlo, and cost stress evidence.
+
+## Python Strategy Lab
+
+Use `Python strategy` in `Auto Trading Workbench` when you want natural language to produce Python strategy code instead of governed JSON. The current production path supports a Supertrend family:
+
+- natural-language intent -> validated Python code
+- parameter manifest for ATR period, factor, long/short enablement, stop loss, take profit, commission, and slippage
+- AST/interface validation before the code is treated as usable
+- repo-local backtest over data-mart prices
+- Bayesian optimization over the same manifest search space
+- SVG chart with Supertrend line plus entry/exit execution markers
+
+The backend deliberately does not execute arbitrary LLM code. LLM output is used as an intent/parameter plan, then FinGPT renders and validates the Python code from a controlled template so the backtest and optimizer stay reproducible.
 
 ## Presets
 

@@ -13635,6 +13635,14 @@ html[data-theme="light"] .quality-context-item {
   margin-bottom: 0;
 }
 
+.python-strategy-panel {
+  border-color: color-mix(in srgb, var(--bull), transparent 66%);
+}
+
+.python-strategy-code {
+  min-height: 260px;
+}
+
 .strategy-generation-progress {
   display: grid;
   gap: 9px;
@@ -13756,6 +13764,14 @@ html[data-theme="light"] .quality-context-item {
 .auto-trading-signal-marker.rebalance path {
   fill: var(--accent);
   stroke: color-mix(in srgb, var(--accent), black 18%);
+}
+
+.python-supertrend-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 7 5;
+  vector-effect: non-scaling-stroke;
 }
 
 .auto-trading-legend {
