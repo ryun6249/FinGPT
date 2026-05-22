@@ -115,6 +115,32 @@ def test_python_strategy_lab_generates_moving_average_strategy(monkeypatch) -> N
     assert result["robustness_validation"]["walk_forward"]["segments"]
 
 
+def test_python_strategy_lab_prompt_family_overrides_wrong_llm_family(monkeypatch) -> None:
+    monkeypatch.setattr(python_generator, "get_prices", lambda ticker, limit=252: _cycle_rows(limit))
+    monkeypatch.setattr(
+        python_generator,
+        "_call_local_llm_plan",
+        lambda **kwargs: '{"family":"supertrend","rationale":"wrong family","parameters":{"atr_period":10,"factor":3},"search_space":{}}',
+    )
+
+    result = run_python_strategy_lab(
+        PythonStrategyRunRequest(
+            prompt="빠른 이동평균과 느린 이동평균이 교차하면 진입하고 반대로 교차하면 청산하는 Python 전략을 만들어줘.",
+            ticker="SPY",
+            use_local_llm=True,
+            optimize=True,
+            max_trials=4,
+            parameter_overrides={"fast_window": 5, "slow_window": 25, "enable_short": True},
+        )
+    )
+
+    assert result["family"] == "moving_average_crossover"
+    assert "def simple_moving_average" in result["code"]
+    assert result["llm_diagnostics"]["status"] == "success"
+    assert "llm_family_overridden_by_prompt:supertrend->moving_average_crossover" in result["warnings"]
+    assert result["backtest"]["chart"]["trade_paths"]
+
+
 def test_python_strategy_lab_generates_rsi_reversion_strategy(monkeypatch) -> None:
     monkeypatch.setattr(python_generator, "get_prices", lambda ticker, limit=252: _cycle_rows(limit))
 

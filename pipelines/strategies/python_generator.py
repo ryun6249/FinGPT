@@ -1441,6 +1441,11 @@ def _strategy_plan_from_prompt(
         family = str(parsed.get("family") or fallback["family"]).strip().lower()
         if family not in SUPPORTED_FAMILIES:
             family = fallback["family"]
+        family_warnings: list[str] = []
+        prompt_family = _explicit_family_from_prompt(str(prompt or "").lower())
+        if prompt_family and prompt_family != family:
+            family_warnings.append(f"llm_family_overridden_by_prompt:{family}->{prompt_family}")
+            family = prompt_family
         params = {**fallback["parameters"], **_clean_parameter_overrides(parsed.get("parameters") or {}), **_clean_parameter_overrides(parameter_overrides)}
         search_space = {**fallback["search_space"], **_clean_search_space(parsed.get("search_space") or {}), **_clean_search_space(search_space_override)}
         return {
@@ -1450,7 +1455,7 @@ def _strategy_plan_from_prompt(
             "search_space": _search_space_for_family(family, search_space),
             "model_status": "local_llm_plan_template_python",
             "llm_diagnostics": _llm_diagnostics(True, True, "success", model=model, base_url=base_url, fallback_used=False),
-            "warnings": [],
+            "warnings": family_warnings,
         }
     except Exception as exc:  # noqa: BLE001
         fallback["model_status"] = "fallback_after_llm_error"
@@ -1515,11 +1520,19 @@ def _fallback_plan(prompt: str) -> dict[str, Any]:
 
 
 def _family_from_prompt(clean: str) -> str:
+    return _explicit_family_from_prompt(clean) or "supertrend"
+
+
+def _explicit_family_from_prompt(clean: str) -> str | None:
     if any(token in clean for token in ["rsi", "relative strength", "mean reversion", "reversion", "oversold", "overbought", "평균회귀", "과매도", "과매수"]):
         return "rsi_reversion"
-    if any(token in clean for token in ["moving average", "ma crossover", "ma cross", "sma", "ema", "golden cross", "death cross", "이동평균", "골든크로스", "데드크로스"]):
+    if any(token in clean for token in ["moving average", "ma crossover", "ma cross", "sma", "ema", "golden cross", "death cross", "이동평균", "이평", "골든크로스", "데드크로스"]):
         return "moving_average_crossover"
-    return "supertrend"
+    if "교차" in clean and any(token in clean for token in ["fast", "slow", "빠른", "느린", "이동평균", "이평"]):
+        return "moving_average_crossover"
+    if any(token in clean for token in ["supertrend", "슈퍼트렌드"]):
+        return "supertrend"
+    return None
 
 
 def _manifest_for_plan(plan: dict[str, Any]) -> list[dict[str, Any]]:
