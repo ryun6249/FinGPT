@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FinGPT Local Research Assistant</title>
-  <link rel="stylesheet" href="styles.css?v=20260523-python-strategy-v5" />
+  <link rel="stylesheet" href="styles.css?v=20260523-python-strategy-v6" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='48' font-size='48'%3E%F0%9F%93%88%3C/text%3E%3C/svg%3E" />
 </head>
 <body>
@@ -940,7 +940,7 @@
                 </div>
                 <div class="auto-trading-action-row">
                   <button type="button" id="autoTradingDraft" class="ghost-btn" data-testid="auto-trading-draft">New draft</button>
-                  <button type="button" id="autoTradingGenerate" class="ghost-btn" data-testid="auto-trading-generate">LLM strategy</button>
+                  <button type="button" id="autoTradingGenerate" class="ghost-btn" data-testid="auto-trading-generate">JSON strategy</button>
                   <button type="button" id="autoTradingDryRun" class="ghost-btn" data-testid="auto-trading-dry-run">Validate code</button>
                   <button type="button" id="autoTradingSave" class="ghost-btn" data-testid="auto-trading-save">Save</button>
                   <button type="button" id="autoTradingBacktest" class="ghost-btn strong" data-testid="auto-trading-backtest">Backtest signals</button>
@@ -953,13 +953,13 @@
               </div>
               <div class="auto-trading-editor-stack">
                 <label class="auto-trading-prompt-panel">
-                  <span>LLM strategy prompt</span>
-                  <textarea id="autoTradingPrompt" class="strategy-prompt-input" spellcheck="false" aria-label="Auto Trading LLM strategy prompt">Create a risk-adjusted momentum strategy for the selected assets. Use next-bar execution, include transaction costs, and explain failure conditions before any promotion.</textarea>
+                  <span>Strategy intent prompt</span>
+                  <textarea id="autoTradingPrompt" class="strategy-prompt-input" spellcheck="false" aria-label="Auto Trading strategy intent prompt">Create a risk-adjusted momentum strategy for the selected assets. Use next-bar execution, include transaction costs, and explain failure conditions before any promotion.</textarea>
                 </label>
                 <div class="auto-trading-param-panel" data-testid="auto-trading-llm-parameter-tuning">
                   <div class="auto-trading-param-head">
-                    <label class="inline-check"><input id="autoTradingParamTuningEnabled" type="checkbox" checked aria-label="Enable LLM parameter tuning" /> LLM parameter tuning</label>
-                    <select id="autoTradingParamObjective" aria-label="LLM parameter tuning objective">
+                    <label class="inline-check"><input id="autoTradingParamTuningEnabled" type="checkbox" checked aria-label="Enable JSON parameter tuning" /> JSON parameter tuning</label>
+                    <select id="autoTradingParamObjective" aria-label="JSON parameter tuning objective">
                       <option value="risk_adjusted_return" selected>Risk-adjusted return</option>
                       <option value="drawdown_control">Drawdown control</option>
                       <option value="turnover_control">Turnover control</option>
@@ -968,7 +968,7 @@
                   </div>
                   <textarea id="autoTradingParamSearchSpace" class="auto-trading-param-search" spellcheck="false" aria-label="LLM parameter search space">{"lookback":[21,42,63,126],"vol_lookback":[14,21,42],"top_n":[1,2,3,5],"rebalance_every":[5,10,21,42],"transaction_cost_bps":[2,5,10],"slippage_bps":[1,2,5],"portfolio_method":["equal_weight","inverse_volatility","risk_parity","minimum_volatility","max_sharpe"]}</textarea>
                   <div id="autoTradingParamSurface" class="decision-surface compact-surface auto-trading-param-surface" data-testid="auto-trading-parameter-surface">
-                    <div class="home-news-empty">LLM parameter tuning will show selected ranges, adjusted values, and model status here.</div>
+                    <div class="home-news-empty">JSON strategy tuning will show selected ranges, adjusted values, and model status here.</div>
                   </div>
                 </div>
                 <label class="auto-trading-code-panel">
@@ -1025,48 +1025,6 @@
               <p class="form-notice subtle">현재 화면은 전략 리서치와 운영 준비용입니다. 브로커 실행, LEAN protected evidence, live 주문은 별도 protected runtime이 확인되기 전까지 fail-closed로 유지됩니다.</p>
             </div>
           </section>
-          <section class="home-card strategy-governance-card auto-trading-surface" data-panel-tier="operations">
-            <div class="home-card-head">
-              <h3>전략 거버넌스</h3>
-              <button type="button" id="quantStrategyRefresh" class="linkish" data-testid="quant-strategy-refresh">새로고침</button>
-            </div>
-            <div class="decision-form strategy-governance-form">
-              <button type="button" id="quantStrategyNewDraft" class="ghost-btn" data-testid="quant-strategy-new-draft">새 초안</button>
-              <button type="button" id="quantStrategyGenerate" class="ghost-btn" data-testid="quant-strategy-generate">로컬 LLM 생성</button>
-              <button type="button" id="quantStrategyDryRun" class="ghost-btn" data-testid="quant-strategy-dry-run">검증</button>
-              <button type="button" id="quantStrategySave" class="ghost-btn" data-testid="quant-strategy-save">저장</button>
-              <button type="button" id="quantStrategyDelete" class="ghost-btn danger" data-testid="quant-strategy-delete">저장본 삭제</button>
-            </div>
-            <div class="strategy-editor-note">
-              프롬프트 결과가 Python 코드가 아니면 실행 코드로 취급하지 않고 JSON 전략 정의를 기준으로 재현성을 보장합니다. Python 전략 코드는 서버 측 샌드박스, 허용 API, 산출물 추적, 보안 검토가 붙은 별도 어댑터로 도입해야 하며, 지금 화면에서는 실행 가능한 Python을 직접 저장하지 않습니다.
-            </div>
-            <div class="strategy-workbench-grid">
-              <label class="strategy-prompt-panel">
-                <span>전략 코드 프롬프트</span>
-                <textarea id="strategyPromptInput" class="strategy-prompt-input" spellcheck="false" aria-label="Local LLM strategy prompt">63일 모멘텀 상위 2개를 사고, 21일 변동성이 높은 종목은 비중을 낮추며, 모든 신호는 다음 봉 종가에 체결되게 해주세요.</textarea>
-              </label>
-              <label class="strategy-code-panel">
-                <span>실제 전략 코드</span>
-                <textarea id="strategyDefinitionJson" class="strategy-json-editor" spellcheck="false" aria-label="Strategy definition JSON only"></textarea>
-              </label>
-            </div>
-            <div id="strategyPromptReviewSurface" class="strategy-review-surface">
-              <div class="strategy-review-card">
-                <strong>장점</strong>
-                <p>프롬프트로 전략을 생성하면 여기에 장점이 정리됩니다.</p>
-              </div>
-              <div class="strategy-review-card warn">
-                <strong>단점</strong>
-                <p>거래비용, 데이터 공백, 과최적화 가능성을 저장 전 검증하세요.</p>
-              </div>
-            </div>
-            <div id="quantStrategyResultSurface" class="decision-surface compact-surface">
-              <div class="home-news-empty">전략을 불러오거나 초안을 만든 뒤 저장 전 검증하세요.</div>
-            </div>
-            <div id="quantStrategySurface" class="decision-surface">
-              <div class="home-news-empty">저장된 전략은 버전, 출처, 체결 정책, 사용 팩터와 함께 표시됩니다.</div>
-            </div>
-          </section>
           <section class="home-card model-profile-card quant-surface" data-panel-tier="primary">
             <div class="home-card-head">
               <h3>Model Profile</h3>
@@ -1090,7 +1048,7 @@
             </div>
             <div class="decision-note">전략은 신호/체결 규칙만 담당하고, 모델 프로필은 유니버스, 타깃, 검증, 모델, 랭킹 기준을 관리합니다. 기존 ML Forecast 엔진은 그대로 사용합니다.</div>
             <div id="quantModelProfileSurface" class="decision-surface">
-              <div class="home-news-empty">현재 Forecast 설정과 Strategy Governance 선택을 연결해 Model Lab 프로필을 검증하거나 저장하세요.</div>
+              <div class="home-news-empty">Connect the current Forecast settings with a saved strategy selection to validate or save a Model Lab profile.</div>
             </div>
           </section>
           <section class="home-card quant-rank-card quant-surface" data-panel-tier="primary">
@@ -1171,8 +1129,8 @@
               </label>
               <label>
                 <span>저장 전략</span>
-                <select id="backtestStrategyRegistry" aria-label="Strategy Governance linked strategy">
-                  <option value="">Strategy Governance 선택</option>
+                <select id="backtestStrategyRegistry" aria-label="Saved strategy selector">
+                  <option value="">Saved strategy</option>
                 </select>
               </label>
               <label>
@@ -2008,6 +1966,6 @@
   <script src="modules/quant-ui.js?v=20260521-market-signals-v1"></script>
   <script src="modules/ai-portfolio-ui.js?v=20260520-ai-portfolio-ops-v1"></script>
   <script src="modules/quantamental-ui.js?v=20260521-quantamental-decision-v23"></script>
-  <script src="app.js?v=20260523-python-strategy-v5"></script>
+  <script src="app.js?v=20260523-python-strategy-v6"></script>
 </body>
 </html>

@@ -1,5 +1,15 @@
 # Continuous Enhancement Log
 
+## 2026-05-23 Auto Trading Duplicate Generator Cleanup
+
+- Runtime: `2026-05-23 04:25 KST`.
+- Current status: removed the lower duplicate Auto Trading `Strategy Governance` generator card so strategy operation is no longer split across two LLM/code-generation surfaces.
+- UI/UX: `/ui/#auto-trading` now keeps JSON strategy draft/edit/validate/save controls inside the top `Auto Trading Workbench`, keeps Python Strategy Lab as the natural-language-to-Python code path, and moves `Strategy Research Lab` directly after the Auto Trading control card.
+- Contract cleanup: static assets were bumped to `app.js?v=20260523-python-strategy-v6` and `styles.css?v=20260523-python-strategy-v6`; UI routing expectations, static contract markers, and smoke coverage were updated to assert the removed duplicate controls stay absent.
+- Verification: `node --check app\web\app.js`; `python scripts\check_ui_contract.py`; `python -m pytest tests\test_ui_routing_contract.py -q` (`43 passed, 4 subtests passed`); `python -m pytest tests\test_python_strategy_generator.py tests\test_strategy_generator.py tests\test_quant_lab_api.py tests\test_ui_routing_contract.py -q` (`72 passed, 4 subtests passed`); and `git diff --check` all passed. `git diff --check` reported only LF/CRLF working-copy warnings.
+- Browser verification: in-app Browser was unavailable because no active Codex browser pane was attached, so local Playwright verified `http://127.0.0.1:8828/ui/#auto-trading`: v6 app/style bundles loaded, duplicate `Strategy Governance` generator and old `quantStrategy*`/`strategyDefinitionJson` controls were absent, `JSON strategy` remained in the top workbench, `Python Strategy Lab` and `Strategy Research Lab` remained visible, `New draft -> Validate code` rendered `검증 통과`, console errors `0`, and desktop/mobile body overflow `0`.
+- Screenshots: `F:\LLM\auto-trading-dedup-v6-desktop-8828.png`, `F:\LLM\auto-trading-dedup-v6-mobile-8828.png`.
+
 ## 2026-05-23 Python Strategy Trade Path Visualization
 
 - Runtime: `2026-05-23 03:45 KST`.

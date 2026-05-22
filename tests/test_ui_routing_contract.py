@@ -149,8 +149,8 @@ class UiRoutingContractTests(unittest.TestCase):
         self.assertIn('src="modules/quant-ui.js?v=20260521-market-signals-v1"', html)
         self.assertIn('src="modules/ai-portfolio-ui.js?v=20260520-ai-portfolio-ops-v1"', html)
         self.assertIn('src="modules/quantamental-ui.js?v=20260521-quantamental-decision-v23"', html)
-        self.assertIn('href="styles.css?v=20260523-python-strategy-v5"', html)
-        self.assertIn('src="app.js?v=20260523-python-strategy-v5"', html)
+        self.assertIn('href="styles.css?v=20260523-python-strategy-v6"', html)
+        self.assertIn('src="app.js?v=20260523-python-strategy-v6"', html)
         self.assertIn('id="dashboardContextStrip"', html)
         self.assertIn("dashboardDecisionCards", self.source)
         self.assertIn("function loadDashboardDecisionCards", self.source)
@@ -174,7 +174,7 @@ class UiRoutingContractTests(unittest.TestCase):
         self.assertIn('DOMAIN_BUNDLE_VERSION = "20260521-market-signals-v1"', smoke_source)
         self.assertIn('AI_PORTFOLIO_BUNDLE_VERSION = "20260520-ai-portfolio-ops-v1"', smoke_source)
         self.assertIn('QUANTAMENTAL_BUNDLE_VERSION = "20260521-quantamental-decision-v23"', smoke_source)
-        self.assertIn('APP_BUNDLE_VERSION = "20260523-python-strategy-v5"', smoke_source)
+        self.assertIn('APP_BUNDLE_VERSION = "20260523-python-strategy-v6"', smoke_source)
         self.assertIn("def _normalize_base_url", smoke_source)
         self.assertIn("modules/quantamental-ui.js", smoke_source)
         self.assertIn("FinGPTQuantamentalUi?.topSignals", smoke_source)
@@ -552,16 +552,23 @@ class UiRoutingContractTests(unittest.TestCase):
         self.assertIn("function startStrategyGenerationProgress", self.source)
         self.assertIn("function renderStrategyGenerationProgress", self.source)
         self.assertIn("parameter_tuning: parameterTuning", self.source)
+        self.assertIn("function strategyResultSurfaces", self.source)
+        self.assertIn("els.strategyPromptInput || els.autoTradingPrompt", self.source)
+        self.assertIn("els.strategyDefinitionJson?.value || els.autoTradingCode?.value", self.source)
         self.assertIn("API.quantUniverseResolve", self.source)
         self.assertIn("function resolveBacktestUniverseAvailability", self.source)
-        self.assertIn('id="strategyPromptInput"', html)
-        self.assertIn('id="quantStrategyGenerate"', html)
-        self.assertIn('id="strategyPromptReviewSurface"', html)
+        self.assertNotIn('id="strategyPromptInput"', html)
+        self.assertNotIn('id="quantStrategyGenerate"', html)
+        self.assertNotIn('id="strategyPromptReviewSurface"', html)
+        self.assertNotIn('id="strategyDefinitionJson"', html)
+        self.assertNotIn('Strategy Governance 선택', html)
+        self.assertNotIn('aria-label="Strategy Governance linked strategy"', html)
+        self.assertIn('data-testid="auto-trading-generate">JSON strategy</button>', html)
         self.assertIn('id="autoTradingParamObjective"', html)
         self.assertIn('id="autoTradingParamSearchSpace"', html)
         self.assertIn('data-testid="auto-trading-parameter-surface"', html)
-        self.assertIn("Strategy definition JSON only", html)
-        self.assertIn("Python \ucf54\ub4dc\uac00 \uc544\ub2c8\uba74", html)
+        self.assertIn('data-testid="python-strategy-lab"', html)
+        self.assertIn('id="pythonStrategyCode"', html)
 
     def test_dashboard_tab_switching_is_url_addressable_and_verified(self):
         html = INDEX_HTML.read_text(encoding="utf-8")
@@ -902,12 +909,11 @@ class UiRoutingContractTests(unittest.TestCase):
         for marker in [
             'data-testid="quant-feature-run"',
             'data-testid="quant-signal-run"',
-            'data-testid="quant-strategy-refresh"',
-            'data-testid="quant-strategy-new-draft"',
-            'data-testid="quant-strategy-generate"',
-            'data-testid="quant-strategy-dry-run"',
-            'data-testid="quant-strategy-save"',
-            'data-testid="quant-strategy-delete"',
+            'data-testid="auto-trading-draft"',
+            'data-testid="auto-trading-generate"',
+            'data-testid="auto-trading-dry-run"',
+            'data-testid="auto-trading-save"',
+            'data-testid="python-strategy-run"',
             'data-testid="strategy-research-lab"',
             'data-testid="strategy-research-optimize"',
             'data-testid="strategy-research-diagnose"',
@@ -1043,8 +1049,8 @@ class UiRoutingContractTests(unittest.TestCase):
         self.assertIn('data-testid="python-strategy-result-surface"', html)
         self.assertIn('data-testid="auto-trading-chart-surface"', html)
         self.assertIn('data-testid="auto-trading-control-plane"', html)
-        self.assertIn('class="home-card strategy-governance-card auto-trading-surface"', html)
         self.assertIn('class="home-card strategy-research-card auto-trading-surface"', html)
+        self.assertNotIn('class="home-card strategy-governance-card auto-trading-surface"', html)
         self.assertNotIn('class="home-card strategy-governance-card quant-surface"', html)
         self.assertNotIn('class="home-card strategy-research-card quant-surface"', html)
         self.assertIn('state.activeDashboardTab === "auto-trading"', self.source)
@@ -1085,8 +1091,7 @@ class UiRoutingContractTests(unittest.TestCase):
         for class_name, order in {
             "auto-trading-workbench-card": "1",
             "auto-trading-control-card": "2",
-            "strategy-governance-card": "3",
-            "strategy-research-card": "4",
+            "strategy-research-card": "3",
         }.items():
             pattern = rf'\.dashboard-surface-grid\[data-dashboard-tab="auto-trading"\] \.{class_name} \{{(?P<body>.*?)\}}'
             matches = list(re.finditer(pattern, css, re.S))

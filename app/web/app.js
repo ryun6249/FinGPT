@@ -4677,7 +4677,7 @@ const UI_LANGUAGE_COPY = {
       market: ["Market Dashboard", "Enter a ticker for single-name research, or leave it blank so the question can route to rates, credit, FX, commodities, or themes."],
       macro: ["Macro", "Review data quality, regimes, asset impact, policy hints, and research context separately from AI interpretation."],
       risk: ["Risk", "Review company, macro, transmission, scenario, and data-quality risk without generating trade action instructions."],
-      "auto-trading": ["Auto Trading", "Operate strategy definitions, local LLM drafts, validation, parameter research, and paper/live seam candidates in one tab."],
+      "auto-trading": ["Auto Trading", "Operate JSON/Python strategy drafts, validation, parameter research, and paper/live seam candidates in one tab."],
       quant: ["Quant Lab", "Evaluate strategy validation, Model Lab forecasts, universe ranking, backtests, and portfolio allocation under consistent assumptions."],
       quantamental: ["Quantamental", "Compute fundamentals, price, factor, and risk signals deterministically while AI only interprets the structured output."],
       forecast: ["ML Forecast", "A verifiable forecasting lab for OOS forward returns, probabilities, confidence, signals, and cost-aware backtests."],
@@ -14004,8 +14004,8 @@ function strategyCodeOnlyPayload(strategy) {
 }
 
 function setStrategyEditor(strategy) {
-  if (!els.strategyDefinitionJson) return;
-  els.strategyDefinitionJson.value = JSON.stringify(strategyCodeOnlyPayload(strategy), null, 2);
+  const payload = JSON.stringify(strategyCodeOnlyPayload(strategy), null, 2);
+  if (els.strategyDefinitionJson) els.strategyDefinitionJson.value = payload;
   state.activeStrategyId = String(strategy?.strategy_id || "");
   setAutoTradingEditor(strategy);
 }
@@ -14088,7 +14088,7 @@ function renderStrategyGenerationProgress(progress = {}, llm = {}, tuning = {}) 
         <strong>${escapeHtml(llmStatusLabel(status))}</strong>
         <span>${escapeHtml(fmtDecimal(percent, 0))}%</span>
       </div>
-      <div class="strategy-progress-track" aria-label="LLM strategy generation progress">
+      <div class="strategy-progress-track" aria-label="Strategy generation progress">
         <div class="strategy-progress-bar ${escapeHtml(decisionStatusClass(statusClass))}" style="width:${escapeHtml(String(percent))}%"></div>
       </div>
       <div class="decision-chip-row compact">
@@ -14201,13 +14201,14 @@ function renderStrategyPromptReview(data) {
 }
 
 async function runQuantStrategyGenerate() {
-  if (!els.strategyPromptInput || !els.strategyDefinitionJson) return;
-  const prompt = els.strategyPromptInput.value.trim();
+  const promptControl = els.strategyPromptInput || els.autoTradingPrompt;
+  const prompt = String(promptControl?.value || "").trim();
   if (!prompt) {
     showQuantStrategyMessage("전략 프롬프트를 먼저 작성하세요.", "failed");
     return;
   }
-  const button = els.quantStrategyGenerate;
+  const button = els.quantStrategyGenerate || els.autoTradingGenerate;
+  const idleText = button?.textContent || "JSON strategy";
   if (button) {
     button.disabled = true;
     button.textContent = "생성 중";
@@ -14250,13 +14251,13 @@ async function runQuantStrategyGenerate() {
     stopProgress();
     if (button) {
       button.disabled = false;
-      button.textContent = "로컬 LLM 생성";
+      button.textContent = idleText;
     }
   }
 }
 
 function strategyPayloadFromEditor() {
-  const raw = els.strategyDefinitionJson?.value || "";
+  const raw = els.strategyDefinitionJson?.value || els.autoTradingCode?.value || "";
   if (!raw.trim()) return quantStrategyDraftFromControls();
   return strategyCodeOnlyPayload(JSON.parse(raw));
 }
@@ -14314,7 +14315,7 @@ function populateBacktestStrategyRegistry() {
   const items = Array.isArray(state.quantStrategyItems) ? state.quantStrategyItems : [];
   const selected = state.activeStrategyId || els.backtestStrategyRegistry.value || "";
   els.backtestStrategyRegistry.innerHTML = `
-    <option value="">전략 거버넌스 선택</option>
+    <option value="">저장 전략 선택</option>
     ${items.map((item) => {
       const id = item.strategy_id || "";
       const label = item.name || id;
@@ -14372,8 +14373,8 @@ function autoTradingPayloadFromEditor() {
 }
 
 function syncAutoTradingCodeToGovernance() {
-  if (!els.autoTradingCode || !els.strategyDefinitionJson) return;
-  if (els.autoTradingCode.value.trim()) {
+  if (!els.autoTradingCode) return;
+  if (els.strategyDefinitionJson && els.autoTradingCode.value.trim()) {
     els.strategyDefinitionJson.value = els.autoTradingCode.value;
   }
 }
@@ -15319,10 +15320,10 @@ async function runPythonStrategyLab() {
 }
 
 function renderQuantStrategyList(extraHtml = "") {
-  if (!els.quantStrategySurface) return;
   const items = Array.isArray(state.quantStrategyItems) ? state.quantStrategyItems : [];
   populateBacktestStrategyRegistry();
   populateAutoTradingStrategySelect();
+  if (!els.quantStrategySurface) return;
   if (!items.length) {
     els.quantStrategySurface.innerHTML = `${extraHtml}${decisionEmpty("아직 사용할 수 있는 전략 정의가 없습니다.")}`;
     return;
@@ -15379,12 +15380,23 @@ function renderQuantStrategyList(extraHtml = "") {
   });
 }
 
+function strategyResultSurfaces() {
+  return [els.quantStrategyResultSurface, els.autoTradingDryRunSurface]
+    .filter((surface, index, surfaces) => surface && surfaces.indexOf(surface) === index);
+}
+
+function setStrategyResultHtml(html) {
+  strategyResultSurfaces().forEach((surface) => {
+    surface.innerHTML = html;
+  });
+}
+
 function renderQuantStrategyResult(data) {
-  if (!els.quantStrategyResultSurface) return;
+  if (!strategyResultSurfaces().length) return;
   const diagnostics = data.diagnostics || {};
   const status = data.status || "unknown";
   const strategy = data.strategy || {};
-  els.quantStrategyResultSurface.innerHTML = `
+  setStrategyResultHtml(`
     <div class="decision-status-row">
       <span class="decision-badge ${escapeHtml(decisionStatusClass(status))}">${escapeHtml(decisionStatusLabel(status))}</span>
       <span>${escapeHtml(strategy.strategy_id || state.activeStrategyId || "전략")} · 검증 ${data.valid ? "통과" : "점검 필요"}</span>
@@ -15399,26 +15411,36 @@ function renderQuantStrategyResult(data) {
     ${(diagnostics.migration_history || []).length ? `<div class="decision-warning">전략 스키마 자동 마이그레이션: ${escapeHtml(diagnostics.migration_history.map((item) => item.migration || item.to_schema_version || "migration").join(", "))}</div>` : ""}
     ${(diagnostics.missing_features || []).length ? `<div class="decision-warning">누락 팩터: ${escapeHtml(diagnostics.missing_features.join(", "))}</div>` : ""}
     ${(data.warnings || []).length ? `<div class="decision-warning">${escapeHtml(formatQuantWarnings(data.warnings))}</div>` : ""}
-  `;
+  `);
 }
 
 async function loadQuantStrategies(force = false) {
-  if (!els.quantStrategySurface || (state.quantStrategiesLoaded && !force)) return;
+  if (state.quantStrategiesLoaded && !force) {
+    populateBacktestStrategyRegistry();
+    populateAutoTradingStrategySelect();
+    return;
+  }
   const startedAt = Date.now();
   setButtonBusy(els.quantStrategyRefresh, true, "새로고침 중");
-  els.quantStrategySurface.innerHTML = decisionEmpty("저장된 전략 목록을 불러오는 중입니다.");
+  if (els.quantStrategySurface) {
+    els.quantStrategySurface.innerHTML = decisionEmpty("저장된 전략 목록을 불러오는 중입니다.");
+  }
   try {
     const res = await fetch(API.quantStrategies);
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
     state.quantStrategyItems = Array.isArray(data.items) ? data.items : [];
     state.quantStrategiesLoaded = true;
+    populateBacktestStrategyRegistry();
+    populateAutoTradingStrategySelect();
     renderQuantStrategyList(renderActionCompletion("전략 목록 갱신 완료", startedAt, `${_fmtNumber(state.quantStrategyItems.length)}개 전략`));
-    if (!els.strategyDefinitionJson?.value.trim()) {
+    if (!(els.strategyDefinitionJson?.value || els.autoTradingCode?.value || "").trim()) {
       setStrategyEditor(state.quantStrategyItems[0] || quantStrategyDraftFromControls());
     }
   } catch (err) {
-    els.quantStrategySurface.innerHTML = decisionEmpty(`전략 목록 조회 실패: ${err.message || err}`);
+    if (els.quantStrategySurface) {
+      els.quantStrategySurface.innerHTML = decisionEmpty(`전략 목록 조회 실패: ${err.message || err}`);
+    }
   } finally {
     setButtonBusy(els.quantStrategyRefresh, false);
   }
@@ -15449,7 +15471,7 @@ async function loadQuantStrategyDetail(strategyId) {
 }
 
 async function runQuantStrategyDryRun(strategy = null) {
-  if (!els.quantStrategyResultSurface) return;
+  if (!strategyResultSurfaces().length) return;
   let payload = strategy;
   try {
     payload = payload || strategyPayloadFromEditor();
@@ -15457,7 +15479,7 @@ async function runQuantStrategyDryRun(strategy = null) {
     showQuantStrategyMessage(`전략 코드 JSON이 올바르지 않습니다: ${err.message || err}`, "failed");
     return;
   }
-  els.quantStrategyResultSurface.innerHTML = decisionEmpty("전략 검증이 팩터와 다음 봉 체결 정책을 확인하는 중입니다.");
+  setStrategyResultHtml(decisionEmpty("전략 검증이 팩터와 다음 봉 체결 정책을 확인하는 중입니다."));
   try {
     const res = await fetch(API.quantStrategyDryRun, {
       method: "POST",
@@ -15484,7 +15506,7 @@ async function saveQuantStrategy() {
     showQuantStrategyMessage(`전략 코드 JSON이 올바르지 않습니다: ${err.message || err}`, "failed");
     return;
   }
-  els.quantStrategyResultSurface.innerHTML = decisionEmpty("전략 정의를 저장하는 중입니다.");
+  setStrategyResultHtml(decisionEmpty("전략 정의를 저장하는 중입니다."));
   try {
     const res = await fetch(API.quantStrategySave, {
       method: "POST",
@@ -15523,13 +15545,13 @@ async function deleteQuantStrategy(strategyId = "") {
 }
 
 function showQuantStrategyMessage(message, status = "success") {
-  if (!els.quantStrategyResultSurface) return;
-  els.quantStrategyResultSurface.innerHTML = `
+  if (!strategyResultSurfaces().length) return;
+  setStrategyResultHtml(`
     <div class="decision-status-row">
       <span class="decision-badge ${escapeHtml(decisionStatusClass(status))}">${escapeHtml(decisionStatusLabel(status))}</span>
       <span>${escapeHtml(message)}</span>
     </div>
-  `;
+  `);
 }
 
 function quantModelProfileFromControls() {

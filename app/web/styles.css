@@ -823,12 +823,8 @@ input[type="range"]::-moz-range-thumb {
 .dashboard-surface-grid[data-dashboard-tab="auto-trading"] .auto-trading-control-card {
   order: 2;
 }
-.dashboard-surface-grid[data-dashboard-tab="auto-trading"] .strategy-governance-card {
-  order: 3;
-  grid-column: 1 / -1;
-}
 .dashboard-surface-grid[data-dashboard-tab="auto-trading"] .strategy-research-card {
-  order: 4;
+  order: 3;
   grid-column: 1 / -1;
 }
 .dashboard-surface-grid[data-dashboard-tab="quant"] .asset-detail-card {
@@ -841,9 +837,6 @@ input[type="range"]::-moz-range-thumb {
 .dashboard-surface-grid[data-dashboard-tab="quant"] .signal-card {
   order: 3;
 }
-.dashboard-surface-grid[data-dashboard-tab="quant"] .strategy-governance-card {
-  order: 4;
-}
 .dashboard-surface-grid[data-dashboard-tab="quant"] .backtest-card {
   order: 5;
 }
@@ -853,7 +846,6 @@ input[type="range"]::-moz-range-thumb {
 .dashboard-surface-grid[data-dashboard-tab="quant"] .quant-run-history-card {
   order: 7;
 }
-.dashboard-surface-grid[data-dashboard-tab="quant"] .strategy-governance-card,
 .dashboard-surface-grid[data-dashboard-tab="quant"] .asset-detail-card,
 .dashboard-surface-grid[data-dashboard-tab="quant"] .backtest-card,
 .dashboard-surface-grid[data-dashboard-tab="quant"] .signal-card,
@@ -3332,9 +3324,6 @@ input[type="range"]::-moz-range-thumb {
   justify-self: start;
   min-height: 32px;
 }
-.strategy-governance-card {
-  grid-column: span 2;
-}
 .model-profile-card {
   grid-column: 1 / -1;
 }
@@ -3344,11 +3333,6 @@ input[type="range"]::-moz-range-thumb {
 }
 .model-profile-form .ghost-btn {
   min-height: 32px;
-}
-.strategy-governance-form {
-  grid-template-columns: repeat(5, minmax(0, auto));
-  justify-content: start;
-  margin-bottom: 10px;
 }
 .strategy-workbench-grid {
   display: grid;
@@ -7194,10 +7178,8 @@ input[type="date"]:focus {
   .decision-metric-grid.dense { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ai-operation-detail-grid { grid-template-columns: 1fr; }
   .home-card-wide { grid-row: auto; }
-  .strategy-governance-card,
   .model-profile-card { grid-column: auto; }
   .model-profile-form { grid-template-columns: 1fr; }
-  .strategy-governance-form { grid-template-columns: repeat(2, minmax(0, auto)); }
   .home-hero { align-items: flex-start; flex-direction: column; }
   .home-status { align-items: flex-start; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
@@ -7247,7 +7229,6 @@ input[type="date"]:focus {
   .forecast-form,
   .macro-chart-grid,
   .macro-coverage-meta,
-  .strategy-governance-form,
   .strategy-workbench-grid,
   .strategy-review-surface,
   .asset-insight-list,
@@ -10081,7 +10062,6 @@ input[type="range"]::-webkit-slider-thumb {
 .forecast-form,
 .macro-search-form,
 .macro-research-form,
-.strategy-governance-form,
 .decision-form.ai-portfolio-form,
 .decision-form.ai-policy-form,
 .decision-form.backtest-form,
@@ -11624,10 +11604,6 @@ body.command-panel-expanded .layout {
 
 .dashboard-surface-grid[data-dashboard-tab="quant"] .signal-card {
   order: 5;
-}
-
-.dashboard-surface-grid[data-dashboard-tab="quant"] .strategy-governance-card {
-  order: 6;
 }
 
 .dashboard-surface-grid[data-dashboard-tab="quant"] .quant-run-history-card {
@@ -14250,8 +14226,7 @@ html[data-theme="light"] .quality-context-item {
 
 .dashboard-surface-grid[data-dashboard-tab="auto-trading"] .auto-trading-workbench-card { order: 1; grid-column: 1 / -1; }
 .dashboard-surface-grid[data-dashboard-tab="auto-trading"] .auto-trading-control-card { order: 2; }
-.dashboard-surface-grid[data-dashboard-tab="auto-trading"] .strategy-governance-card { order: 3; grid-column: 1 / -1; }
-.dashboard-surface-grid[data-dashboard-tab="auto-trading"] .strategy-research-card { order: 4; grid-column: 1 / -1; }
+.dashboard-surface-grid[data-dashboard-tab="auto-trading"] .strategy-research-card { order: 3; grid-column: 1 / -1; }
 
 .dashboard-surface-grid[data-dashboard-tab="quant"] .backtest-card { order: 1; grid-column: 1 / -1; }
 .dashboard-surface-grid[data-dashboard-tab="quant"] .portfolio-card { order: 2; }

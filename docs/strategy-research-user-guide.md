@@ -15,7 +15,7 @@ UI:
 
 - `/ui/#auto-trading`
 - Tab: `Auto Trading`
-- Cards: `Auto Trading Workbench`, `Auto Trading Control`, `Strategy Governance`, `Strategy Research Lab`
+- Cards: `Auto Trading Workbench`, `Auto Trading Control`, `Strategy Research Lab`
 
 API:
 
@@ -29,8 +29,8 @@ Artifacts:
 ## Workflow
 
 1. In `Auto Trading Workbench`, select the asset universe and chart asset.
-2. Edit the governed JSON strategy script or generate a local-LLM draft.
-3. Run dry-run validation before treating the script as usable evidence.
+2. Edit or generate the governed JSON strategy script in the workbench, or use `Python strategy` for natural-language-to-Python code generation.
+3. Run dry-run validation before treating a JSON script as usable evidence.
 4. Run `Backtest signals` to create Quant backtest evidence and render internal-data entry/exit markers.
 5. Review the asset evidence map so excluded, stale, or missing symbols are visible.
 6. Run Bayesian optimization from the workbench or Strategy Research Lab.

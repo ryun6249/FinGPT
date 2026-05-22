@@ -103,8 +103,10 @@ def _run_playwright_flow(base_url: str, *, timeout_s: int, screenshot_dir: Path)
                 "document.querySelector('#homeSurfaceGrid')?.getAttribute('data-panel-view') === 'all'",
                 timeout=timeout_ms,
             )
-            page.locator(".strategy-governance-card").wait_for(state="visible", timeout=timeout_ms)
+            page.locator(".auto-trading-workbench-card").wait_for(state="visible", timeout=timeout_ms)
             page.locator(".strategy-research-card").wait_for(state="visible", timeout=timeout_ms)
+            if page.locator(".strategy-governance-card.auto-trading-surface").count():
+                raise AssertionError("duplicate Auto Trading Strategy Governance card should be removed")
             _mark(checked, "auto trading tab")
 
             for selector in [
@@ -143,10 +145,10 @@ def _run_playwright_flow(base_url: str, *, timeout_s: int, screenshot_dir: Path)
                 "#quantStrategyGenerate",
                 "#strategyDefinitionJson",
                 "#strategyPromptReviewSurface",
-                "#quantStrategyDryRun",
             ]:
-                page.locator(selector).wait_for(state="visible", timeout=timeout_ms)
-                _mark(checked, selector)
+                if page.locator(selector).count():
+                    raise AssertionError(f"duplicate strategy generator control should be absent: {selector}")
+            _mark(checked, "duplicate strategy generator removed")
             page.locator("#symbolPickerModal").wait_for(state="attached", timeout=timeout_ms)
             _mark(checked, "#symbolPickerModal")
 
@@ -306,18 +308,14 @@ def _run_playwright_flow(base_url: str, *, timeout_s: int, screenshot_dir: Path)
                 "document.querySelector('#homeSurfaceGrid')?.getAttribute('data-dashboard-tab') === 'auto-trading'",
                 timeout=timeout_ms,
             )
-            _open_quality_panel(page, timeout_ms)
-            page.locator("#quantStrategySurface .decision-status-row").wait_for(state="visible", timeout=timeout_ms)
-            page.locator("#quantStrategyNewDraft").click()
-            editor_value = page.locator("#strategyDefinitionJson").input_value()
+            page.locator("#autoTradingDraft").click()
+            editor_value = page.locator("#autoTradingCode").input_value()
             if '"universe"' in editor_value or '"benchmark"' in editor_value:
                 raise AssertionError("strategy editor should not contain universe or benchmark fields")
-            page.locator(".strategy-editor-note").wait_for(state="visible", timeout=timeout_ms)
-            _mark(checked, "strategy editor code only")
-            page.locator("#quantStrategyDryRun").click()
-            page.locator("#quantStrategyResultSurface .decision-status-row").wait_for(state="visible", timeout=timeout_ms)
-            _mark(checked, "strategy governance dry-run")
-            _close_quality_panel(page, timeout_ms)
+            _mark(checked, "auto trading strategy editor code only")
+            page.locator("#autoTradingDryRun").click()
+            page.locator("#autoTradingDryRunSurface .decision-status-row").wait_for(state="visible", timeout=timeout_ms)
+            _mark(checked, "auto trading dry-run")
             page.locator("#quantLabTab").click()
             page.wait_for_function(
                 "document.querySelector('#homeSurfaceGrid')?.getAttribute('data-dashboard-tab') === 'quant'",
